@@ -13,54 +13,63 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Common">
+      <UniqueIdentifier>{1ffd8512-4526-48c4-bbe7-9280709424b5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Common\Header">
+      <UniqueIdentifier>{21bf6b3b-bc66-4f83-9ceb-b7b388bc66da}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Common\Source">
+      <UniqueIdentifier>{12da3c02-364e-40b0-ba94-9c3befa47d8f}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\Common\d3dApp.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="..\Common\d3dUtil.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
     <ClCompile Include="SceneGraphApp.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="..\Common\d3dApp.cpp">
+      <Filter>Common\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Common\d3dUtil.cpp">
+      <Filter>Common\Source</Filter>
+    </ClCompile>
     <ClCompile Include="..\Common\DDSTextureLoader.cpp">
-      <Filter>源文件</Filter>
+      <Filter>Common\Source</Filter>
     </ClCompile>
     <ClCompile Include="..\Common\GameTimer.cpp">
-      <Filter>源文件</Filter>
+      <Filter>Common\Source</Filter>
     </ClCompile>
     <ClCompile Include="..\Common\GeometryGenerator.cpp">
-      <Filter>源文件</Filter>
+      <Filter>Common\Source</Filter>
     </ClCompile>
     <ClCompile Include="..\Common\MathHelper.cpp">
-      <Filter>源文件</Filter>
+      <Filter>Common\Source</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Common\d3dApp.h">
-      <Filter>头文件</Filter>
+      <Filter>Common\Header</Filter>
     </ClInclude>
     <ClInclude Include="..\Common\d3dUtil.h">
-      <Filter>头文件</Filter>
+      <Filter>Common\Header</Filter>
     </ClInclude>
     <ClInclude Include="..\Common\d3dx12.h">
-      <Filter>头文件</Filter>
+      <Filter>Common\Header</Filter>
     </ClInclude>
     <ClInclude Include="..\Common\DDSTextureLoader.h">
-      <Filter>头文件</Filter>
+      <Filter>Common\Header</Filter>
     </ClInclude>
     <ClInclude Include="..\Common\GameTimer.h">
-      <Filter>头文件</Filter>
+      <Filter>Common\Header</Filter>
     </ClInclude>
     <ClInclude Include="..\Common\GeometryGenerator.h">
-      <Filter>头文件</Filter>
+      <Filter>Common\Header</Filter>
     </ClInclude>
     <ClInclude Include="..\Common\MathHelper.h">
-      <Filter>头文件</Filter>
+      <Filter>Common\Header</Filter>
     </ClInclude>
     <ClInclude Include="..\Common\UploadBuffer.h">
-      <Filter>头文件</Filter>
+      <Filter>Common\Header</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
