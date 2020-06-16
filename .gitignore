@@ -4,3 +4,5 @@
 
 /Debug
 /.vs
+/x64/Debug
+*.cso
