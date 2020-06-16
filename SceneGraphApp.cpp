@@ -420,33 +420,3 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 	FlushCommandQueue();
 }
 
-void SceneGraphApp::OnKeyUp(WPARAM vKey)
-{
-	D3DApp::OnKeyUp(vKey);
-}
-
-void SceneGraphApp::OnKeyDown(WPARAM vKey)
-{
-	constexpr float VER_PER_DELTA = 4.0f;
-	constexpr float HOR_PER_DELTA = 4.0f;
-	switch (vKey)
-	{
-	case VK_LEFT:
-		mCamera.DeltaHorAngle(HOR_PER_DELTA);
-		break;
-	case VK_RIGHT:
-		mCamera.DeltaHorAngle(-HOR_PER_DELTA);
-		break;
-	case VK_UP:
-		mCamera.DeltaVerAngle(VER_PER_DELTA);
-		break;
-	case VK_DOWN:
-		mCamera.DeltaVerAngle(-VER_PER_DELTA);
-		break;
-	default:
-		break;
-	}
-
-	D3DApp::OnKeyDown(vKey);
-}
-

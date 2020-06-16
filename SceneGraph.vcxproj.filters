@@ -54,6 +54,9 @@
     <ClCompile Include="Constants.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="SceneGraphAPP_Input.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Common\d3dApp.h">

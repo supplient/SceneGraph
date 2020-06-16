@@ -148,6 +148,7 @@
     <ClCompile Include="..\Common\GeometryGenerator.cpp" />
     <ClCompile Include="..\Common\MathHelper.cpp" />
     <ClCompile Include="Constants.cpp" />
+    <ClCompile Include="SceneGraphAPP_Input.cpp" />
     <ClCompile Include="WinMain.cpp" />
     <ClCompile Include="SceneGraphApp.cpp" />
   </ItemGroup>
