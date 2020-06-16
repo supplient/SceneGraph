@@ -266,16 +266,24 @@ void SceneGraphApp::Update(const GameTimer& gt)
 	{
 		auto& content = mPassConstants->content;
 		content.ViewMat = MathHelper::Identity4x4();
-		content.ProjMat = MathHelper::Identity4x4();
+
+		float widthHeightAspect = (float)mClientWidth / (float)mClientHeight;
+		float projHeight = 2.8f;
+		float projWidth = widthHeightAspect * projHeight;
+		XMMATRIX projMat = XMMatrixOrthographicLH(projWidth, projHeight, 0, 1);
+		projMat = XMMatrixTranspose(projMat);
+		XMStoreFloat4x4(&content.ProjMat, projMat);
 	}
 
 	// Update Object Constants
+	/*
 	{
 		auto& content = mObjConsts["triangle"]->content;
 		XMMATRIX modelMat = XMMatrixRotationZ(90.0f/180.0f*MathHelper::Pi);
 		modelMat = XMMatrixTranspose(modelMat);
 		XMStoreFloat4x4(&content.ModelMat, modelMat);
 	}
+	*/
 
 	// Update Pass Constant Buffers
 	{
