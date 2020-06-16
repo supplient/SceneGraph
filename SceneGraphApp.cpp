@@ -270,10 +270,10 @@ void SceneGraphApp::Update(const GameTimer& gt)
 		viewMat = XMMatrixTranspose(viewMat);
 		XMStoreFloat4x4(&content.ViewMat, viewMat);
 
-		float widthHeightAspect = (float)mClientWidth / (float)mClientHeight;
-		float projHeight = 2.8f;
-		float projWidth = widthHeightAspect * projHeight;
-		XMMATRIX projMat = XMMatrixOrthographicLH(projWidth, projHeight, -100, 100);
+
+		XMMATRIX projMat = mCamera.GetOrthoProjMatrix(
+			static_cast<float>(mClientWidth)/static_cast<float>(mClientHeight)
+		);
 		projMat = XMMatrixTranspose(projMat);
 		XMStoreFloat4x4(&content.ProjMat, projMat);
 	}

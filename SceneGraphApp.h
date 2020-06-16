@@ -42,6 +42,7 @@ private:
 	virtual void OnMouseDown(WPARAM btnState, int x, int y)override;
 	virtual void OnMouseUp(WPARAM btnState, int x, int y)override;
 	virtual void OnMouseMove(WPARAM btnState, int x, int y)override;
+	virtual void OnMouseWheel(WORD keyState, int delta, int x, int y)override;
 
 	virtual void OnKeyUp(WPARAM vKey)override;
 	virtual void OnKeyDown(WPARAM vKey)override;

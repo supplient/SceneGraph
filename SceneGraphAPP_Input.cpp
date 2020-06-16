@@ -22,6 +22,12 @@ void SceneGraphApp::OnMouseMove(WPARAM btnState, int x, int y)
 	D3DApp::OnMouseMove(btnState, x, y);
 }
 
+void SceneGraphApp::OnMouseWheel(WORD keyState, int delta, int x, int y)
+{
+	delta /= WHEEL_DELTA;
+	mCamera.DeltaDist(-delta * Camera::DIST_PER_WHEEL);
+}
+
 void SceneGraphApp::OnKeyUp(WPARAM vKey)
 {
 	D3DApp::OnKeyUp(vKey);

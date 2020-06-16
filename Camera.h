@@ -5,8 +5,9 @@ class Camera {
 public:
 	static constexpr float VER_PER_KEY = 4.0f;
 	static constexpr float HOR_PER_KEY = 4.0f;
-	static constexpr float ANGLE_PER_X = 0.5;
-	static constexpr float ANGLE_PER_Y = 0.5;
+	static constexpr float ANGLE_PER_X = 0.5f;
+	static constexpr float ANGLE_PER_Y = 0.5f;
+	static constexpr float DIST_PER_WHEEL = 0.5f;
 
 	DirectX::XMMATRIX GetViewMatrix() {
 		// Cal actual horAngle & verAngle
@@ -36,6 +37,20 @@ public:
 		
 		// Cal View Matrix
 		return DirectX::XMMatrixLookAtLH(eyePos, focusPos, { 0.0f, 1.0f, 0.0f });
+	}
+
+	DirectX::XMMATRIX GetOrthoProjMatrix(float widthHeightAspect) {
+		float height = mDist;
+		float width = widthHeightAspect * height;
+		return DirectX::XMMatrixOrthographicLH(
+			width, height, 0.0f, 2*mDist
+		);
+	}
+
+	void DeltaDist(float delta) {
+		mDist += delta;
+		if (mDist < 0.5)
+			mDist = 0.5;
 	}
 
 	void DeltaHorAngle(float delta) {
@@ -72,7 +87,7 @@ public:
 private:
 	float mHorAngle = 0.0f;
 	float mVerAngle = 0.0f;
-	float mDist = 1.0f;
+	float mDist = 2.5f;
 
 	float mViewDragging = false;
 	std::array<int, 2> mStartMousePos;
