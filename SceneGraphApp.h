@@ -14,15 +14,24 @@ public:
 	virtual bool Initialize()override;
 
 	// Initialize
+	// Init PSOs
 	void BuildInputLayout();
 	void BuildRootSignature();
 	void BuildShaders();
 	void BuildPSOs();
 
-	void BuildGeos();
-	void BuildObjectConstantBuffers();
+	// Init Scene
+	void BuildScene();
 
+	// Init Scene Resources
+	void BuildPassConstantBuffers();
+	void BuildGeos();
+
+	// Init Render Items
 	void BuildRenderItems();
+	
+	// Init Render Item Resources
+	void BuildObjectConstantBuffers();
 
 private:
 	virtual void OnResize()override;
@@ -40,16 +49,21 @@ private:
 	std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3DBlob>> mShaders;
 
 	// PSOs
-	//    DESCs are saved for convenience.
-	std::unordered_map<std::string, D3D12_GRAPHICS_PIPELINE_STATE_DESC> mPSODescs;
 	std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3D12PipelineState>> mPSOs;
+
+	// Scene Constants
+	std::unique_ptr<PassConstants> mPassConstants;
 
 	// Geometries
 	std::unordered_map<std::string, std::shared_ptr<MeshGeometry>> mGeos;
 
-	// Constant Buffers
-	std::unique_ptr<UploadBuffer<ObjectConstants::Content>> mObjectConstantBuffers;
+	// Object Constants
+	std::unordered_map<std::string, std::shared_ptr<ObjectConstants>> mObjConsts;
 
 	// Render Items
-	std::vector<std::shared_ptr<RenderItem>> mRenderItems;
+	std::vector<std::shared_ptr<RenderItem>> mRenderItemQueue;
+
+	// Constant Buffers
+	std::unique_ptr<UploadBuffer<ObjectConstants::Content>> mObjectConstantsBuffers;
+	std::unique_ptr<UploadBuffer<PassConstants::Content>> mPassConstantsBuffers;
 };

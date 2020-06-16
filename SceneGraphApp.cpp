@@ -34,10 +34,11 @@ bool SceneGraphApp::Initialize()
 	BuildShaders();
 	BuildPSOs();
 
-	// If we have a scene defination, we should load here.
-	// Now we just hard-encode the scene.
+	// Init Scene
+	BuildScene();
 	
 	// Init Scene Resources
+	BuildPassConstantBuffers();
 	BuildGeos();
 
 	// Init Render Items
@@ -80,17 +81,22 @@ void SceneGraphApp::BuildInputLayout()
 void SceneGraphApp::BuildRootSignature()
 {
 /*
-	cb {
-		float4x4 mvpMat;
+	cb perObject{
+		float4x4 modelMat;
+	}
+	cb perPass{
+		float4x4 viewMat;
+		float4x4 projMat;
 	}
 */
 	// Describe root parameters
-	CD3DX12_ROOT_PARAMETER rootParams[1];
+	CD3DX12_ROOT_PARAMETER rootParams[2];
 	rootParams[0].InitAsConstantBufferView(0);
+	rootParams[1].InitAsConstantBufferView(1);
 
 	// Create desc for root signature
 	CD3DX12_ROOT_SIGNATURE_DESC rootSignDesc;
-	rootSignDesc.Init(1, rootParams);
+	rootSignDesc.Init(2, rootParams);
 	rootSignDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
 	// Serialize
@@ -152,8 +158,23 @@ void SceneGraphApp::BuildPSOs()
 	opaquePsoDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
 	opaquePsoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
 	opaquePsoDesc.DSVFormat = mDepthStencilFormat;
-	mPSODescs["opaque"] = opaquePsoDesc;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
+}
+
+void SceneGraphApp::BuildScene()
+{
+	// If we have a scene defination, we should load here.
+	// Now we just hard-encode the scene.
+	// So only initing mPassConstants is needed
+	mPassConstants = std::make_unique<PassConstants>();
+}
+
+void SceneGraphApp::BuildPassConstantBuffers()
+{
+	mPassConstantsBuffers = std::make_unique<UploadBuffer<PassConstants::Content>>(
+		md3dDevice.Get(), 
+		PassConstants::getTotalNum(), true
+	);
 }
 
 void SceneGraphApp::BuildGeos()
@@ -205,31 +226,31 @@ void SceneGraphApp::BuildGeos()
 	mGeos[geo->Name] = std::move(geo);
 }
 
-void SceneGraphApp::BuildObjectConstantBuffers()
-{
-	mObjectConstantBuffers = std::make_unique<UploadBuffer<ObjectConstants::Content>>(
-		md3dDevice.Get(), 
-		ObjectConstants::getTotalNum(), true
-	);
-}
-
 void SceneGraphApp::BuildRenderItems()
 {
+	// Create Object constants
+	auto triConsts = std::make_shared<ObjectConstants>();
+	triConsts->content.ModelMat = MathHelper::Identity4x4();
+	mObjConsts["triangle"] = triConsts;
+
 	// Create render items
 	auto renderItem = std::make_shared<RenderItem>();
 	renderItem->Geo = mGeos["triangle"];
 	renderItem->Submesh = mGeos["triangle"]->DrawArgs["triangle"];
 	renderItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-
 	renderItem->PSO = mPSOs["opaque"];
-	renderItem->RootSignature = mPSODescs["opaque"].pRootSignature;
-
-	auto consts = std::make_shared<ObjectConstants>();
-	consts->content.MVPMat = MathHelper::Identity4x4();
-	renderItem->Consts = std::move(consts);
+	renderItem->Consts = triConsts;
 
 	// Save render items
-	mRenderItems.push_back(std::move(renderItem));
+	mRenderItemQueue.push_back(std::move(renderItem));
+}
+
+void SceneGraphApp::BuildObjectConstantBuffers()
+{
+	mObjectConstantsBuffers = std::make_unique<UploadBuffer<ObjectConstants::Content>>(
+		md3dDevice.Get(), 
+		ObjectConstants::getTotalNum(), true
+	);
 }
 
 void SceneGraphApp::OnResize()
@@ -239,12 +260,39 @@ void SceneGraphApp::OnResize()
 
 void SceneGraphApp::Update(const GameTimer& gt)
 {
-	// Update Object Constant Buffers
-	for (auto renderItem : mRenderItems) {
-		mObjectConstantBuffers->CopyData(
-			renderItem->Consts->getID(),
-			renderItem->Consts->content
+	// Notice: Be careful, matrix need transpose.
+
+	// Update Pass Constants
+	{
+		auto& content = mPassConstants->content;
+		content.ViewMat = MathHelper::Identity4x4();
+		content.ProjMat = MathHelper::Identity4x4();
+	}
+
+	// Update Object Constants
+	{
+		auto& content = mObjConsts["triangle"]->content;
+		XMMATRIX modelMat = XMMatrixRotationZ(90.0f/180.0f*MathHelper::Pi);
+		modelMat = XMMatrixTranspose(modelMat);
+		XMStoreFloat4x4(&content.ModelMat, modelMat);
+	}
+
+	// Update Pass Constant Buffers
+	{
+		mPassConstantsBuffers->CopyData(
+			mPassConstants->getID(),
+			mPassConstants->content
 		);
+	}
+
+	// Update Object Constant Buffers
+	{
+		for (auto renderItem : mRenderItemQueue) {
+			mObjectConstantsBuffers->CopyData(
+				renderItem->Consts->getID(),
+				renderItem->Consts->content
+			);
+		}
 	}
 }
 
@@ -284,19 +332,24 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 
 	// Draw Scene
 	{
+		// Set Root Signature
+		mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
+
+		// Assign Pass Constants Buffer
+		auto passCBGPUAddr = mPassConstantsBuffers->Resource()->GetGPUVirtualAddress();
+		UINT64 passCBElementByteSize = mPassConstantsBuffers->getElementByteSize();
+		mCommandList->SetGraphicsRootConstantBufferView(
+			1, passCBGPUAddr + mPassConstants->getID() * passCBElementByteSize
+		);
 
 		// Draw Render Items
 		Microsoft::WRL::ComPtr<ID3D12PipelineState> nowPSO = nullptr;
 		ID3D12RootSignature* nowRootSign = nullptr;
-		auto objCBGPUAddr = mObjectConstantBuffers->Resource()->GetGPUVirtualAddress();
-		UINT64 objCBElementByteSize = mObjectConstantBuffers->getElementByteSize();
+		auto objCBGPUAddr = mObjectConstantsBuffers->Resource()->GetGPUVirtualAddress();
+		UINT64 objCBElementByteSize = mObjectConstantsBuffers->getElementByteSize();
 
-		for (auto renderItem : mRenderItems) {
-			// Change PSO & Root Signature if needed
-			if (!nowRootSign || nowRootSign != renderItem->RootSignature) {
-				nowRootSign = renderItem->RootSignature;
-				mCommandList->SetGraphicsRootSignature(nowRootSign);
-			}
+		for (auto renderItem : mRenderItemQueue) {
+			// Change PSO if needed
 			if (!nowPSO || nowPSO.Get() != renderItem->PSO.Get()) {
 				nowPSO = renderItem->PSO;
 				mCommandList->SetPipelineState(nowPSO.Get());
@@ -310,7 +363,7 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 			mCommandList->IASetIndexBuffer(&renderItem->Geo->IndexBufferView());
 			mCommandList->IASetPrimitiveTopology(renderItem->PrimitiveTopology);
 
-			// Assign root parameters
+			// Assign Object Constants Buffer
 			mCommandList->SetGraphicsRootConstantBufferView(
 				0, objCBGPUAddr + renderItem->Consts->getID()*objCBElementByteSize
 			);
