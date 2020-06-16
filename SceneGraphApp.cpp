@@ -7,6 +7,7 @@
 //***************************************************************************************
 
 #include "SceneGraphApp.h"
+#include "../Common/GeometryGenerator.h"
 
 using namespace DirectX;
 using Microsoft::WRL::ComPtr;
@@ -184,19 +185,18 @@ void SceneGraphApp::BuildGeos()
 	geo->Name = "triangle";
 
 	// Generate Vertex Info
-	std::vector<FLOAT> verts = {
-		1.0, 1.0, 0.5,
-		0, 0, 0.5,
-		0, 1.0, 0.5,
-	};
-	std::vector<UINT32> indices = {
-		0, 1, 2
-	};
-	UINT vertByteSize = static_cast<UINT>(verts.size() * sizeof(FLOAT));
+	GeometryGenerator geoGenerator;
+	GeometryGenerator::MeshData boxMesh = geoGenerator.CreateBox(1.0, 1.0, 1.0, 1);
+	std::vector<UINT32> indices = boxMesh.Indices32;
+	std::vector<XMFLOAT3> verts;
+	for (const auto& vert : boxMesh.Vertices) {
+		verts.push_back(vert.Position);
+	}
+	UINT vertByteSize = static_cast<UINT>(verts.size() * sizeof(XMFLOAT3));
 	UINT indexByteSize = static_cast<UINT>(indices.size() * sizeof(FLOAT));
 
 	// Fill buffer info
-	geo->VertexByteStride = sizeof(FLOAT) * 3;
+	geo->VertexByteStride = sizeof(XMFLOAT3);
 	geo->VertexBufferByteSize = vertByteSize;
 	geo->IndexFormat = DXGI_FORMAT_R32_UINT;
 	geo->IndexBufferByteSize = indexByteSize;
@@ -265,12 +265,15 @@ void SceneGraphApp::Update(const GameTimer& gt)
 	// Update Pass Constants
 	{
 		auto& content = mPassConstants->content;
-		content.ViewMat = MathHelper::Identity4x4();
+
+		XMMATRIX viewMat = mCamera.GetViewMatrix();
+		viewMat = XMMatrixTranspose(viewMat);
+		XMStoreFloat4x4(&content.ViewMat, viewMat);
 
 		float widthHeightAspect = (float)mClientWidth / (float)mClientHeight;
 		float projHeight = 2.8f;
 		float projWidth = widthHeightAspect * projHeight;
-		XMMATRIX projMat = XMMatrixOrthographicLH(projWidth, projHeight, 0, 1);
+		XMMATRIX projMat = XMMatrixOrthographicLH(projWidth, projHeight, -100, 100);
 		projMat = XMMatrixTranspose(projMat);
 		XMStoreFloat4x4(&content.ProjMat, projMat);
 	}
@@ -416,3 +419,34 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 	// so we do not have to wait per frame.
 	FlushCommandQueue();
 }
+
+void SceneGraphApp::OnKeyUp(WPARAM vKey)
+{
+	D3DApp::OnKeyUp(vKey);
+}
+
+void SceneGraphApp::OnKeyDown(WPARAM vKey)
+{
+	constexpr float VER_PER_DELTA = 4.0f;
+	constexpr float HOR_PER_DELTA = 4.0f;
+	switch (vKey)
+	{
+	case VK_LEFT:
+		mCamera.DeltaHorAngle(HOR_PER_DELTA);
+		break;
+	case VK_RIGHT:
+		mCamera.DeltaHorAngle(-HOR_PER_DELTA);
+		break;
+	case VK_UP:
+		mCamera.DeltaVerAngle(VER_PER_DELTA);
+		break;
+	case VK_DOWN:
+		mCamera.DeltaVerAngle(-VER_PER_DELTA);
+		break;
+	default:
+		break;
+	}
+
+	D3DApp::OnKeyDown(vKey);
+}
+

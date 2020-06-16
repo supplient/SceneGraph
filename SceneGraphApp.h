@@ -4,6 +4,7 @@
 #include "../Common/d3dApp.h"
 #include "../Common/UploadBuffer.h"
 #include "RenderItem.h"
+#include "Camera.h"
 
 class SceneGraphApp : public D3DApp
 {
@@ -38,6 +39,11 @@ private:
 	virtual void Update(const GameTimer& gt)override;
 	virtual void Draw(const GameTimer& gt)override;
 
+	virtual void OnKeyUp(WPARAM vKey)override;
+	virtual void OnKeyDown(WPARAM vKey)override;
+
+	// Camera
+	Camera mCamera;
 
 	// Input Layout
 	std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
