@@ -12,6 +12,7 @@ public:
 
 	struct Content {
 		DirectX::XMFLOAT4X4 ModelMat = MathHelper::Identity4x4();
+		DirectX::XMFLOAT4X4 NormalModelMat = MathHelper::Identity4x4();
 	} content;
 
 private:

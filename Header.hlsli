@@ -4,6 +4,7 @@
 cbuffer cbPerObject: register(b0)
 {
     float4x4 gModelMat;
+    float4x4 gNormalModelMat;
 };
 
 cbuffer cbPerPass : register(b1)
@@ -14,12 +15,14 @@ cbuffer cbPerPass : register(b1)
 
 struct VertexIn
 {
-    float3 posL : POS;
+    float3 posL : POSITION;
+    float3 normalL : NORMAL;
 };
 
 struct VertexOut
 {
-    float4 posW : POS;
+    float4 posW : POSITION;
+    float4 normalW : NORMAL;
     float4 posH : SV_POSITION;
 };
 

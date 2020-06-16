@@ -68,7 +68,7 @@ void SceneGraphApp::BuildInputLayout()
 */
 	// Describe vertex input element
 	D3D12_INPUT_ELEMENT_DESC pos;
-	pos.SemanticName = "POS";
+	pos.SemanticName = "POSITION";
 	pos.SemanticIndex = 0;
 	pos.Format = DXGI_FORMAT_R32G32B32_FLOAT;
 	pos.AlignedByteOffset = 0;
@@ -76,7 +76,11 @@ void SceneGraphApp::BuildInputLayout()
 	pos.InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA;
 	pos.InstanceDataStepRate = 0;
 
-	mInputLayout = { pos };
+	auto normal = pos;
+	pos.SemanticName = "NORMAL";
+	pos.AlignedByteOffset = sizeof(XMFLOAT3);
+
+	mInputLayout = { pos, normal };
 }
 
 void SceneGraphApp::BuildRootSignature()
@@ -180,6 +184,11 @@ void SceneGraphApp::BuildPassConstantBuffers()
 
 void SceneGraphApp::BuildGeos()
 {
+	struct Vertex {
+		XMFLOAT3 pos;
+		XMFLOAT3 normal;
+	};
+
 	// Create Geo
 	auto geo = std::make_shared<MeshGeometry>();
 	geo->Name = "triangle";
@@ -188,15 +197,15 @@ void SceneGraphApp::BuildGeos()
 	GeometryGenerator geoGenerator;
 	GeometryGenerator::MeshData boxMesh = geoGenerator.CreateBox(1.0, 1.0, 1.0, 1);
 	std::vector<UINT32> indices = boxMesh.Indices32;
-	std::vector<XMFLOAT3> verts;
+	std::vector<Vertex> verts;
 	for (const auto& vert : boxMesh.Vertices) {
-		verts.push_back(vert.Position);
+		verts.push_back({ vert.Position, vert.Normal });
 	}
-	UINT vertByteSize = static_cast<UINT>(verts.size() * sizeof(XMFLOAT3));
-	UINT indexByteSize = static_cast<UINT>(indices.size() * sizeof(FLOAT));
+	UINT vertByteSize = static_cast<UINT>(verts.size() * sizeof(Vertex));
+	UINT indexByteSize = static_cast<UINT>(indices.size() * sizeof(UINT32));
 
 	// Fill buffer info
-	geo->VertexByteStride = sizeof(XMFLOAT3);
+	geo->VertexByteStride = sizeof(Vertex);
 	geo->VertexBufferByteSize = vertByteSize;
 	geo->IndexFormat = DXGI_FORMAT_R32_UINT;
 	geo->IndexBufferByteSize = indexByteSize;
@@ -279,14 +288,26 @@ void SceneGraphApp::Update(const GameTimer& gt)
 	}
 
 	// Update Object Constants
-	/*
 	{
 		auto& content = mObjConsts["triangle"]->content;
-		XMMATRIX modelMat = XMMatrixRotationZ(90.0f/180.0f*MathHelper::Pi);
+
+		XMMATRIX modelMat = XMMatrixRotationZ(45.0f/180.0f*MathHelper::Pi);
 		modelMat = XMMatrixTranspose(modelMat);
 		XMStoreFloat4x4(&content.ModelMat, modelMat);
+		
+		XMFLOAT4X4 normalModelFloat4x4 = content.ModelMat;
+		normalModelFloat4x4._14 = 0;
+		normalModelFloat4x4._24 = 0;
+		normalModelFloat4x4._34 = 0;
+		normalModelFloat4x4._41 = 0;
+		normalModelFloat4x4._42 = 0;
+		normalModelFloat4x4._43 = 0;
+		normalModelFloat4x4._44 = 1;
+		XMMATRIX normalModelMat = XMLoadFloat4x4(&normalModelFloat4x4);
+		normalModelMat = MathHelper::InverseTranspose(normalModelMat);
+			// Has Transported above
+		XMStoreFloat4x4(&content.NormalModelMat, normalModelMat);
 	}
-	*/
 
 	// Update Pass Constant Buffers
 	{
