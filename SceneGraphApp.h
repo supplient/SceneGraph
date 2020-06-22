@@ -27,6 +27,8 @@ public:
 	// Init Scene Resources
 	void BuildPassConstantBuffers();
 	void BuildGeos();
+	void BuildMaterials();
+	void BuildAndUpdateMaterialConstantBuffers();
 
 	// Init Render Items
 	void BuildRenderItems();
@@ -68,6 +70,9 @@ private:
 	// Geometries
 	std::unordered_map<std::string, std::shared_ptr<MeshGeometry>> mGeos;
 
+	// Material Constants
+	std::unordered_map<std::string, std::shared_ptr<MaterialConstants>> mMtlConsts;
+
 	// Object Constants
 	std::unordered_map<std::string, std::shared_ptr<ObjectConstants>> mObjConsts;
 
@@ -75,6 +80,7 @@ private:
 	std::vector<std::shared_ptr<RenderItem>> mRenderItemQueue;
 
 	// Constant Buffers
+	std::unique_ptr<UploadBuffer<MaterialConstants::Content>> mMaterialConstantsBuffers;
 	std::unique_ptr<UploadBuffer<ObjectConstants::Content>> mObjectConstantsBuffers;
 	std::unique_ptr<UploadBuffer<PassConstants::Content>> mPassConstantsBuffers;
 };

@@ -9,9 +9,12 @@ public:
 	SubmeshGeometry Submesh;
 	D3D_PRIMITIVE_TOPOLOGY PrimitiveTopology;
 
+	// Material concerned
+	std::shared_ptr<MaterialConstants> MtlConsts = nullptr;
+
 	// Shader concerned
 	Microsoft::WRL::ComPtr<ID3D12PipelineState> PSO = nullptr;
 
-	// Constants concerned
-	std::shared_ptr<ObjectConstants> Consts = nullptr;
+	// Object Constants concerned
+	std::shared_ptr<ObjectConstants> ObjConsts = nullptr;
 };

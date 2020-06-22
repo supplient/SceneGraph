@@ -20,6 +20,24 @@ private:
 	static UINT sIDCount;
 };
 
+class MaterialConstants {
+public:
+	MaterialConstants() {
+		mID = sIDCount;
+		sIDCount++;
+	}
+	UINT getID()const { return mID; }
+	static UINT getTotalNum() { return sIDCount; }
+
+	struct Content {
+		DirectX::XMFLOAT4 Diffuse = { 1.0, 1.0, 1.0, 1.0 };
+	} content;
+
+private:
+	UINT mID;
+	static UINT sIDCount;
+};
+
 class PassConstants {
 public:
 	PassConstants() {

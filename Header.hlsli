@@ -7,7 +7,12 @@ cbuffer cbPerObject: register(b0)
     float4x4 gNormalModelMat;
 };
 
-cbuffer cbPerPass : register(b1)
+cbuffer cbPerMaterial : register(b1)
+{
+    float4 gDiffuse;
+};
+
+cbuffer cbPerPass : register(b2)
 {
     float4x4 gViewMat;
     float4x4 gProjMat;

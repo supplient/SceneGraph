@@ -41,6 +41,8 @@ bool SceneGraphApp::Initialize()
 	// Init Scene Resources
 	BuildPassConstantBuffers();
 	BuildGeos();
+	BuildMaterials();
+	BuildAndUpdateMaterialConstantBuffers();
 
 	// Init Render Items
 	BuildRenderItems();
@@ -89,19 +91,23 @@ void SceneGraphApp::BuildRootSignature()
 	cb perObject{
 		float4x4 modelMat;
 	}
+	cb perMaterial{
+		float4 diffuse;
+	}
 	cb perPass{
 		float4x4 viewMat;
 		float4x4 projMat;
 	}
 */
 	// Describe root parameters
-	CD3DX12_ROOT_PARAMETER rootParams[2];
+	CD3DX12_ROOT_PARAMETER rootParams[3];
 	rootParams[0].InitAsConstantBufferView(0);
 	rootParams[1].InitAsConstantBufferView(1);
+	rootParams[2].InitAsConstantBufferView(2);
 
 	// Create desc for root signature
 	CD3DX12_ROOT_SIGNATURE_DESC rootSignDesc;
-	rootSignDesc.Init(2, rootParams);
+	rootSignDesc.Init(3, rootParams);
 	rootSignDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
 	// Serialize
@@ -235,6 +241,31 @@ void SceneGraphApp::BuildGeos()
 	mGeos[geo->Name] = std::move(geo);
 }
 
+void SceneGraphApp::BuildMaterials()
+{
+	auto whiteMtl = std::make_shared<MaterialConstants>();
+	whiteMtl->content.Diffuse = { 1.0f, 1.0f, 1.0f, 1.0f };
+	mMtlConsts["white"] = whiteMtl;
+}
+
+void SceneGraphApp::BuildAndUpdateMaterialConstantBuffers()
+{
+	// Build Buffers
+	mMaterialConstantsBuffers = std::make_unique<UploadBuffer<MaterialConstants::Content>>(
+		md3dDevice.Get(), 
+		MaterialConstants::getTotalNum(), true
+	);
+	
+	// Update Buffers
+	for (auto mtl_pair : mMtlConsts) {
+		auto mtl = mtl_pair.second;
+		mMaterialConstantsBuffers->CopyData(
+			mtl->getID(),
+			mtl->content
+		);
+	}
+}
+
 void SceneGraphApp::BuildRenderItems()
 {
 	// Create Object constants
@@ -247,8 +278,9 @@ void SceneGraphApp::BuildRenderItems()
 	renderItem->Geo = mGeos["triangle"];
 	renderItem->Submesh = mGeos["triangle"]->DrawArgs["triangle"];
 	renderItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	renderItem->MtlConsts = mMtlConsts["white"];
 	renderItem->PSO = mPSOs["opaque"];
-	renderItem->Consts = triConsts;
+	renderItem->ObjConsts = mObjConsts["triangle"];
 
 	// Save render items
 	mRenderItemQueue.push_back(std::move(renderItem));
@@ -321,8 +353,8 @@ void SceneGraphApp::Update(const GameTimer& gt)
 	{
 		for (auto renderItem : mRenderItemQueue) {
 			mObjectConstantsBuffers->CopyData(
-				renderItem->Consts->getID(),
-				renderItem->Consts->content
+				renderItem->ObjConsts->getID(),
+				renderItem->ObjConsts->content
 			);
 		}
 	}
@@ -371,14 +403,16 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 		auto passCBGPUAddr = mPassConstantsBuffers->Resource()->GetGPUVirtualAddress();
 		UINT64 passCBElementByteSize = mPassConstantsBuffers->getElementByteSize();
 		mCommandList->SetGraphicsRootConstantBufferView(
-			1, passCBGPUAddr + mPassConstants->getID() * passCBElementByteSize
+			2, passCBGPUAddr + mPassConstants->getID() * passCBElementByteSize
 		);
 
 		// Draw Render Items
 		Microsoft::WRL::ComPtr<ID3D12PipelineState> nowPSO = nullptr;
-		ID3D12RootSignature* nowRootSign = nullptr;
+
 		auto objCBGPUAddr = mObjectConstantsBuffers->Resource()->GetGPUVirtualAddress();
 		UINT64 objCBElementByteSize = mObjectConstantsBuffers->getElementByteSize();
+		auto mtlCBGPUAddr = mMaterialConstantsBuffers->Resource()->GetGPUVirtualAddress();
+		UINT64 mtlCBElementByteSize = mMaterialConstantsBuffers->getElementByteSize();
 
 		for (auto renderItem : mRenderItemQueue) {
 			// Change PSO if needed
@@ -395,9 +429,14 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 			mCommandList->IASetIndexBuffer(&renderItem->Geo->IndexBufferView());
 			mCommandList->IASetPrimitiveTopology(renderItem->PrimitiveTopology);
 
+			// Assign Material Constants Buffer
+			mCommandList->SetGraphicsRootConstantBufferView(
+				1, mtlCBGPUAddr + renderItem->MtlConsts->getID() * mtlCBElementByteSize
+			);
+
 			// Assign Object Constants Buffer
 			mCommandList->SetGraphicsRootConstantBufferView(
-				0, objCBGPUAddr + renderItem->Consts->getID()*objCBElementByteSize
+				0, objCBGPUAddr + renderItem->ObjConsts->getID()*objCBElementByteSize
 			);
 
 			// Draw Call
