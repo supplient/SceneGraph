@@ -3,6 +3,7 @@
 
 #include "../Common/d3dApp.h"
 #include "../Common/UploadBuffer.h"
+#include "Light.h"
 #include "RenderItem.h"
 #include "Camera.h"
 
@@ -22,10 +23,12 @@ public:
 	void BuildPSOs();
 
 	// Init Scene
+	void BuildLights();
 	void BuildScene();
 
 	// Init Scene Resources
 	void BuildPassConstantBuffers();
+	void UpdateLightsInPassConstantBuffers();
 	void BuildGeos();
 	void BuildMaterials();
 	void BuildAndUpdateMaterialConstantBuffers();
@@ -63,6 +66,9 @@ private:
 
 	// PSOs
 	std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3D12PipelineState>> mPSOs;
+
+	// Lights
+	std::vector<DirectionLight> mDirLights;
 
 	// Scene Constants
 	std::unique_ptr<PassConstants> mPassConstants;

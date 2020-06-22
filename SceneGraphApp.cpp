@@ -36,10 +36,12 @@ bool SceneGraphApp::Initialize()
 	BuildPSOs();
 
 	// Init Scene
+	BuildLights();
 	BuildScene();
 	
 	// Init Scene Resources
 	BuildPassConstantBuffers();
+	UpdateLightsInPassConstantBuffers();
 	BuildGeos();
 	BuildMaterials();
 	BuildAndUpdateMaterialConstantBuffers();
@@ -172,6 +174,16 @@ void SceneGraphApp::BuildPSOs()
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
 }
 
+void SceneGraphApp::BuildLights()
+{
+	mDirLights.push_back(
+		{
+			{1.0f, 1.0f, 1.0f},
+			{1.0f, 0.0f, 1.0f}
+		}
+	);
+}
+
 void SceneGraphApp::BuildScene()
 {
 	// If we have a scene defination, we should load here.
@@ -186,6 +198,35 @@ void SceneGraphApp::BuildPassConstantBuffers()
 		md3dDevice.Get(), 
 		PassConstants::getTotalNum(), true
 	);
+}
+
+void SceneGraphApp::UpdateLightsInPassConstantBuffers()
+{
+	auto& content = mPassConstants->content;
+	unsigned int li = 0;
+
+	// direction lights
+	for (const auto& dirLight : mDirLights) {
+		LightConstants consts;
+
+		// Reverse & Normalize direction for convenience
+		// Note direction is a vector, so its w must be 0.0f.
+		XMVECTOR direction = XMLoadFloat3(&dirLight.Direction);
+		direction = XMVectorScale(direction, -1.0f);
+		direction = XMVector4Normalize(direction);
+		XMStoreFloat4(&consts.content.Direction, direction);
+
+		consts.content.Color = { 
+			dirLight.Color.x, 
+			dirLight.Color.y, 
+			dirLight.Color.z, 
+			1.0f 
+		};
+
+		content.Lights[li] = consts.content;
+		li++;
+	}
+	content.LightPerTypeNum.x = li;
 }
 
 void SceneGraphApp::BuildGeos()
@@ -323,7 +364,7 @@ void SceneGraphApp::Update(const GameTimer& gt)
 	{
 		auto& content = mObjConsts["triangle"]->content;
 
-		XMMATRIX modelMat = XMMatrixRotationZ(45.0f/180.0f*MathHelper::Pi);
+		XMMATRIX modelMat = XMLoadFloat4x4(&MathHelper::Identity4x4());
 		modelMat = XMMatrixTranspose(modelMat);
 		XMStoreFloat4x4(&content.ModelMat, modelMat);
 		

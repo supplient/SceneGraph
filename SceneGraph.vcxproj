@@ -163,6 +163,7 @@
     <ClInclude Include="..\Common\UploadBuffer.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="Constants.h" />
+    <ClInclude Include="Light.h" />
     <ClInclude Include="RenderItem.h" />
     <ClInclude Include="SceneGraphApp.h" />
   </ItemGroup>

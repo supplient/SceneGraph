@@ -1,0 +1,19 @@
+#pragma once
+#include "../Common/d3dUtil.h"
+
+class Light {
+public:
+	Light(DirectX::XMFLOAT3 color)
+		:Color(color) {
+	}
+	DirectX::XMFLOAT3 Color = { 1.0f, 1.0f, 1.0f };
+};
+
+class DirectionLight : public Light {
+public:
+	DirectionLight(DirectX::XMFLOAT3 color, DirectX::XMFLOAT3 dir)
+		:Light(color), Direction(dir) {
+	}
+
+	DirectX::XMFLOAT3 Direction = { 0.0f, 0.0f, 1.0f };
+};
