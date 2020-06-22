@@ -70,6 +70,7 @@ private:
 	// Lights
 	std::vector<DirectionLight> mDirLights;
 	std::vector<PointLight> mPointLights;
+	std::vector<SpotLight> mSpotLights;
 
 	// Scene Constants
 	std::unique_ptr<PassConstants> mPassConstants;

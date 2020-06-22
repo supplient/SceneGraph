@@ -185,6 +185,12 @@ void SceneGraphApp::BuildLights()
 		{0.8f, 0.2f, 0.0f},
 		{0.0f, 1.0f, 0.0f}
 	});
+
+	mSpotLights.push_back({
+		{0.1f, 0.7f, 0.2f},
+		{1.0f, 0.0f, 0.0f},
+		{-1.0f, 0.0f, 0.0f}
+	});
 }
 
 void SceneGraphApp::BuildScene()
@@ -209,6 +215,7 @@ void SceneGraphApp::UpdateLightsInPassConstantBuffers()
 	size_t totalLightNum = 0;
 	totalLightNum += mDirLights.size();
 	totalLightNum += mPointLights.size();
+	totalLightNum += mSpotLights.size();
 	if (totalLightNum > MAX_LIGHT_NUM)
 		throw "Lights too many with " + std::to_string(totalLightNum);
 
@@ -220,18 +227,12 @@ void SceneGraphApp::UpdateLightsInPassConstantBuffers()
 		LightConstants consts;
 
 		// Reverse & Normalize direction for convenience
-		// Note direction is a vector, so its w must be 0.0f.
 		XMVECTOR direction = XMLoadFloat3(&dirLight.Direction);
 		direction = XMVectorScale(direction, -1.0f);
 		direction = XMVector4Normalize(direction);
 		XMStoreFloat4(&consts.content.Direction, direction);
 
-		consts.content.Color = { 
-			dirLight.Color.x, 
-			dirLight.Color.y, 
-			dirLight.Color.z, 
-			1.0f 
-		};
+		consts.content.Color = MathHelper::XMFLOAT3TO4(dirLight.Color, 1.0f);
 
 		content.Lights[li] = consts.content;
 		li++;
@@ -242,24 +243,31 @@ void SceneGraphApp::UpdateLightsInPassConstantBuffers()
 	for (const auto& pointLight : mPointLights) {
 		LightConstants consts;
 
-		consts.content.Pos = {
-			pointLight.Position.x,
-			pointLight.Position.y,
-			pointLight.Position.z,
-			1.0f
-		};
-
-		consts.content.Color = { 
-			pointLight.Color.x, 
-			pointLight.Color.y, 
-			pointLight.Color.z, 
-			1.0f 
-		};
+		consts.content.Pos = MathHelper::XMFLOAT3TO4(pointLight.Position, 1.0f);
+		consts.content.Color = MathHelper::XMFLOAT3TO4(pointLight.Color, 1.0f);
 
 		content.Lights[li] = consts.content;
 		li++;
 	}
 	content.LightPerTypeNum.y = static_cast<UINT32>(mPointLights.size());
+
+	// spot lights
+	for (const auto& spotLight : mSpotLights) {
+		LightConstants consts;
+
+		// Reverse & Normalize direction for convenience
+		XMVECTOR direction = XMLoadFloat3(&spotLight.Direction);
+		direction = XMVectorScale(direction, -1.0f);
+		direction = XMVector4Normalize(direction);
+		XMStoreFloat4(&consts.content.Direction, direction);
+
+		consts.content.Pos = MathHelper::XMFLOAT3TO4(spotLight.Position, 1.0f);
+		consts.content.Color = MathHelper::XMFLOAT3TO4(spotLight.Color, 1.0f);
+
+		content.Lights[li] = consts.content;
+		li++;
+	}
+	content.LightPerTypeNum.z = static_cast<UINT32>(mSpotLights.size());
 }
 
 void SceneGraphApp::BuildGeos()
