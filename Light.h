@@ -17,3 +17,12 @@ public:
 
 	DirectX::XMFLOAT3 Direction = { 0.0f, 0.0f, 1.0f };
 };
+
+class PointLight : public Light {
+public:
+	PointLight(DirectX::XMFLOAT3 color, DirectX::XMFLOAT3 pos)
+		:Light(color), Position(pos) {
+	}
+
+	DirectX::XMFLOAT3 Position = { 0.0f, 0.0f, 0.0f };
+};

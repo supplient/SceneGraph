@@ -176,12 +176,15 @@ void SceneGraphApp::BuildPSOs()
 
 void SceneGraphApp::BuildLights()
 {
-	mDirLights.push_back(
-		{
-			{1.0f, 1.0f, 1.0f},
-			{1.0f, 0.0f, 1.0f}
-		}
-	);
+	mDirLights.push_back({
+		{1.0f, 1.0f, 1.0f},
+		{1.0f, 0.0f, 1.0f}
+	});
+
+	mPointLights.push_back({
+		{0.8f, 0.2f, 0.0f},
+		{0.0f, 1.0f, 0.0f}
+	});
 }
 
 void SceneGraphApp::BuildScene()
@@ -202,6 +205,13 @@ void SceneGraphApp::BuildPassConstantBuffers()
 
 void SceneGraphApp::UpdateLightsInPassConstantBuffers()
 {
+	// Check light num
+	size_t totalLightNum = 0;
+	totalLightNum += mDirLights.size();
+	totalLightNum += mPointLights.size();
+	if (totalLightNum > MAX_LIGHT_NUM)
+		throw "Lights too many with " + std::to_string(totalLightNum);
+
 	auto& content = mPassConstants->content;
 	unsigned int li = 0;
 
@@ -226,7 +236,30 @@ void SceneGraphApp::UpdateLightsInPassConstantBuffers()
 		content.Lights[li] = consts.content;
 		li++;
 	}
-	content.LightPerTypeNum.x = li;
+	content.LightPerTypeNum.x = static_cast<UINT32>(mDirLights.size());
+
+	// point lights
+	for (const auto& pointLight : mPointLights) {
+		LightConstants consts;
+
+		consts.content.Pos = {
+			pointLight.Position.x,
+			pointLight.Position.y,
+			pointLight.Position.z,
+			1.0f
+		};
+
+		consts.content.Color = { 
+			pointLight.Color.x, 
+			pointLight.Color.y, 
+			pointLight.Color.z, 
+			1.0f 
+		};
+
+		content.Lights[li] = consts.content;
+		li++;
+	}
+	content.LightPerTypeNum.y = static_cast<UINT32>(mPointLights.size());
 }
 
 void SceneGraphApp::BuildGeos()
