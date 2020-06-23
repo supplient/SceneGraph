@@ -26,6 +26,9 @@ public:
 	void BuildLights();
 	void BuildScene();
 
+	// Init Testing
+	void BuildTesting();
+
 	// Init Scene Resources
 	void BuildPassConstantBuffers();
 	void UpdateLightsInPassConstantBuffers();
@@ -52,14 +55,22 @@ private:
 	virtual void OnKeyUp(WPARAM vKey)override;
 	virtual void OnKeyDown(WPARAM vKey)override;
 
+	// Transparency concerned
+	// Just testing, so we do not sort them now.
+	Microsoft::WRL::ComPtr<ID3D12Resource> mSumResource;
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mUAVDescHeap;
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mUAVCPUDescHeap;
+
 	// Camera
 	Camera mCamera;
 
 	// Input Layout
 	std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
+	std::vector<D3D12_INPUT_ELEMENT_DESC> mPostInputLayout;
 
 	// Root Signature
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> mRootSignature;
+	Microsoft::WRL::ComPtr<ID3D12RootSignature> mPostRootSignature;
 
 	// Shaders
 	std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3DBlob>> mShaders;
@@ -86,6 +97,7 @@ private:
 
 	// Render Items
 	std::vector<std::shared_ptr<RenderItem>> mRenderItemQueue;
+	std::shared_ptr<RenderItem> mBackgroundRenderItem = nullptr;
 
 	// Constant Buffers
 	std::unique_ptr<UploadBuffer<MaterialConstants::Content>> mMaterialConstantsBuffers;

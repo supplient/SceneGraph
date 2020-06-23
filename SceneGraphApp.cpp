@@ -38,6 +38,9 @@ bool SceneGraphApp::Initialize()
 	// Init Scene
 	BuildLights();
 	BuildScene();
+
+	// Init Testing
+	BuildTesting();
 	
 	// Init Scene Resources
 	BuildPassConstantBuffers();
@@ -63,9 +66,14 @@ bool SceneGraphApp::Initialize()
 	return true;
 }
 
-void SceneGraphApp::BuildInputLayout()
-{
-/*
+void SceneGraphApp::BuildInputLayout() {
+/* normal
+	Vertex {
+		float3 pos;
+		float3 normal;
+	}
+*/
+/* post
 	Vertex {
 		float3 pos;
 	}
@@ -80,58 +88,115 @@ void SceneGraphApp::BuildInputLayout()
 	pos.InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA;
 	pos.InstanceDataStepRate = 0;
 
+	auto postPos = pos;
+
 	auto normal = pos;
 	pos.SemanticName = "NORMAL";
 	pos.AlignedByteOffset = sizeof(XMFLOAT3);
 
 	mInputLayout = { pos, normal };
+	mPostInputLayout = { postPos };
 }
 
 void SceneGraphApp::BuildRootSignature()
 {
-/*
-	cb perObject{
-		float4x4 modelMat;
+	{
+	/*
+		cb perObject{
+			float4x4 modelMat;
+		}
+		cb perMaterial{
+			float4 diffuse;
+		}
+		cb perPass{
+			float4x4 viewMat;
+			float4x4 projMat;
+		}
+
+		uab<uint8> testUA;
+	*/
+		D3D12_DESCRIPTOR_RANGE range;
+		range.BaseShaderRegister = 0;
+		range.NumDescriptors = 1;
+		range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+		range.OffsetInDescriptorsFromTableStart = 0U;
+		range.RegisterSpace = 0;
+
+		// Describe root parameters
+		CD3DX12_ROOT_PARAMETER rootParams[4];
+		rootParams[0].InitAsConstantBufferView(0);
+		rootParams[1].InitAsConstantBufferView(1);
+		rootParams[2].InitAsConstantBufferView(2);
+		rootParams[3].InitAsDescriptorTable(1, &range);
+
+		// Create desc for root signature
+		CD3DX12_ROOT_SIGNATURE_DESC rootSignDesc;
+		rootSignDesc.Init(4, rootParams);
+		rootSignDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+
+		// Serialize
+		ComPtr<ID3DBlob> serializedRootSignBlob = nullptr;
+		ComPtr<ID3DBlob> errorBlob = nullptr;
+		auto hr = D3D12SerializeRootSignature(
+			&rootSignDesc, D3D_ROOT_SIGNATURE_VERSION_1,
+			serializedRootSignBlob.GetAddressOf(), errorBlob.GetAddressOf()
+		);
+
+		// Check if failed
+		if (errorBlob != nullptr)
+			OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+		ThrowIfFailed(hr);
+
+		// Create root signature
+		ThrowIfFailed(md3dDevice->CreateRootSignature(
+			0, 
+			serializedRootSignBlob->GetBufferPointer(),
+			serializedRootSignBlob->GetBufferSize(),
+			IID_PPV_ARGS(&mRootSignature)
+		));
 	}
-	cb perMaterial{
-		float4 diffuse;
+
+	{
+	/*
+		uab<uint8> testUA;
+	*/
+		D3D12_DESCRIPTOR_RANGE range;
+		range.BaseShaderRegister = 0;
+		range.NumDescriptors = 1;
+		range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+		range.OffsetInDescriptorsFromTableStart = 0U;
+		range.RegisterSpace = 0;
+
+		// Describe root parameters
+		CD3DX12_ROOT_PARAMETER rootParams[1];
+		rootParams[0].InitAsDescriptorTable(1, &range);
+
+		// Create desc for root signature
+		CD3DX12_ROOT_SIGNATURE_DESC rootSignDesc;
+		rootSignDesc.Init(1, rootParams);
+		rootSignDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+
+		// Serialize
+		ComPtr<ID3DBlob> serializedRootSignBlob = nullptr;
+		ComPtr<ID3DBlob> errorBlob = nullptr;
+		auto hr = D3D12SerializeRootSignature(
+			&rootSignDesc, D3D_ROOT_SIGNATURE_VERSION_1,
+			serializedRootSignBlob.GetAddressOf(), errorBlob.GetAddressOf()
+		);
+
+		// Check if failed
+		if (errorBlob != nullptr)
+			OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+		ThrowIfFailed(hr);
+
+		// Create root signature
+		ThrowIfFailed(md3dDevice->CreateRootSignature(
+			0, 
+			serializedRootSignBlob->GetBufferPointer(),
+			serializedRootSignBlob->GetBufferSize(),
+			IID_PPV_ARGS(&mPostRootSignature)
+		));
 	}
-	cb perPass{
-		float4x4 viewMat;
-		float4x4 projMat;
-	}
-*/
-	// Describe root parameters
-	CD3DX12_ROOT_PARAMETER rootParams[3];
-	rootParams[0].InitAsConstantBufferView(0);
-	rootParams[1].InitAsConstantBufferView(1);
-	rootParams[2].InitAsConstantBufferView(2);
-
-	// Create desc for root signature
-	CD3DX12_ROOT_SIGNATURE_DESC rootSignDesc;
-	rootSignDesc.Init(3, rootParams);
-	rootSignDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-
-	// Serialize
-	ComPtr<ID3DBlob> serializedRootSignBlob = nullptr;
-	ComPtr<ID3DBlob> errorBlob = nullptr;
-	auto hr = D3D12SerializeRootSignature(
-		&rootSignDesc, D3D_ROOT_SIGNATURE_VERSION_1,
-		serializedRootSignBlob.GetAddressOf(), errorBlob.GetAddressOf()
-	);
-
-	// Check if failed
-	if (errorBlob != nullptr)
-		OutputDebugStringA((char*)errorBlob->GetBufferPointer());
-	ThrowIfFailed(hr);
-
-	// Create root signature
-	ThrowIfFailed(md3dDevice->CreateRootSignature(
-		0, 
-		serializedRootSignBlob->GetBufferPointer(),
-		serializedRootSignBlob->GetBufferSize(),
-		IID_PPV_ARGS(&mRootSignature)
-	));
 }
 
 void SceneGraphApp::BuildShaders()
@@ -139,6 +204,8 @@ void SceneGraphApp::BuildShaders()
 	// Just load
 	mShaders["vs"] = d3dUtil::LoadBinary(L"VertexShader.cso");
 	mShaders["ps"] = d3dUtil::LoadBinary(L"PixelShader.cso");
+	mShaders["postVS"] = d3dUtil::LoadBinary(L"postVertex.cso");
+	mShaders["postPS"] = d3dUtil::LoadBinary(L"postPixel.cso");
 }
 
 void SceneGraphApp::BuildPSOs()
@@ -172,6 +239,22 @@ void SceneGraphApp::BuildPSOs()
 	opaquePsoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
 	opaquePsoDesc.DSVFormat = mDepthStencilFormat;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC postPsoDesc = opaquePsoDesc;
+	postPsoDesc.InputLayout = { mPostInputLayout.data(), (UINT)mPostInputLayout.size() };
+	postPsoDesc.pRootSignature = mPostRootSignature.Get();
+	postPsoDesc.VS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["postVS"]->GetBufferPointer()),
+		mShaders["postVS"]->GetBufferSize()
+	};
+	postPsoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["postPS"]->GetBufferPointer()),
+		mShaders["postPS"]->GetBufferSize()
+	};
+	postPsoDesc.DepthStencilState.DepthEnable = false;
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&postPsoDesc, IID_PPV_ARGS(&mPSOs["post"])));
 }
 
 void SceneGraphApp::BuildLights()
@@ -199,6 +282,61 @@ void SceneGraphApp::BuildScene()
 	// Now we just hard-encode the scene.
 	// So only initing mPassConstants is needed
 	mPassConstants = std::make_unique<PassConstants>();
+}
+
+void SceneGraphApp::BuildTesting()
+{
+	// Build Resource
+	D3D12_RESOURCE_DESC desc;
+	desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	desc.Alignment = 0;
+	desc.Width = mClientWidth;
+	desc.Height = mClientHeight;
+	desc.DepthOrArraySize = 1;
+	desc.MipLevels = 1;
+	desc.Format = DXGI_FORMAT_R32_UINT;
+	desc.SampleDesc.Count = 1;
+	desc.SampleDesc.Quality = 0;
+	desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+	desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+
+	ThrowIfFailed(md3dDevice->CreateCommittedResource(
+		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+		D3D12_HEAP_FLAG_NONE,
+		&desc,
+		D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+		nullptr,
+		IID_PPV_ARGS(&mSumResource)
+	));
+
+	// Build Descriptor Heap
+	D3D12_DESCRIPTOR_HEAP_DESC uavHeapDesc = {};
+	uavHeapDesc.NumDescriptors = 1;
+	uavHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+	uavHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
+		&uavHeapDesc,
+		IID_PPV_ARGS(&mUAVDescHeap)
+	));
+	uavHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
+		&uavHeapDesc,
+		IID_PPV_ARGS(&mUAVCPUDescHeap)
+	));
+
+	// Build Descriptor
+	D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+	uavDesc.Format = DXGI_FORMAT_R32_UINT;
+	uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+	uavDesc.Texture2D.MipSlice = 0;
+	md3dDevice->CreateUnorderedAccessView(
+		mSumResource.Get(), nullptr,
+		&uavDesc, mUAVDescHeap->GetCPUDescriptorHandleForHeapStart()
+	);
+	md3dDevice->CreateUnorderedAccessView(
+		mSumResource.Get(), nullptr,
+		&uavDesc, mUAVCPUDescHeap->GetCPUDescriptorHandleForHeapStart()
+	);
 }
 
 void SceneGraphApp::BuildPassConstantBuffers()
@@ -272,55 +410,111 @@ void SceneGraphApp::UpdateLightsInPassConstantBuffers()
 
 void SceneGraphApp::BuildGeos()
 {
-	struct Vertex {
-		XMFLOAT3 pos;
-		XMFLOAT3 normal;
-	};
+	{
+		struct Vertex {
+			XMFLOAT3 pos;
+		};
 
-	// Create Geo
-	auto geo = std::make_shared<MeshGeometry>();
-	geo->Name = "triangle";
+		// Create Geo
+		auto geo = std::make_shared<MeshGeometry>();
+		geo->Name = "background";
 
-	// Generate Vertex Info
-	GeometryGenerator geoGenerator;
-	GeometryGenerator::MeshData boxMesh = geoGenerator.CreateBox(1.0, 1.0, 1.0, 1);
-	std::vector<UINT32> indices = boxMesh.Indices32;
-	std::vector<Vertex> verts;
-	for (const auto& vert : boxMesh.Vertices) {
-		verts.push_back({ vert.Position, vert.Normal });
+		// Generate Vertex Info
+		std::vector<Vertex> verts = {
+			{{-1.0f, -1.0f, 0.0f}},
+			{{+1.0f, -1.0f, 0.0f}},
+			{{+1.0f, +1.0f, 0.0f}},
+			{{-1.0f, +1.0f, 0.0f}},
+		};
+		std::vector<UINT32> indices = {
+			0, 2, 1,
+			0, 3, 2,
+		};
+		UINT vertByteSize = static_cast<UINT>(verts.size() * sizeof(Vertex));
+		UINT indexByteSize = static_cast<UINT>(indices.size() * sizeof(UINT32));
+
+		// Fill buffer info
+		geo->VertexByteStride = sizeof(Vertex);
+		geo->VertexBufferByteSize = vertByteSize;
+		geo->IndexFormat = DXGI_FORMAT_R32_UINT;
+		geo->IndexBufferByteSize = indexByteSize;
+
+		// Upload to GPU
+		geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(
+			md3dDevice.Get(), mCommandList.Get(),
+			(const void*)verts.data(), vertByteSize,
+			geo->VertexBufferUploader
+		);
+		geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(
+			md3dDevice.Get(), mCommandList.Get(),
+			(const void*)indices.data(), indexByteSize,
+			geo->IndexBufferUploader
+		);
+
+		// Create submesh
+		SubmeshGeometry submesh;
+		submesh.BaseVertexLocation = 0;
+		submesh.StartIndexLocation = 0;
+		submesh.IndexCount = static_cast<UINT>(indices.size());
+
+		// Fill submeshes into geo
+		geo->DrawArgs["background"] = submesh;
+
+		// Save geo
+		mGeos[geo->Name] = std::move(geo);
 	}
-	UINT vertByteSize = static_cast<UINT>(verts.size() * sizeof(Vertex));
-	UINT indexByteSize = static_cast<UINT>(indices.size() * sizeof(UINT32));
 
-	// Fill buffer info
-	geo->VertexByteStride = sizeof(Vertex);
-	geo->VertexBufferByteSize = vertByteSize;
-	geo->IndexFormat = DXGI_FORMAT_R32_UINT;
-	geo->IndexBufferByteSize = indexByteSize;
+	{
+		struct Vertex {
+			XMFLOAT3 pos;
+			XMFLOAT3 normal;
+		};
 
-	// Upload to GPU
-	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(
-		md3dDevice.Get(), mCommandList.Get(),
-		(const void*)verts.data(), vertByteSize,
-		geo->VertexBufferUploader
-	);
-	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(
-		md3dDevice.Get(), mCommandList.Get(),
-		(const void*)indices.data(), indexByteSize,
-		geo->IndexBufferUploader
-	);
+		// Create Geo
+		auto geo = std::make_shared<MeshGeometry>();
+		geo->Name = "triangle";
 
-	// Create submesh
-	SubmeshGeometry submesh;
-	submesh.BaseVertexLocation = 0;
-	submesh.StartIndexLocation = 0;
-	submesh.IndexCount = static_cast<UINT>(indices.size());
+		// Generate Vertex Info
+		GeometryGenerator geoGenerator;
+		GeometryGenerator::MeshData boxMesh = geoGenerator.CreateBox(1.0, 1.0, 1.0, 1);
+		std::vector<UINT32> indices = boxMesh.Indices32;
+		std::vector<Vertex> verts;
+		for (const auto& vert : boxMesh.Vertices) {
+			verts.push_back({ vert.Position, vert.Normal });
+		}
+		UINT vertByteSize = static_cast<UINT>(verts.size() * sizeof(Vertex));
+		UINT indexByteSize = static_cast<UINT>(indices.size() * sizeof(UINT32));
 
-	// Fill submeshes into geo
-	geo->DrawArgs["triangle"] = submesh;
+		// Fill buffer info
+		geo->VertexByteStride = sizeof(Vertex);
+		geo->VertexBufferByteSize = vertByteSize;
+		geo->IndexFormat = DXGI_FORMAT_R32_UINT;
+		geo->IndexBufferByteSize = indexByteSize;
 
-	// Save geo
-	mGeos[geo->Name] = std::move(geo);
+		// Upload to GPU
+		geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(
+			md3dDevice.Get(), mCommandList.Get(),
+			(const void*)verts.data(), vertByteSize,
+			geo->VertexBufferUploader
+		);
+		geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(
+			md3dDevice.Get(), mCommandList.Get(),
+			(const void*)indices.data(), indexByteSize,
+			geo->IndexBufferUploader
+		);
+
+		// Create submesh
+		SubmeshGeometry submesh;
+		submesh.BaseVertexLocation = 0;
+		submesh.StartIndexLocation = 0;
+		submesh.IndexCount = static_cast<UINT>(indices.size());
+
+		// Fill submeshes into geo
+		geo->DrawArgs["triangle"] = submesh;
+
+		// Save geo
+		mGeos[geo->Name] = std::move(geo);
+	}
 }
 
 void SceneGraphApp::BuildMaterials()
@@ -350,22 +544,43 @@ void SceneGraphApp::BuildAndUpdateMaterialConstantBuffers()
 
 void SceneGraphApp::BuildRenderItems()
 {
-	// Create Object constants
-	auto triConsts = std::make_shared<ObjectConstants>();
-	triConsts->content.ModelMat = MathHelper::Identity4x4();
-	mObjConsts["triangle"] = triConsts;
+	{
+		// Create Object constants
+		auto triConsts = std::make_shared<ObjectConstants>();
+		triConsts->content.ModelMat = MathHelper::Identity4x4();
+		mObjConsts["triangle"] = triConsts;
 
-	// Create render items
-	auto renderItem = std::make_shared<RenderItem>();
-	renderItem->Geo = mGeos["triangle"];
-	renderItem->Submesh = mGeos["triangle"]->DrawArgs["triangle"];
-	renderItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-	renderItem->MtlConsts = mMtlConsts["white"];
-	renderItem->PSO = mPSOs["opaque"];
-	renderItem->ObjConsts = mObjConsts["triangle"];
+		// Create render items
+		auto renderItem = std::make_shared<RenderItem>();
+		renderItem->Geo = mGeos["triangle"];
+		renderItem->Submesh = mGeos["triangle"]->DrawArgs["triangle"];
+		renderItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+		renderItem->MtlConsts = mMtlConsts["white"];
+		renderItem->PSO = mPSOs["opaque"];
+		renderItem->ObjConsts = mObjConsts["triangle"];
 
-	// Save render items
-	mRenderItemQueue.push_back(std::move(renderItem));
+		// Save render items
+		mRenderItemQueue.push_back(std::move(renderItem));
+	}
+
+	{
+		// Create Object constants
+		auto consts = std::make_shared<ObjectConstants>();
+		consts->content.ModelMat = MathHelper::Identity4x4();
+		mObjConsts["background"] = consts;
+
+		// Create render items
+		auto renderItem = std::make_shared<RenderItem>();
+		renderItem->Geo = mGeos["background"];
+		renderItem->Submesh = mGeos["background"]->DrawArgs["background"];
+		renderItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+		renderItem->MtlConsts = mMtlConsts["white"];
+		renderItem->PSO = mPSOs["post"];
+		renderItem->ObjConsts = mObjConsts["background"];
+
+		// Save render items
+		mBackgroundRenderItem = std::move(renderItem);
+	}
 }
 
 void SceneGraphApp::BuildObjectConstantBuffers()
@@ -439,6 +654,10 @@ void SceneGraphApp::Update(const GameTimer& gt)
 				renderItem->ObjConsts->content
 			);
 		}
+		mObjectConstantsBuffers->CopyData(
+			mBackgroundRenderItem->ObjConsts->getID(),
+			mBackgroundRenderItem->ObjConsts->content
+		);
 	}
 }
 
@@ -476,6 +695,21 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 		mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 	}
 
+	// Set Descriptor Heaps
+	{
+		ID3D12DescriptorHeap* descHeaps[] = { mUAVDescHeap.Get() };
+		mCommandList->SetDescriptorHeaps(1, descHeaps);
+
+		UINT clearValues[4] = { 0, 0, 0, 0 };
+		mCommandList->ClearUnorderedAccessViewUint(
+			mUAVDescHeap->GetGPUDescriptorHandleForHeapStart(),
+			mUAVCPUDescHeap->GetCPUDescriptorHandleForHeapStart(),
+			mSumResource.Get(),
+			clearValues,
+			0, nullptr
+		);
+	}
+
 	// Draw Scene
 	{
 		// Set Root Signature
@@ -486,6 +720,11 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 		UINT64 passCBElementByteSize = mPassConstantsBuffers->getElementByteSize();
 		mCommandList->SetGraphicsRootConstantBufferView(
 			2, passCBGPUAddr + mPassConstants->getID() * passCBElementByteSize
+		);
+
+		// Assign UAV
+		mCommandList->SetGraphicsRootDescriptorTable(
+			3, mUAVDescHeap->GetGPUDescriptorHandleForHeapStart()
 		);
 
 		// Draw Render Items
@@ -530,6 +769,41 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 				0
 			);
 		}
+	}
+
+	// Post Process
+	{
+		mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::LightSteelBlue, 0, nullptr);
+		mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
+
+		// Set Root Signature
+		mCommandList->SetGraphicsRootSignature(mPostRootSignature.Get());
+
+		// Assign UAV
+		mCommandList->SetGraphicsRootDescriptorTable(
+			0, mUAVDescHeap->GetGPUDescriptorHandleForHeapStart()
+		);
+
+		// Draw Render Items
+		auto& renderItem = mBackgroundRenderItem;
+		mCommandList->SetPipelineState(renderItem->PSO.Get());
+
+		// Set IA
+		D3D12_VERTEX_BUFFER_VIEW VBVs[1] = {
+			renderItem->Geo->VertexBufferView()
+		};
+		mCommandList->IASetVertexBuffers(0, 1, VBVs);
+		mCommandList->IASetIndexBuffer(&renderItem->Geo->IndexBufferView());
+		mCommandList->IASetPrimitiveTopology(renderItem->PrimitiveTopology);
+
+		// Draw Call
+		mCommandList->DrawIndexedInstanced(
+			renderItem->Submesh.IndexCount, 
+			1,
+			renderItem->Submesh.StartIndexLocation,
+			renderItem->Submesh.BaseVertexLocation,
+			0
+		);
 	}
 
 	// CommandList End Recording

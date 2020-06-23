@@ -106,8 +106,17 @@
     <FxCompile Include="PixelShader.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
+    <FxCompile Include="postVertex.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="postPixel.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
+    <None Include="Light.hlsli">
+      <Filter>Shaders</Filter>
+    </None>
     <None Include="Header.hlsli">
       <Filter>Shaders</Filter>
     </None>
