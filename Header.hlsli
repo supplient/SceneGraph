@@ -42,6 +42,4 @@ cbuffer cbPerPass : register(b2)
     Light gLights[MAX_LIGHT_NUM];
 };
 
-RWTexture2D<uint> sum : register(u0);
-
 #endif//BUFFER_HEADER_H

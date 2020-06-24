@@ -29,6 +29,10 @@ bool SceneGraphApp::Initialize()
 	ThrowIfFailed(mDirectCmdListAlloc->Reset());
 	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
+	// Init DirectX
+	BuildDescriptorHeaps();
+	BuildMidRenderTarget();
+
 	// Init PSO concerned
 	BuildInputLayout();
 	BuildRootSignature();
@@ -63,7 +67,92 @@ bool SceneGraphApp::Initialize()
 	// Wait until initialization is complete.
 	FlushCommandQueue();
 
+    // Do the initial resize code.
+    OnResize();
+
 	return true;
+}
+
+void SceneGraphApp::BuildDescriptorHeaps()
+{
+	// Build Descriptor Heap
+	D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
+    rtvHeapDesc.NumDescriptors = 1;
+    rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+    rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	rtvHeapDesc.NodeMask = 0;
+    ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
+        &rtvHeapDesc, 
+		IID_PPV_ARGS(&mMidRTVDescHeap)
+	));
+	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
+    srvHeapDesc.NumDescriptors = 1;
+	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+	srvHeapDesc.NodeMask = 0;
+    ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
+        &srvHeapDesc, 
+		IID_PPV_ARGS(&mMidSRVDescHeap)
+	));
+
+	// Build Handle
+	mMidRTVCPUHandle = mMidRTVDescHeap->GetCPUDescriptorHandleForHeapStart();
+	mMidSRVCPUHandle = mMidSRVDescHeap->GetCPUDescriptorHandleForHeapStart();
+	mMidSRVGPUHandle = mMidSRVDescHeap->GetGPUDescriptorHandleForHeapStart();
+}
+
+void SceneGraphApp::BuildMidRenderTarget()
+{
+	mMidRenderTargetFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+
+	// Build Resource
+	D3D12_RESOURCE_DESC desc;
+	desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	desc.Alignment = 0;
+	desc.Width = mClientWidth;
+	desc.Height = mClientHeight;
+	desc.DepthOrArraySize = 1;
+	desc.MipLevels = 1;
+	desc.Format = mMidRenderTargetFormat;
+	desc.SampleDesc.Count = 1;
+	desc.SampleDesc.Quality = 0;
+	desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+	desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+
+	D3D12_CLEAR_VALUE clearValue;
+	clearValue.Format = mMidRenderTargetFormat;
+	clearValue.Color[0] = 0.0f;
+	clearValue.Color[1] = 0.0f;
+	clearValue.Color[2] = 0.0f;
+	clearValue.Color[3] = 1.0f;
+	ThrowIfFailed(md3dDevice->CreateCommittedResource(
+		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+		D3D12_HEAP_FLAG_NONE,
+		&desc,
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+		&clearValue,
+		IID_PPV_ARGS(&mMidRenderTarget)
+	));
+
+	// Build Descriptor
+	D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
+	rtvDesc.Format = mMidRenderTargetFormat;
+	rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+	rtvDesc.Texture2D.MipSlice = 0;
+	md3dDevice->CreateRenderTargetView(
+		mMidRenderTarget.Get(),
+		&rtvDesc, mMidRTVCPUHandle
+	);
+	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+	srvDesc.Format = mMidRenderTargetFormat;
+	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+	srvDesc.Texture2D.MipLevels = 1;
+	srvDesc.Texture2D.MostDetailedMip = 0;
+	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	md3dDevice->CreateShaderResourceView(
+		mMidRenderTarget.Get(),
+		&srvDesc, mMidSRVCPUHandle
+	);
 }
 
 void SceneGraphApp::BuildInputLayout() {
@@ -136,6 +225,20 @@ ComPtr<ID3D12RootSignature> SerializeAndCreateRootSignature(ComPtr<ID3D12Device>
 
 void SceneGraphApp::BuildRootSignature()
 {
+	auto GetCBVParam = [](UINT shaderRegister){
+		CD3DX12_ROOT_PARAMETER param;
+		param.InitAsConstantBufferView(shaderRegister);
+		return param;
+	};
+	auto GetTableParam = [](const std::vector<D3D12_DESCRIPTOR_RANGE>& ranges) {
+		CD3DX12_ROOT_PARAMETER param;
+		param.InitAsDescriptorTable(
+			static_cast<UINT>(ranges.size()),
+			ranges.data()
+		);
+		return param;
+	};
+
 	{
 	/*
 		cb perObject{
@@ -159,15 +262,14 @@ void SceneGraphApp::BuildRootSignature()
 		range.RegisterSpace = 0;
 
 		// Describe root parameters
-		CD3DX12_ROOT_PARAMETER rootParams[4];
-		rootParams[0].InitAsConstantBufferView(0);
-		rootParams[1].InitAsConstantBufferView(1);
-		rootParams[2].InitAsConstantBufferView(2);
-		rootParams[3].InitAsDescriptorTable(1, &range);
+		std::vector<CD3DX12_ROOT_PARAMETER> rootParams;
+		rootParams.push_back(GetCBVParam(0));
+		rootParams.push_back(GetCBVParam(1));
+		rootParams.push_back(GetCBVParam(2));
 
 		// Create desc for root signature
 		CD3DX12_ROOT_SIGNATURE_DESC rootSignDesc;
-		rootSignDesc.Init(4, rootParams);
+		rootSignDesc.Init(static_cast<UINT>(rootParams.size()), rootParams.data());
 		rootSignDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
 		// Serialize And Create RootSignature
@@ -178,20 +280,21 @@ void SceneGraphApp::BuildRootSignature()
 	/*
 		uab<uint8> testUA;
 	*/
-		D3D12_DESCRIPTOR_RANGE range;
-		range.BaseShaderRegister = 0;
-		range.NumDescriptors = 1;
-		range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
-		range.OffsetInDescriptorsFromTableStart = 0U;
-		range.RegisterSpace = 0;
+		// Descriptor ranges
+		std::vector<D3D12_DESCRIPTOR_RANGE> ranges;
+		ranges.push_back(CD3DX12_DESCRIPTOR_RANGE(
+			D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 
+			1, 0, 
+			0, 0U
+		));
 
 		// Describe root parameters
-		CD3DX12_ROOT_PARAMETER rootParams[1];
-		rootParams[0].InitAsDescriptorTable(1, &range);
+		std::vector<D3D12_ROOT_PARAMETER> rootParams;
+		rootParams.push_back(GetTableParam(ranges));
 
 		// Create desc for root signature
 		CD3DX12_ROOT_SIGNATURE_DESC rootSignDesc;
-		rootSignDesc.Init(1, rootParams);
+		rootSignDesc.Init(static_cast<UINT>(rootParams.size()), rootParams.data());
 		rootSignDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
 		// Serialize And Create RootSignature
@@ -599,6 +702,8 @@ void SceneGraphApp::BuildObjectConstantBuffers()
 void SceneGraphApp::OnResize()
 {
 	D3DApp::OnResize();
+
+	BuildMidRenderTarget();
 }
 
 void SceneGraphApp::Update(const GameTimer& gt)
@@ -679,16 +784,6 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 		ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 	}
 
-	// Set Render Target
-	{
-		// Indicate a state transition on the resource usage.
-		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
-			D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
-
-		// Specify the buffers we are going to render to.
-		mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
-	}
-
 	// Set Viewports & ScissorRects
 	{
 		// Set the viewport and scissor rect.  This needs to be reset whenever the command list is reset.
@@ -698,23 +793,21 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 
 	// Set Descriptor Heaps
 	{
-		ID3D12DescriptorHeap* descHeaps[] = { mUAVDescHeap.Get() };
+		ID3D12DescriptorHeap* descHeaps[] = { mMidSRVDescHeap.Get() };
 		mCommandList->SetDescriptorHeaps(1, descHeaps);
-
-		UINT clearValues[4] = { 0, 0, 0, 0 };
-		mCommandList->ClearUnorderedAccessViewUint(
-			mUAVDescHeap->GetGPUDescriptorHandleForHeapStart(),
-			mUAVCPUDescHeap->GetCPUDescriptorHandleForHeapStart(),
-			mSumResource.Get(),
-			clearValues,
-			0, nullptr
-		);
 	}
 
 	// Draw Scene
 	{
+		// Indicate a state transition on the resource usage.
+		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mMidRenderTarget.Get(),
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET));
+
+		// Specify the buffers we are going to render to.
+		mCommandList->OMSetRenderTargets(1, &mMidRTVCPUHandle, true, &DepthStencilView());
+
 		// Clear the back buffer and depth buffer.
-		mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::LightSteelBlue, 0, nullptr);
+		mCommandList->ClearRenderTargetView(mMidRTVCPUHandle, Colors::Black, 0, nullptr);
 		mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
 		// Set Root Signature
@@ -725,11 +818,6 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 		UINT64 passCBElementByteSize = mPassConstantsBuffers->getElementByteSize();
 		mCommandList->SetGraphicsRootConstantBufferView(
 			2, passCBGPUAddr + mPassConstants->getID() * passCBElementByteSize
-		);
-
-		// Assign UAV
-		mCommandList->SetGraphicsRootDescriptorTable(
-			3, mUAVDescHeap->GetGPUDescriptorHandleForHeapStart()
 		);
 
 		// Draw Render Items
@@ -778,6 +866,15 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 
 	// Post Process
 	{
+		// Indicate a state transition on the resource usage.
+		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mMidRenderTarget.Get(),
+			D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
+		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
+			D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
+
+		// Specify the buffers we are going to render to.
+		mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
+
 		// Clear the back buffer and depth buffer.
 		mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::LightSteelBlue, 0, nullptr);
 		mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
@@ -787,7 +884,7 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 
 		// Assign UAV
 		mCommandList->SetGraphicsRootDescriptorTable(
-			0, mUAVDescHeap->GetGPUDescriptorHandleForHeapStart()
+			0, mMidSRVGPUHandle
 		);
 
 		// Draw Render Items

@@ -16,6 +16,10 @@ public:
 	virtual bool Initialize()override;
 
 	// Initialize
+	// Init DirectX
+	void BuildDescriptorHeaps();
+	void BuildMidRenderTarget();
+
 	// Init PSOs
 	void BuildInputLayout();
 	void BuildRootSignature();
@@ -63,6 +67,15 @@ private:
 
 	// Camera
 	Camera mCamera;
+
+	// Middle Ranger Target
+	DXGI_FORMAT mMidRenderTargetFormat;
+	Microsoft::WRL::ComPtr<ID3D12Resource> mMidRenderTarget;
+	D3D12_CPU_DESCRIPTOR_HANDLE mMidRTVCPUHandle;
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mMidRTVDescHeap;
+	D3D12_CPU_DESCRIPTOR_HANDLE mMidSRVCPUHandle;
+	D3D12_GPU_DESCRIPTOR_HANDLE mMidSRVGPUHandle;
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mMidSRVDescHeap;
 
 	// Input Layout
 	std::unordered_map<std::string, std::vector<D3D12_INPUT_ELEMENT_DESC>> mInputLayouts;
