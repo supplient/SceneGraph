@@ -67,35 +67,71 @@ bool SceneGraphApp::Initialize()
 }
 
 void SceneGraphApp::BuildInputLayout() {
-/* normal
-	Vertex {
-		float3 pos;
-		float3 normal;
+	{
+	/*
+		Vertex {
+			float3 pos;
+			float3 normal;
+		}
+	*/
+		// Describe vertex input element
+		D3D12_INPUT_ELEMENT_DESC pos;
+		pos.SemanticName = "POSITION";
+		pos.SemanticIndex = 0;
+		pos.Format = DXGI_FORMAT_R32G32B32_FLOAT;
+		pos.AlignedByteOffset = 0;
+		pos.InputSlot = 0;
+		pos.InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA;
+		pos.InstanceDataStepRate = 0;
+
+		auto normal = pos;
+		pos.SemanticName = "NORMAL";
+		pos.AlignedByteOffset = sizeof(XMFLOAT3);
+
+		mInputLayouts["standard"] = { pos, normal };
 	}
-*/
-/* post
-	Vertex {
-		float3 pos;
+	{
+	/*
+		Vertex {
+			float3 pos;
+		}
+	*/
+		D3D12_INPUT_ELEMENT_DESC pos;
+		pos.SemanticName = "POSITION";
+		pos.SemanticIndex = 0;
+		pos.Format = DXGI_FORMAT_R32G32B32_FLOAT;
+		pos.AlignedByteOffset = 0;
+		pos.InputSlot = 0;
+		pos.InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA;
+		pos.InstanceDataStepRate = 0;
+
+		mInputLayouts["post"] = { pos };
 	}
-*/
-	// Describe vertex input element
-	D3D12_INPUT_ELEMENT_DESC pos;
-	pos.SemanticName = "POSITION";
-	pos.SemanticIndex = 0;
-	pos.Format = DXGI_FORMAT_R32G32B32_FLOAT;
-	pos.AlignedByteOffset = 0;
-	pos.InputSlot = 0;
-	pos.InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA;
-	pos.InstanceDataStepRate = 0;
+}
 
-	auto postPos = pos;
+ComPtr<ID3D12RootSignature> SerializeAndCreateRootSignature(ComPtr<ID3D12Device> device, D3D12_ROOT_SIGNATURE_DESC* rootSignDesc) {
+	// Serialize
+	ComPtr<ID3DBlob> serializedRootSignBlob = nullptr;
+	ComPtr<ID3DBlob> errorBlob = nullptr;
+	auto hr = D3D12SerializeRootSignature(
+		rootSignDesc, D3D_ROOT_SIGNATURE_VERSION_1,
+		serializedRootSignBlob.GetAddressOf(), errorBlob.GetAddressOf()
+	);
 
-	auto normal = pos;
-	pos.SemanticName = "NORMAL";
-	pos.AlignedByteOffset = sizeof(XMFLOAT3);
+	// Check if failed
+	if (errorBlob != nullptr)
+		OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+	ThrowIfFailed(hr);
 
-	mInputLayout = { pos, normal };
-	mPostInputLayout = { postPos };
+	// Create root signature
+	ComPtr<ID3D12RootSignature> rootSignature;
+	ThrowIfFailed(device->CreateRootSignature(
+		0, 
+		serializedRootSignBlob->GetBufferPointer(),
+		serializedRootSignBlob->GetBufferSize(),
+		IID_PPV_ARGS(&rootSignature)
+	));
+	return rootSignature;
 }
 
 void SceneGraphApp::BuildRootSignature()
@@ -134,26 +170,8 @@ void SceneGraphApp::BuildRootSignature()
 		rootSignDesc.Init(4, rootParams);
 		rootSignDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
-		// Serialize
-		ComPtr<ID3DBlob> serializedRootSignBlob = nullptr;
-		ComPtr<ID3DBlob> errorBlob = nullptr;
-		auto hr = D3D12SerializeRootSignature(
-			&rootSignDesc, D3D_ROOT_SIGNATURE_VERSION_1,
-			serializedRootSignBlob.GetAddressOf(), errorBlob.GetAddressOf()
-		);
-
-		// Check if failed
-		if (errorBlob != nullptr)
-			OutputDebugStringA((char*)errorBlob->GetBufferPointer());
-		ThrowIfFailed(hr);
-
-		// Create root signature
-		ThrowIfFailed(md3dDevice->CreateRootSignature(
-			0, 
-			serializedRootSignBlob->GetBufferPointer(),
-			serializedRootSignBlob->GetBufferSize(),
-			IID_PPV_ARGS(&mRootSignature)
-		));
+		// Serialize And Create RootSignature
+		mRootSigns["standard"] = SerializeAndCreateRootSignature(md3dDevice, &rootSignDesc);
 	}
 
 	{
@@ -176,26 +194,8 @@ void SceneGraphApp::BuildRootSignature()
 		rootSignDesc.Init(1, rootParams);
 		rootSignDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
-		// Serialize
-		ComPtr<ID3DBlob> serializedRootSignBlob = nullptr;
-		ComPtr<ID3DBlob> errorBlob = nullptr;
-		auto hr = D3D12SerializeRootSignature(
-			&rootSignDesc, D3D_ROOT_SIGNATURE_VERSION_1,
-			serializedRootSignBlob.GetAddressOf(), errorBlob.GetAddressOf()
-		);
-
-		// Check if failed
-		if (errorBlob != nullptr)
-			OutputDebugStringA((char*)errorBlob->GetBufferPointer());
-		ThrowIfFailed(hr);
-
-		// Create root signature
-		ThrowIfFailed(md3dDevice->CreateRootSignature(
-			0, 
-			serializedRootSignBlob->GetBufferPointer(),
-			serializedRootSignBlob->GetBufferSize(),
-			IID_PPV_ARGS(&mPostRootSignature)
-		));
+		// Serialize And Create RootSignature
+		mRootSigns["post"] = SerializeAndCreateRootSignature(md3dDevice, &rootSignDesc);
 	}
 }
 
@@ -216,8 +216,11 @@ void SceneGraphApp::BuildPSOs()
 	// PSO for opaque objects.
 	//
 	ZeroMemory(&opaquePsoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
-	opaquePsoDesc.InputLayout = { mInputLayout.data(), (UINT)mInputLayout.size() };
-	opaquePsoDesc.pRootSignature = mRootSignature.Get();
+	opaquePsoDesc.InputLayout = { 
+		mInputLayouts["standard"].data(),
+		(UINT)mInputLayouts["standard"].size() 
+	};
+	opaquePsoDesc.pRootSignature = mRootSigns["standard"].Get();
 	opaquePsoDesc.VS =
 	{
 		reinterpret_cast<BYTE*>(mShaders["vs"]->GetBufferPointer()),
@@ -241,8 +244,11 @@ void SceneGraphApp::BuildPSOs()
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC postPsoDesc = opaquePsoDesc;
-	postPsoDesc.InputLayout = { mPostInputLayout.data(), (UINT)mPostInputLayout.size() };
-	postPsoDesc.pRootSignature = mPostRootSignature.Get();
+	postPsoDesc.InputLayout = { 
+		mInputLayouts["post"].data(), 
+		(UINT)mInputLayouts["post"].size() 
+	};
+	postPsoDesc.pRootSignature = mRootSigns["post"].Get();
 	postPsoDesc.VS =
 	{
 		reinterpret_cast<BYTE*>(mShaders["postVS"]->GetBufferPointer()),
@@ -408,6 +414,33 @@ void SceneGraphApp::UpdateLightsInPassConstantBuffers()
 	content.LightPerTypeNum.z = static_cast<UINT32>(mSpotLights.size());
 }
 
+template <class T, class U>
+void FillBufferInfoAndUpload(
+		ComPtr<ID3D12Device> device, ComPtr<ID3D12GraphicsCommandList> commandList,
+		std::shared_ptr<MeshGeometry> geo, 
+		std::vector<T> verts, std::vector<U> indices, 
+		DXGI_FORMAT indiceFormat) {
+	// Fill buffer info
+	UINT vertByteSize = static_cast<UINT>(verts.size() * sizeof(T));
+	UINT indexByteSize = static_cast<UINT>(indices.size() * sizeof(U));
+	geo->VertexByteStride = sizeof(T);
+	geo->VertexBufferByteSize = vertByteSize;
+	geo->IndexFormat = indiceFormat;
+	geo->IndexBufferByteSize = indexByteSize;
+
+	// Upload to GPU
+	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(
+		device.Get(), commandList.Get(),
+		(const void*)verts.data(), vertByteSize,
+		geo->VertexBufferUploader
+	);
+	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(
+		device.Get(), commandList.Get(),
+		(const void*)indices.data(), indexByteSize,
+		geo->IndexBufferUploader
+	);
+}
+
 void SceneGraphApp::BuildGeos()
 {
 	{
@@ -430,35 +463,21 @@ void SceneGraphApp::BuildGeos()
 			0, 2, 1,
 			0, 3, 2,
 		};
-		UINT vertByteSize = static_cast<UINT>(verts.size() * sizeof(Vertex));
-		UINT indexByteSize = static_cast<UINT>(indices.size() * sizeof(UINT32));
-
-		// Fill buffer info
-		geo->VertexByteStride = sizeof(Vertex);
-		geo->VertexBufferByteSize = vertByteSize;
-		geo->IndexFormat = DXGI_FORMAT_R32_UINT;
-		geo->IndexBufferByteSize = indexByteSize;
-
-		// Upload to GPU
-		geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(
-			md3dDevice.Get(), mCommandList.Get(),
-			(const void*)verts.data(), vertByteSize,
-			geo->VertexBufferUploader
-		);
-		geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(
-			md3dDevice.Get(), mCommandList.Get(),
-			(const void*)indices.data(), indexByteSize,
-			geo->IndexBufferUploader
-		);
 
 		// Create submesh
 		SubmeshGeometry submesh;
 		submesh.BaseVertexLocation = 0;
 		submesh.StartIndexLocation = 0;
 		submesh.IndexCount = static_cast<UINT>(indices.size());
-
-		// Fill submeshes into geo
 		geo->DrawArgs["background"] = submesh;
+
+		// Fill buffer info & Upload
+		FillBufferInfoAndUpload(
+			md3dDevice, mCommandList,
+			geo, 
+			verts, indices,
+			DXGI_FORMAT_R32_UINT
+		);
 
 		// Save geo
 		mGeos[geo->Name] = std::move(geo);
@@ -482,35 +501,21 @@ void SceneGraphApp::BuildGeos()
 		for (const auto& vert : boxMesh.Vertices) {
 			verts.push_back({ vert.Position, vert.Normal });
 		}
-		UINT vertByteSize = static_cast<UINT>(verts.size() * sizeof(Vertex));
-		UINT indexByteSize = static_cast<UINT>(indices.size() * sizeof(UINT32));
-
-		// Fill buffer info
-		geo->VertexByteStride = sizeof(Vertex);
-		geo->VertexBufferByteSize = vertByteSize;
-		geo->IndexFormat = DXGI_FORMAT_R32_UINT;
-		geo->IndexBufferByteSize = indexByteSize;
-
-		// Upload to GPU
-		geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(
-			md3dDevice.Get(), mCommandList.Get(),
-			(const void*)verts.data(), vertByteSize,
-			geo->VertexBufferUploader
-		);
-		geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(
-			md3dDevice.Get(), mCommandList.Get(),
-			(const void*)indices.data(), indexByteSize,
-			geo->IndexBufferUploader
-		);
 
 		// Create submesh
 		SubmeshGeometry submesh;
 		submesh.BaseVertexLocation = 0;
 		submesh.StartIndexLocation = 0;
 		submesh.IndexCount = static_cast<UINT>(indices.size());
-
-		// Fill submeshes into geo
 		geo->DrawArgs["triangle"] = submesh;
+
+		// Fill buffer info & Upload
+		FillBufferInfoAndUpload(
+			md3dDevice, mCommandList,
+			geo, 
+			verts, indices,
+			DXGI_FORMAT_R32_UINT
+		);
 
 		// Save geo
 		mGeos[geo->Name] = std::move(geo);
@@ -684,15 +689,11 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 		mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
 	}
 
-	// Set Viewport & Background
+	// Set Viewports & ScissorRects
 	{
 		// Set the viewport and scissor rect.  This needs to be reset whenever the command list is reset.
 		mCommandList->RSSetViewports(1, &mScreenViewport);
 		mCommandList->RSSetScissorRects(1, &mScissorRect);
-
-		// Clear the back buffer and depth buffer.
-		mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::LightSteelBlue, 0, nullptr);
-		mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 	}
 
 	// Set Descriptor Heaps
@@ -712,8 +713,12 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 
 	// Draw Scene
 	{
+		// Clear the back buffer and depth buffer.
+		mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::LightSteelBlue, 0, nullptr);
+		mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
+
 		// Set Root Signature
-		mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
+		mCommandList->SetGraphicsRootSignature(mRootSigns["standard"].Get());
 
 		// Assign Pass Constants Buffer
 		auto passCBGPUAddr = mPassConstantsBuffers->Resource()->GetGPUVirtualAddress();
@@ -773,11 +778,12 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 
 	// Post Process
 	{
+		// Clear the back buffer and depth buffer.
 		mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::LightSteelBlue, 0, nullptr);
 		mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
 		// Set Root Signature
-		mCommandList->SetGraphicsRootSignature(mPostRootSignature.Get());
+		mCommandList->SetGraphicsRootSignature(mRootSigns["post"].Get());
 
 		// Assign UAV
 		mCommandList->SetGraphicsRootDescriptorTable(

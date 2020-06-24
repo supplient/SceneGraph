@@ -65,12 +65,10 @@ private:
 	Camera mCamera;
 
 	// Input Layout
-	std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
-	std::vector<D3D12_INPUT_ELEMENT_DESC> mPostInputLayout;
+	std::unordered_map<std::string, std::vector<D3D12_INPUT_ELEMENT_DESC>> mInputLayouts;
 
 	// Root Signature
-	Microsoft::WRL::ComPtr<ID3D12RootSignature> mRootSignature;
-	Microsoft::WRL::ComPtr<ID3D12RootSignature> mPostRootSignature;
+	std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3D12RootSignature>> mRootSigns;
 
 	// Shaders
 	std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3DBlob>> mShaders;
