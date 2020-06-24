@@ -31,7 +31,6 @@ bool SceneGraphApp::Initialize()
 
 	// Init DirectX
 	BuildDescriptorHeaps();
-	BuildMidRenderTarget();
 
 	// Init PSO concerned
 	BuildInputLayout();
@@ -101,7 +100,7 @@ void SceneGraphApp::BuildDescriptorHeaps()
 	mMidSRVGPUHandle = mMidSRVDescHeap->GetGPUDescriptorHandleForHeapStart();
 }
 
-void SceneGraphApp::BuildMidRenderTarget()
+void SceneGraphApp::ResizeMidRenderTarget()
 {
 	mMidRenderTargetFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 
@@ -703,7 +702,7 @@ void SceneGraphApp::OnResize()
 {
 	D3DApp::OnResize();
 
-	BuildMidRenderTarget();
+	ResizeMidRenderTarget();
 }
 
 void SceneGraphApp::Update(const GameTimer& gt)

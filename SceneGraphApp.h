@@ -18,7 +18,6 @@ public:
 	// Initialize
 	// Init DirectX
 	void BuildDescriptorHeaps();
-	void BuildMidRenderTarget();
 
 	// Init PSOs
 	void BuildInputLayout();
@@ -47,6 +46,8 @@ public:
 	void BuildObjectConstantBuffers();
 
 private:
+	void ResizeMidRenderTarget();
+
 	virtual void OnResize()override;
 	virtual void Update(const GameTimer& gt)override;
 	virtual void Draw(const GameTimer& gt)override;
