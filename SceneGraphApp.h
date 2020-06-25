@@ -44,8 +44,11 @@ public:
 	void BuildObjectConstantBuffers();
 
 	// ScreenSize Concerned Resources' Init
-	void ResizeScreenUAV();
+	void ResizeScreenUAVSRV();
+	void ResizeTransRenderTarget();
 	void ResizeMidRenderTarget();
+
+	void DrawRenderItems(const std::vector<std::shared_ptr<RenderItem>>& renderItemQueue);
 
 private:
 
@@ -76,12 +79,25 @@ private:
 	std::unique_ptr<StaticDescriptorHeap> mCBVSRVUAVHeap = nullptr;
 	std::unique_ptr<StaticDescriptorHeap> mCBVSRVUAVCPUHeap = nullptr;
 
-	// Middle Ranger Target
-	DXGI_FORMAT mMidRenderTargetFormat;
+	// Middle Render Target
+	DXGI_FORMAT mMidRenderTargetFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 	Microsoft::WRL::ComPtr<ID3D12Resource> mMidRenderTarget;
 	D3D12_CPU_DESCRIPTOR_HANDLE mMidRTVCPUHandle;
 	D3D12_CPU_DESCRIPTOR_HANDLE mMidSRVCPUHandle;
 	D3D12_GPU_DESCRIPTOR_HANDLE mMidSRVGPUHandle;
+
+	// Transparent Render Target
+	DXGI_FORMAT mTransRenderTargetFormat = DXGI_FORMAT_R32G32B32A32_FLOAT;
+	Microsoft::WRL::ComPtr<ID3D12Resource> mTransRenderTarget;
+	D3D12_CPU_DESCRIPTOR_HANDLE mTransRTVCPUHandle;
+	D3D12_CPU_DESCRIPTOR_HANDLE mTransSRVCPUHandle;
+	D3D12_GPU_DESCRIPTOR_HANDLE mTransSRVGPUHandle;
+
+	// ZBuffer SRV
+	DXGI_FORMAT mZBufferFormat = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+	Microsoft::WRL::ComPtr<ID3D12Resource> mZBufferResource;
+	D3D12_CPU_DESCRIPTOR_HANDLE mZBufferSRVCPUHandle;
+	D3D12_GPU_DESCRIPTOR_HANDLE mZBufferSRVGPUHandle;
 
 	// Input Layout
 	std::unordered_map<std::string, std::vector<D3D12_INPUT_ELEMENT_DESC>> mInputLayouts;
@@ -114,6 +130,7 @@ private:
 
 	// Render Items
 	std::vector<std::shared_ptr<RenderItem>> mRenderItemQueue;
+	std::vector<std::shared_ptr<RenderItem>> mTransRenderItemQueue;
 	std::shared_ptr<RenderItem> mBackgroundRenderItem = nullptr;
 
 	// Constant Buffers

@@ -43,5 +43,6 @@ cbuffer cbPerPass : register(b2)
 };
 
 RWTexture2D<uint> uabSum : register(u0);
+Texture2D srbZBuffer : register(t0);
 
 #endif//BUFFER_HEADER_H

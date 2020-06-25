@@ -75,7 +75,7 @@ void SceneGraphApp::BuildDescriptorHeaps()
 	{
 		// Build Descriptor Heap
 		D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-		heapDesc.NumDescriptors = 1;
+		heapDesc.NumDescriptors = 2;
 		heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
 		heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 		heapDesc.NodeMask = 0;
@@ -85,13 +85,14 @@ void SceneGraphApp::BuildDescriptorHeaps()
 
 		// Build Handle
 		mMidRTVCPUHandle = mRTVHeap->GetCPUHandle(mRTVHeap->Alloc());
+		mTransRTVCPUHandle = mRTVHeap->GetCPUHandle(mRTVHeap->Alloc());
 	}
 
 	// CBV, SRV, UAV
 	// GPU heap
 	{
 		D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-		heapDesc.NumDescriptors = 2;
+		heapDesc.NumDescriptors = 4;
 		heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 		heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 		heapDesc.NodeMask = 0;
@@ -102,6 +103,12 @@ void SceneGraphApp::BuildDescriptorHeaps()
 		UINT index = mCBVSRVUAVHeap->Alloc();
 		mMidSRVCPUHandle = mCBVSRVUAVHeap->GetCPUHandle(index);
 		mMidSRVGPUHandle = mCBVSRVUAVHeap->GetGPUHandle(index);
+		index = mCBVSRVUAVHeap->Alloc();
+		mTransSRVCPUHandle = mCBVSRVUAVHeap->GetCPUHandle(index);
+		mTransSRVGPUHandle = mCBVSRVUAVHeap->GetGPUHandle(index);
+		index = mCBVSRVUAVHeap->Alloc();
+		mZBufferSRVCPUHandle = mCBVSRVUAVHeap->GetCPUHandle(index);
+		mZBufferSRVGPUHandle = mCBVSRVUAVHeap->GetGPUHandle(index);
 		index = mCBVSRVUAVHeap->Alloc();
 		mSumUAVCPUHandle = mCBVSRVUAVHeap->GetCPUHandle(index);
 		mSumUAVGPUHandle = mCBVSRVUAVHeap->GetGPUHandle(index);
@@ -224,9 +231,15 @@ void SceneGraphApp::BuildRootSignature()
 
 		uab<uint8> testUA;
 	*/
-		std::vector<D3D12_DESCRIPTOR_RANGE> ranges;
-		ranges.push_back(CD3DX12_DESCRIPTOR_RANGE(
+		std::vector<D3D12_DESCRIPTOR_RANGE> sumUAVranges;
+		sumUAVranges.push_back(CD3DX12_DESCRIPTOR_RANGE(
 			D3D12_DESCRIPTOR_RANGE_TYPE_UAV,
+			1, 0,
+			0, 0U
+		));
+		std::vector<D3D12_DESCRIPTOR_RANGE> zbufferSRVranges;
+		zbufferSRVranges.push_back(CD3DX12_DESCRIPTOR_RANGE(
+			D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
 			1, 0,
 			0, 0U
 		));
@@ -236,7 +249,8 @@ void SceneGraphApp::BuildRootSignature()
 		rootParams.push_back(GetCBVParam(0));
 		rootParams.push_back(GetCBVParam(1));
 		rootParams.push_back(GetCBVParam(2));
-		rootParams.push_back(GetTableParam(ranges));
+		rootParams.push_back(GetTableParam(sumUAVranges));
+		rootParams.push_back(GetTableParam(zbufferSRVranges));
 
 		// Create desc for root signature
 		CD3DX12_ROOT_SIGNATURE_DESC rootSignDesc;
@@ -258,6 +272,12 @@ void SceneGraphApp::BuildRootSignature()
 			1, 0, 
 			0, 0U
 		));
+		std::vector<D3D12_DESCRIPTOR_RANGE> transSRVRanges;
+		transSRVRanges.push_back(CD3DX12_DESCRIPTOR_RANGE(
+			D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 
+			1, 1, 
+			0, 0U
+		));
 		std::vector<D3D12_DESCRIPTOR_RANGE> UAVRanges;
 		UAVRanges.push_back(CD3DX12_DESCRIPTOR_RANGE(
 			D3D12_DESCRIPTOR_RANGE_TYPE_UAV,
@@ -268,6 +288,7 @@ void SceneGraphApp::BuildRootSignature()
 		// Describe root parameters
 		std::vector<D3D12_ROOT_PARAMETER> rootParams;
 		rootParams.push_back(GetTableParam(midSRVRanges));
+		rootParams.push_back(GetTableParam(transSRVRanges));
 		rootParams.push_back(GetTableParam(UAVRanges));
 
 		// Create desc for root signature
@@ -287,6 +308,7 @@ void SceneGraphApp::BuildShaders()
 	mShaders["ps"] = d3dUtil::LoadBinary(L"PixelShader.cso");
 	mShaders["postVS"] = d3dUtil::LoadBinary(L"postVertex.cso");
 	mShaders["postPS"] = d3dUtil::LoadBinary(L"postPixel.cso");
+	mShaders["transPS"] = d3dUtil::LoadBinary(L"transparentPixel.cso");
 }
 
 void SceneGraphApp::BuildPSOs()
@@ -318,11 +340,29 @@ void SceneGraphApp::BuildPSOs()
 	opaquePsoDesc.SampleMask = UINT_MAX;
 	opaquePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 	opaquePsoDesc.NumRenderTargets = 1;
-	opaquePsoDesc.RTVFormats[0] = mBackBufferFormat;
+	opaquePsoDesc.RTVFormats[0] = mMidRenderTargetFormat;
 	opaquePsoDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
 	opaquePsoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
 	opaquePsoDesc.DSVFormat = mDepthStencilFormat;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC transPsoDesc = opaquePsoDesc;
+	transPsoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["transPS"]->GetBufferPointer()),
+		mShaders["transPS"]->GetBufferSize()
+	};
+	transPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+	transPsoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+	transPsoDesc.BlendState.RenderTarget[0].BlendEnable = true;
+	transPsoDesc.BlendState.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+	transPsoDesc.BlendState.RenderTarget[0].DestBlend = D3D12_BLEND_DEST_COLOR;
+	transPsoDesc.BlendState.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_COLOR;
+	transPsoDesc.BlendState.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
+	transPsoDesc.BlendState.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_DEST_ALPHA;
+	transPsoDesc.BlendState.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_SRC_ALPHA;
+	transPsoDesc.RTVFormats[0] = mTransRenderTargetFormat;
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&transPsoDesc, IID_PPV_ARGS(&mPSOs["trans"])));
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC postPsoDesc = opaquePsoDesc;
 	postPsoDesc.InputLayout = { 
@@ -472,6 +512,71 @@ void SceneGraphApp::BuildGeos()
 	{
 		struct Vertex {
 			XMFLOAT3 pos;
+			XMFLOAT3 normal;
+		};
+
+		// Create Geo
+		auto geo = std::make_shared<MeshGeometry>();
+		geo->Name = "triangle";
+
+		// Generate Vertex Info
+		GeometryGenerator geoGenerator;
+		std::vector<UINT32> indices;
+		std::vector<Vertex> verts;
+		{
+			// Box
+			GeometryGenerator::MeshData boxMesh = geoGenerator.CreateBox(1.0, 1.0, 1.0, 1);
+			for (const auto& vert : boxMesh.Vertices) {
+				verts.push_back({ vert.Position, vert.Normal });
+			}
+			indices = boxMesh.Indices32;
+
+			SubmeshGeometry submesh;
+			submesh.BaseVertexLocation = 0;
+			submesh.StartIndexLocation = 0;
+			submesh.IndexCount = static_cast<UINT>(indices.size());
+			geo->DrawArgs["triangle"] = submesh;
+		}
+		{
+			// Board
+			std::vector<XMFLOAT3> boardVerts = {
+				{-0.8f, -0.8f, 0.0f},
+				{-0.8f, +0.8f, 0.0f},
+				{+0.8f, -0.8f, 0.0f},
+				{+0.8f, +0.8f, 0.0f},
+			};
+			std::vector<UINT32> boardIndices = {
+				0, 1, 2,
+				1, 3, 2,
+			};
+
+			SubmeshGeometry submesh;
+			submesh.BaseVertexLocation = static_cast<UINT>(verts.size());
+			submesh.StartIndexLocation = static_cast<UINT>(indices.size());
+			submesh.IndexCount = static_cast<UINT>(boardIndices.size());
+			geo->DrawArgs["board"] = submesh;
+
+			for (const auto& vert : boardVerts) {
+				verts.push_back({ vert, {0.0f, 0.0f, -1.0f} });
+			}
+			indices.insert(indices.end(), boardIndices.begin(), boardIndices.end());
+		}
+
+		// Fill buffer info & Upload
+		FillBufferInfoAndUpload(
+			md3dDevice, mCommandList,
+			geo, 
+			verts, indices,
+			DXGI_FORMAT_R32_UINT
+		);
+
+		// Save geo
+		mGeos[geo->Name] = std::move(geo);
+	}
+
+	{
+		struct Vertex {
+			XMFLOAT3 pos;
 		};
 
 		// Create Geo
@@ -508,44 +613,6 @@ void SceneGraphApp::BuildGeos()
 		// Save geo
 		mGeos[geo->Name] = std::move(geo);
 	}
-
-	{
-		struct Vertex {
-			XMFLOAT3 pos;
-			XMFLOAT3 normal;
-		};
-
-		// Create Geo
-		auto geo = std::make_shared<MeshGeometry>();
-		geo->Name = "triangle";
-
-		// Generate Vertex Info
-		GeometryGenerator geoGenerator;
-		GeometryGenerator::MeshData boxMesh = geoGenerator.CreateBox(1.0, 1.0, 1.0, 1);
-		std::vector<UINT32> indices = boxMesh.Indices32;
-		std::vector<Vertex> verts;
-		for (const auto& vert : boxMesh.Vertices) {
-			verts.push_back({ vert.Position, vert.Normal });
-		}
-
-		// Create submesh
-		SubmeshGeometry submesh;
-		submesh.BaseVertexLocation = 0;
-		submesh.StartIndexLocation = 0;
-		submesh.IndexCount = static_cast<UINT>(indices.size());
-		geo->DrawArgs["triangle"] = submesh;
-
-		// Fill buffer info & Upload
-		FillBufferInfoAndUpload(
-			md3dDevice, mCommandList,
-			geo, 
-			verts, indices,
-			DXGI_FORMAT_R32_UINT
-		);
-
-		// Save geo
-		mGeos[geo->Name] = std::move(geo);
-	}
 }
 
 void SceneGraphApp::BuildMaterials()
@@ -553,6 +620,14 @@ void SceneGraphApp::BuildMaterials()
 	auto whiteMtl = std::make_shared<MaterialConstants>();
 	whiteMtl->content.Diffuse = { 1.0f, 1.0f, 1.0f, 1.0f };
 	mMtlConsts["white"] = whiteMtl;
+
+	auto transBlueMtl = std::make_shared<MaterialConstants>();
+	transBlueMtl->content.Diffuse = { 0.0f, 0.0f, 0.8f, 0.7f };
+	mMtlConsts["transBlue"] = transBlueMtl;
+
+	auto transRedMtl = std::make_shared<MaterialConstants>();
+	transRedMtl->content.Diffuse = { 0.8f, 0.0f, 0.0f, 0.7f };
+	mMtlConsts["transRed"] = transRedMtl;
 }
 
 void SceneGraphApp::BuildAndUpdateMaterialConstantBuffers()
@@ -575,6 +650,7 @@ void SceneGraphApp::BuildAndUpdateMaterialConstantBuffers()
 
 void SceneGraphApp::BuildRenderItems()
 {
+	// Opaque
 	{
 		// Create Object constants
 		auto triConsts = std::make_shared<ObjectConstants>();
@@ -594,6 +670,58 @@ void SceneGraphApp::BuildRenderItems()
 		mRenderItemQueue.push_back(std::move(renderItem));
 	}
 
+	// Transparent
+	{
+		// transBlue
+		{
+			// Create Object constants
+			auto consts = std::make_shared<ObjectConstants>();
+			auto translationMat = XMMatrixTranslation(0.0f, 0.0f, -0.8f);
+			XMStoreFloat4x4(
+				&consts->content.ModelMat, 
+				XMMatrixTranspose(translationMat)
+			);
+			mObjConsts["transBlueBoard"] = consts;
+
+			// Create render items
+			auto renderItem = std::make_shared<RenderItem>();
+			renderItem->Geo = mGeos["triangle"];
+			renderItem->Submesh = mGeos["triangle"]->DrawArgs["board"];
+			renderItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+			renderItem->MtlConsts = mMtlConsts["transBlue"];
+			renderItem->PSO = mPSOs["trans"];
+			renderItem->ObjConsts = mObjConsts["transBlueBoard"];
+
+			// Save render items
+			mTransRenderItemQueue.push_back(std::move(renderItem));
+		}
+
+		// transRed
+		{
+			// Create Object constants
+			auto consts = std::make_shared<ObjectConstants>();
+			auto translationMat = XMMatrixTranslation(0.0f, 0.0f, 0.8f);
+			XMStoreFloat4x4(
+				&consts->content.ModelMat, 
+				XMMatrixTranspose(translationMat)
+			);
+			mObjConsts["transRedBoard"] = consts;
+
+			// Create render items
+			auto renderItem = std::make_shared<RenderItem>();
+			renderItem->Geo = mGeos["triangle"];
+			renderItem->Submesh = mGeos["triangle"]->DrawArgs["board"];
+			renderItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+			renderItem->MtlConsts = mMtlConsts["transRed"];
+			renderItem->PSO = mPSOs["trans"];
+			renderItem->ObjConsts = mObjConsts["transRedBoard"];
+
+			// Save render items
+			mTransRenderItemQueue.push_back(std::move(renderItem));
+		}
+	}
+
+	// Post
 	{
 		// Create Object constants
 		auto consts = std::make_shared<ObjectConstants>();
@@ -622,9 +750,87 @@ void SceneGraphApp::BuildObjectConstantBuffers()
 	);
 }
 
-void SceneGraphApp::ResizeScreenUAV()
+void SceneGraphApp::ResizeScreenUAVSRV()
 {
-	// Build Resources
+	// Sum UAV
+	{
+		// Build Resources
+		D3D12_RESOURCE_DESC desc;
+		desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+		desc.Alignment = 0;
+		desc.Width = mClientWidth;
+		desc.Height = mClientHeight;
+		desc.DepthOrArraySize = 1;
+		desc.MipLevels = 1;
+		desc.Format = DXGI_FORMAT_R32_UINT;
+		desc.SampleDesc.Count = 1;
+		desc.SampleDesc.Quality = 0;
+		desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+		desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+
+		ThrowIfFailed(md3dDevice->CreateCommittedResource(
+			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+			D3D12_HEAP_FLAG_NONE,
+			&desc,
+			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+			nullptr,
+			IID_PPV_ARGS(&mSumResource)
+		));
+
+		// Build Descriptor
+		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+		uavDesc.Format = DXGI_FORMAT_R32_UINT;
+		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+		uavDesc.Texture2D.MipSlice = 0;
+		md3dDevice->CreateUnorderedAccessView(
+			mSumResource.Get(), nullptr,
+			&uavDesc, mSumUAVCPUHandle
+		);
+		md3dDevice->CreateUnorderedAccessView(
+			mSumResource.Get(), nullptr,
+			&uavDesc, mSumCPUHeapUAVCPUHandle
+		);
+	}
+
+	// ZBuffer SRV
+	{
+		D3D12_RESOURCE_DESC desc;
+		desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+		desc.Alignment = 0;
+		desc.Width = mClientWidth;
+		desc.Height = mClientHeight;
+		desc.DepthOrArraySize = 1;
+		desc.MipLevels = 1;
+		desc.Format = mZBufferFormat;
+		desc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
+		desc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
+		desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+		desc.Flags = D3D12_RESOURCE_FLAG_NONE;
+
+		ThrowIfFailed(md3dDevice->CreateCommittedResource(
+			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+			D3D12_HEAP_FLAG_NONE,
+			&desc,
+			D3D12_RESOURCE_STATE_COMMON,
+			nullptr,
+			IID_PPV_ARGS(mZBufferResource.GetAddressOf())));
+
+		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+		srvDesc.Format = mZBufferFormat;
+		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+		srvDesc.Texture2D.MipLevels = 1;
+		srvDesc.Texture2D.MostDetailedMip = 0;
+		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		md3dDevice->CreateShaderResourceView(
+			mZBufferResource.Get(),
+			&srvDesc, mZBufferSRVCPUHandle
+		);
+	}
+}
+
+void SceneGraphApp::ResizeTransRenderTarget()
+{
+	// Build Resource
 	D3D12_RESOURCE_DESC desc;
 	desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
 	desc.Alignment = 0;
@@ -632,40 +838,50 @@ void SceneGraphApp::ResizeScreenUAV()
 	desc.Height = mClientHeight;
 	desc.DepthOrArraySize = 1;
 	desc.MipLevels = 1;
-	desc.Format = DXGI_FORMAT_R32_UINT;
+	desc.Format = mTransRenderTargetFormat;
 	desc.SampleDesc.Count = 1;
 	desc.SampleDesc.Quality = 0;
 	desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-	desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+	desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
 
+	D3D12_CLEAR_VALUE clearValue;
+	clearValue.Format = mTransRenderTargetFormat;
+	clearValue.Color[0] = 0.0f;
+	clearValue.Color[1] = 0.0f;
+	clearValue.Color[2] = 0.0f;
+	clearValue.Color[3] = 0.0f;
 	ThrowIfFailed(md3dDevice->CreateCommittedResource(
 		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
 		D3D12_HEAP_FLAG_NONE,
 		&desc,
-		D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-		nullptr,
-		IID_PPV_ARGS(&mSumResource)
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+		&clearValue,
+		IID_PPV_ARGS(&mTransRenderTarget)
 	));
 
 	// Build Descriptor
-	D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
-	uavDesc.Format = DXGI_FORMAT_R32_UINT;
-	uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-	uavDesc.Texture2D.MipSlice = 0;
-	md3dDevice->CreateUnorderedAccessView(
-		mSumResource.Get(), nullptr,
-		&uavDesc, mSumUAVCPUHandle
+	D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
+	rtvDesc.Format = mTransRenderTargetFormat;
+	rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+	rtvDesc.Texture2D.MipSlice = 0;
+	md3dDevice->CreateRenderTargetView(
+		mTransRenderTarget.Get(),
+		&rtvDesc, mTransRTVCPUHandle
 	);
-	md3dDevice->CreateUnorderedAccessView(
-		mSumResource.Get(), nullptr,
-		&uavDesc, mSumCPUHeapUAVCPUHandle
+	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+	srvDesc.Format = mTransRenderTargetFormat;
+	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+	srvDesc.Texture2D.MipLevels = 1;
+	srvDesc.Texture2D.MostDetailedMip = 0;
+	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	md3dDevice->CreateShaderResourceView(
+		mTransRenderTarget.Get(),
+		&srvDesc, mTransSRVCPUHandle
 	);
 }
 
 void SceneGraphApp::ResizeMidRenderTarget()
 {
-	mMidRenderTargetFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
-
 	// Build Resource
 	D3D12_RESOURCE_DESC desc;
 	desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
@@ -716,12 +932,58 @@ void SceneGraphApp::ResizeMidRenderTarget()
 	);
 }
 
+void SceneGraphApp::DrawRenderItems(const std::vector<std::shared_ptr<RenderItem>>& renderItemQueue)
+{
+	Microsoft::WRL::ComPtr<ID3D12PipelineState> nowPSO = nullptr;
+
+	auto objCBGPUAddr = mObjectConstantsBuffers->Resource()->GetGPUVirtualAddress();
+	UINT64 objCBElementByteSize = mObjectConstantsBuffers->getElementByteSize();
+	auto mtlCBGPUAddr = mMaterialConstantsBuffers->Resource()->GetGPUVirtualAddress();
+	UINT64 mtlCBElementByteSize = mMaterialConstantsBuffers->getElementByteSize();
+
+	for (auto renderItem : renderItemQueue) {
+		// Change PSO if needed
+		if (!nowPSO || nowPSO.Get() != renderItem->PSO.Get()) {
+			nowPSO = renderItem->PSO;
+			mCommandList->SetPipelineState(nowPSO.Get());
+		}
+
+		// Set IA
+		D3D12_VERTEX_BUFFER_VIEW VBVs[1] = {
+			renderItem->Geo->VertexBufferView()
+		};
+		mCommandList->IASetVertexBuffers(0, 1, VBVs);
+		mCommandList->IASetIndexBuffer(&renderItem->Geo->IndexBufferView());
+		mCommandList->IASetPrimitiveTopology(renderItem->PrimitiveTopology);
+
+		// Assign Material Constants Buffer
+		mCommandList->SetGraphicsRootConstantBufferView(
+			1, mtlCBGPUAddr + renderItem->MtlConsts->getID() * mtlCBElementByteSize
+		);
+
+		// Assign Object Constants Buffer
+		mCommandList->SetGraphicsRootConstantBufferView(
+			0, objCBGPUAddr + renderItem->ObjConsts->getID()*objCBElementByteSize
+		);
+
+		// Draw Call
+		mCommandList->DrawIndexedInstanced(
+			renderItem->Submesh.IndexCount, 
+			1,
+			renderItem->Submesh.StartIndexLocation,
+			renderItem->Submesh.BaseVertexLocation,
+			0
+		);
+	}
+}
+
 void SceneGraphApp::OnResize()
 {
 	D3DApp::OnResize();
 
 	ResizeMidRenderTarget();
-	ResizeScreenUAV();
+	ResizeTransRenderTarget();
+	ResizeScreenUAVSRV();
 }
 
 void SceneGraphApp::Update(const GameTimer& gt)
@@ -782,6 +1044,12 @@ void SceneGraphApp::Update(const GameTimer& gt)
 				renderItem->ObjConsts->content
 			);
 		}
+		for (auto renderItem : mTransRenderItemQueue) {
+			mObjectConstantsBuffers->CopyData(
+				renderItem->ObjConsts->getID(),
+				renderItem->ObjConsts->content
+			);
+		}
 		mObjectConstantsBuffers->CopyData(
 			mBackgroundRenderItem->ObjConsts->getID(),
 			mBackgroundRenderItem->ObjConsts->content
@@ -827,17 +1095,6 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 
 	// Draw Scene
 	{
-		// Indicate a state transition on the resource usage.
-		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mMidRenderTarget.Get(),
-			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET));
-
-		// Specify the buffers we are going to render to.
-		mCommandList->OMSetRenderTargets(1, &mMidRTVCPUHandle, true, &DepthStencilView());
-
-		// Clear the back buffer and depth buffer.
-		mCommandList->ClearRenderTargetView(mMidRTVCPUHandle, Colors::Black, 0, nullptr);
-		mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
-
 		// Set Root Signature
 		mCommandList->SetGraphicsRootSignature(mRootSigns["standard"].Get());
 
@@ -853,55 +1110,68 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 			3, mSumUAVGPUHandle
 		);
 
-		// Draw Render Items
-		Microsoft::WRL::ComPtr<ID3D12PipelineState> nowPSO = nullptr;
+		// Assign ZBuffer for reference
+		mCommandList->SetGraphicsRootDescriptorTable(
+			4, mZBufferSRVGPUHandle
+		);
 
-		auto objCBGPUAddr = mObjectConstantsBuffers->Resource()->GetGPUVirtualAddress();
-		UINT64 objCBElementByteSize = mObjectConstantsBuffers->getElementByteSize();
-		auto mtlCBGPUAddr = mMaterialConstantsBuffers->Resource()->GetGPUVirtualAddress();
-		UINT64 mtlCBElementByteSize = mMaterialConstantsBuffers->getElementByteSize();
+		// Opaque
+		{
+			// Trans to Render Target
+			mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mMidRenderTarget.Get(),
+				D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET));
 
-		for (auto renderItem : mRenderItemQueue) {
-			// Change PSO if needed
-			if (!nowPSO || nowPSO.Get() != renderItem->PSO.Get()) {
-				nowPSO = renderItem->PSO;
-				mCommandList->SetPipelineState(nowPSO.Get());
-			}
+			// Specify the buffers we are going to render to.
+			mCommandList->OMSetRenderTargets(1, &mMidRTVCPUHandle, true, &DepthStencilView());
 
-			// Set IA
-			D3D12_VERTEX_BUFFER_VIEW VBVs[1] = {
-				renderItem->Geo->VertexBufferView()
-			};
-			mCommandList->IASetVertexBuffers(0, 1, VBVs);
-			mCommandList->IASetIndexBuffer(&renderItem->Geo->IndexBufferView());
-			mCommandList->IASetPrimitiveTopology(renderItem->PrimitiveTopology);
+			// Clear the back buffer and depth buffer.
+			mCommandList->ClearRenderTargetView(mMidRTVCPUHandle, Colors::Black, 0, nullptr);
+			mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
-			// Assign Material Constants Buffer
-			mCommandList->SetGraphicsRootConstantBufferView(
-				1, mtlCBGPUAddr + renderItem->MtlConsts->getID() * mtlCBElementByteSize
-			);
+			// Draw Render Items
+			DrawRenderItems(mRenderItemQueue);
 
-			// Assign Object Constants Buffer
-			mCommandList->SetGraphicsRootConstantBufferView(
-				0, objCBGPUAddr + renderItem->ObjConsts->getID()*objCBElementByteSize
-			);
+			// Trans back to Shader Resource
+			mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mMidRenderTarget.Get(),
+				D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
+		}
 
-			// Draw Call
-			mCommandList->DrawIndexedInstanced(
-				renderItem->Submesh.IndexCount, 
-				1,
-				renderItem->Submesh.StartIndexLocation,
-				renderItem->Submesh.BaseVertexLocation,
-				0
-			);
+		// Copy ZBuffer for reference
+		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mDepthStencilBuffer.Get(),
+			D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_COPY_SOURCE));
+		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mZBufferResource.Get(),
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST));
+		mCommandList->CopyResource(mZBufferResource.Get(), mDepthStencilBuffer.Get());
+		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mDepthStencilBuffer.Get(),
+			D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_DEPTH_WRITE));
+		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mZBufferResource.Get(),
+			D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
+
+		// Transparent
+		{
+			// Trans to Render Target
+			mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mTransRenderTarget.Get(),
+				D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET));
+
+			// Specify the buffers we are going to render to.
+			mCommandList->OMSetRenderTargets(1, &mTransRTVCPUHandle, true, &DepthStencilView());
+
+			// Clear Render Target
+			FLOAT clearValue[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+			mCommandList->ClearRenderTargetView(mTransRTVCPUHandle, clearValue, 0, nullptr);
+
+			// Draw Render Items
+			DrawRenderItems(mTransRenderItemQueue);
+
+			// Trans back to Shader Resource
+			mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mTransRenderTarget.Get(),
+				D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
 		}
 	}
 
 	// Post Process
 	{
 		// Indicate a state transition on the resource usage.
-		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mMidRenderTarget.Get(),
-			D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
 		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
 			D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
 
@@ -919,10 +1189,13 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 		mCommandList->SetGraphicsRootDescriptorTable(
 			0, mMidSRVGPUHandle
 		);
+		mCommandList->SetGraphicsRootDescriptorTable(
+			1, mTransSRVGPUHandle
+		);
 
 		// Assign UAV
 		mCommandList->SetGraphicsRootDescriptorTable(
-			1, mSumUAVGPUHandle
+			2, mSumUAVGPUHandle
 		);
 
 		// Draw Render Items
