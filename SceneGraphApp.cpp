@@ -41,9 +41,6 @@ bool SceneGraphApp::Initialize()
 	// Init Scene
 	BuildLights();
 	BuildScene();
-
-	// Init Testing
-	BuildTesting();
 	
 	// Init Scene Resources
 	BuildPassConstantBuffers();
@@ -74,83 +71,58 @@ bool SceneGraphApp::Initialize()
 
 void SceneGraphApp::BuildDescriptorHeaps()
 {
-	// Build Descriptor Heap
-	D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
-    rtvHeapDesc.NumDescriptors = 1;
-    rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-    rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-	rtvHeapDesc.NodeMask = 0;
-	mRTVHeap = std::make_unique<StaticDescriptorHeap>(
-		md3dDevice, rtvHeapDesc
-	);
-	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-    srvHeapDesc.NumDescriptors = 1;
-	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-	srvHeapDesc.NodeMask = 0;
-	mCBVSRVUAVHeap = std::make_unique<StaticDescriptorHeap>(
-		md3dDevice, srvHeapDesc
-	);
+	// RTV
+	{
+		// Build Descriptor Heap
+		D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
+		heapDesc.NumDescriptors = 1;
+		heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+		heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+		heapDesc.NodeMask = 0;
+		mRTVHeap = std::make_unique<StaticDescriptorHeap>(
+			md3dDevice, heapDesc
+		);
 
-	// Build Handle
-	mMidRTVCPUHandle = mRTVHeap->GetCPUHandle(mRTVHeap->Alloc());
-	UINT index = mCBVSRVUAVHeap->Alloc();
-	mMidSRVCPUHandle = mCBVSRVUAVHeap->GetCPUHandle(index);
-	mMidSRVGPUHandle = mCBVSRVUAVHeap->GetGPUHandle(index);
-}
+		// Build Handle
+		mMidRTVCPUHandle = mRTVHeap->GetCPUHandle(mRTVHeap->Alloc());
+	}
 
-void SceneGraphApp::ResizeMidRenderTarget()
-{
-	mMidRenderTargetFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+	// CBV, SRV, UAV
+	// GPU heap
+	{
+		D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
+		heapDesc.NumDescriptors = 2;
+		heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+		heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+		heapDesc.NodeMask = 0;
+		mCBVSRVUAVHeap = std::make_unique<StaticDescriptorHeap>(
+			md3dDevice, heapDesc
+		);
 
-	// Build Resource
-	D3D12_RESOURCE_DESC desc;
-	desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-	desc.Alignment = 0;
-	desc.Width = mClientWidth;
-	desc.Height = mClientHeight;
-	desc.DepthOrArraySize = 1;
-	desc.MipLevels = 1;
-	desc.Format = mMidRenderTargetFormat;
-	desc.SampleDesc.Count = 1;
-	desc.SampleDesc.Quality = 0;
-	desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-	desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+		UINT index = mCBVSRVUAVHeap->Alloc();
+		mMidSRVCPUHandle = mCBVSRVUAVHeap->GetCPUHandle(index);
+		mMidSRVGPUHandle = mCBVSRVUAVHeap->GetGPUHandle(index);
+		index = mCBVSRVUAVHeap->Alloc();
+		mSumUAVCPUHandle = mCBVSRVUAVHeap->GetCPUHandle(index);
+		mSumUAVGPUHandle = mCBVSRVUAVHeap->GetGPUHandle(index);
+	}
 
-	D3D12_CLEAR_VALUE clearValue;
-	clearValue.Format = mMidRenderTargetFormat;
-	clearValue.Color[0] = 0.0f;
-	clearValue.Color[1] = 0.0f;
-	clearValue.Color[2] = 0.0f;
-	clearValue.Color[3] = 1.0f;
-	ThrowIfFailed(md3dDevice->CreateCommittedResource(
-		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-		D3D12_HEAP_FLAG_NONE,
-		&desc,
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-		&clearValue,
-		IID_PPV_ARGS(&mMidRenderTarget)
-	));
+	// CBV, SRV, UAV
+	// CPU heap
+	{
+		D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
+		heapDesc.NumDescriptors = 1;
+		heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+		heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+		heapDesc.NodeMask = 0;
 
-	// Build Descriptor
-	D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
-	rtvDesc.Format = mMidRenderTargetFormat;
-	rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
-	rtvDesc.Texture2D.MipSlice = 0;
-	md3dDevice->CreateRenderTargetView(
-		mMidRenderTarget.Get(),
-		&rtvDesc, mMidRTVCPUHandle
-	);
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-	srvDesc.Format = mMidRenderTargetFormat;
-	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	srvDesc.Texture2D.MipLevels = 1;
-	srvDesc.Texture2D.MostDetailedMip = 0;
-	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	md3dDevice->CreateShaderResourceView(
-		mMidRenderTarget.Get(),
-		&srvDesc, mMidSRVCPUHandle
-	);
+		mCBVSRVUAVCPUHeap = std::make_unique<StaticDescriptorHeap>(
+			md3dDevice, heapDesc
+		);
+
+		UINT index = mCBVSRVUAVCPUHeap->Alloc();
+		mSumCPUHeapUAVCPUHandle = mCBVSRVUAVCPUHeap->GetCPUHandle(index);
+	}
 }
 
 void SceneGraphApp::BuildInputLayout() {
@@ -252,18 +224,19 @@ void SceneGraphApp::BuildRootSignature()
 
 		uab<uint8> testUA;
 	*/
-		D3D12_DESCRIPTOR_RANGE range;
-		range.BaseShaderRegister = 0;
-		range.NumDescriptors = 1;
-		range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
-		range.OffsetInDescriptorsFromTableStart = 0U;
-		range.RegisterSpace = 0;
+		std::vector<D3D12_DESCRIPTOR_RANGE> ranges;
+		ranges.push_back(CD3DX12_DESCRIPTOR_RANGE(
+			D3D12_DESCRIPTOR_RANGE_TYPE_UAV,
+			1, 0,
+			0, 0U
+		));
 
 		// Describe root parameters
 		std::vector<CD3DX12_ROOT_PARAMETER> rootParams;
 		rootParams.push_back(GetCBVParam(0));
 		rootParams.push_back(GetCBVParam(1));
 		rootParams.push_back(GetCBVParam(2));
+		rootParams.push_back(GetTableParam(ranges));
 
 		// Create desc for root signature
 		CD3DX12_ROOT_SIGNATURE_DESC rootSignDesc;
@@ -279,16 +252,23 @@ void SceneGraphApp::BuildRootSignature()
 		uab<uint8> testUA;
 	*/
 		// Descriptor ranges
-		std::vector<D3D12_DESCRIPTOR_RANGE> ranges;
-		ranges.push_back(CD3DX12_DESCRIPTOR_RANGE(
+		std::vector<D3D12_DESCRIPTOR_RANGE> midSRVRanges;
+		midSRVRanges.push_back(CD3DX12_DESCRIPTOR_RANGE(
 			D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 
 			1, 0, 
+			0, 0U
+		));
+		std::vector<D3D12_DESCRIPTOR_RANGE> UAVRanges;
+		UAVRanges.push_back(CD3DX12_DESCRIPTOR_RANGE(
+			D3D12_DESCRIPTOR_RANGE_TYPE_UAV,
+			1, 0,
 			0, 0U
 		));
 
 		// Describe root parameters
 		std::vector<D3D12_ROOT_PARAMETER> rootParams;
-		rootParams.push_back(GetTableParam(ranges));
+		rootParams.push_back(GetTableParam(midSRVRanges));
+		rootParams.push_back(GetTableParam(UAVRanges));
 
 		// Create desc for root signature
 		CD3DX12_ROOT_SIGNATURE_DESC rootSignDesc;
@@ -389,61 +369,6 @@ void SceneGraphApp::BuildScene()
 	// Now we just hard-encode the scene.
 	// So only initing mPassConstants is needed
 	mPassConstants = std::make_unique<PassConstants>();
-}
-
-void SceneGraphApp::BuildTesting()
-{
-	// Build Resource
-	D3D12_RESOURCE_DESC desc;
-	desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-	desc.Alignment = 0;
-	desc.Width = mClientWidth;
-	desc.Height = mClientHeight;
-	desc.DepthOrArraySize = 1;
-	desc.MipLevels = 1;
-	desc.Format = DXGI_FORMAT_R32_UINT;
-	desc.SampleDesc.Count = 1;
-	desc.SampleDesc.Quality = 0;
-	desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-	desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
-
-	ThrowIfFailed(md3dDevice->CreateCommittedResource(
-		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-		D3D12_HEAP_FLAG_NONE,
-		&desc,
-		D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-		nullptr,
-		IID_PPV_ARGS(&mSumResource)
-	));
-
-	// Build Descriptor Heap
-	D3D12_DESCRIPTOR_HEAP_DESC uavHeapDesc = {};
-	uavHeapDesc.NumDescriptors = 1;
-	uavHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-	uavHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
-		&uavHeapDesc,
-		IID_PPV_ARGS(&mUAVDescHeap)
-	));
-	uavHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
-		&uavHeapDesc,
-		IID_PPV_ARGS(&mUAVCPUDescHeap)
-	));
-
-	// Build Descriptor
-	D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
-	uavDesc.Format = DXGI_FORMAT_R32_UINT;
-	uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-	uavDesc.Texture2D.MipSlice = 0;
-	md3dDevice->CreateUnorderedAccessView(
-		mSumResource.Get(), nullptr,
-		&uavDesc, mUAVDescHeap->GetCPUDescriptorHandleForHeapStart()
-	);
-	md3dDevice->CreateUnorderedAccessView(
-		mSumResource.Get(), nullptr,
-		&uavDesc, mUAVCPUDescHeap->GetCPUDescriptorHandleForHeapStart()
-	);
 }
 
 void SceneGraphApp::BuildPassConstantBuffers()
@@ -697,11 +622,106 @@ void SceneGraphApp::BuildObjectConstantBuffers()
 	);
 }
 
+void SceneGraphApp::ResizeScreenUAV()
+{
+	// Build Resources
+	D3D12_RESOURCE_DESC desc;
+	desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	desc.Alignment = 0;
+	desc.Width = mClientWidth;
+	desc.Height = mClientHeight;
+	desc.DepthOrArraySize = 1;
+	desc.MipLevels = 1;
+	desc.Format = DXGI_FORMAT_R32_UINT;
+	desc.SampleDesc.Count = 1;
+	desc.SampleDesc.Quality = 0;
+	desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+	desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+
+	ThrowIfFailed(md3dDevice->CreateCommittedResource(
+		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+		D3D12_HEAP_FLAG_NONE,
+		&desc,
+		D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+		nullptr,
+		IID_PPV_ARGS(&mSumResource)
+	));
+
+	// Build Descriptor
+	D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+	uavDesc.Format = DXGI_FORMAT_R32_UINT;
+	uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+	uavDesc.Texture2D.MipSlice = 0;
+	md3dDevice->CreateUnorderedAccessView(
+		mSumResource.Get(), nullptr,
+		&uavDesc, mSumUAVCPUHandle
+	);
+	md3dDevice->CreateUnorderedAccessView(
+		mSumResource.Get(), nullptr,
+		&uavDesc, mSumCPUHeapUAVCPUHandle
+	);
+}
+
+void SceneGraphApp::ResizeMidRenderTarget()
+{
+	mMidRenderTargetFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+
+	// Build Resource
+	D3D12_RESOURCE_DESC desc;
+	desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	desc.Alignment = 0;
+	desc.Width = mClientWidth;
+	desc.Height = mClientHeight;
+	desc.DepthOrArraySize = 1;
+	desc.MipLevels = 1;
+	desc.Format = mMidRenderTargetFormat;
+	desc.SampleDesc.Count = 1;
+	desc.SampleDesc.Quality = 0;
+	desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+	desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+
+	D3D12_CLEAR_VALUE clearValue;
+	clearValue.Format = mMidRenderTargetFormat;
+	clearValue.Color[0] = 0.0f;
+	clearValue.Color[1] = 0.0f;
+	clearValue.Color[2] = 0.0f;
+	clearValue.Color[3] = 1.0f;
+	ThrowIfFailed(md3dDevice->CreateCommittedResource(
+		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+		D3D12_HEAP_FLAG_NONE,
+		&desc,
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+		&clearValue,
+		IID_PPV_ARGS(&mMidRenderTarget)
+	));
+
+	// Build Descriptor
+	D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
+	rtvDesc.Format = mMidRenderTargetFormat;
+	rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+	rtvDesc.Texture2D.MipSlice = 0;
+	md3dDevice->CreateRenderTargetView(
+		mMidRenderTarget.Get(),
+		&rtvDesc, mMidRTVCPUHandle
+	);
+	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+	srvDesc.Format = mMidRenderTargetFormat;
+	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+	srvDesc.Texture2D.MipLevels = 1;
+	srvDesc.Texture2D.MostDetailedMip = 0;
+	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	md3dDevice->CreateShaderResourceView(
+		mMidRenderTarget.Get(),
+		&srvDesc, mMidSRVCPUHandle
+	);
+}
+
 void SceneGraphApp::OnResize()
 {
 	D3DApp::OnResize();
 
 	ResizeMidRenderTarget();
+	ResizeScreenUAV();
 }
 
 void SceneGraphApp::Update(const GameTimer& gt)
@@ -795,6 +815,16 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 		mCommandList->SetDescriptorHeaps(1, descHeaps);
 	}
 
+	// Refresh Frame Shared Data
+	{
+		UINT clearValues[4] = { 0, 0, 0, 0 };
+		mCommandList->ClearUnorderedAccessViewUint(
+			mSumUAVGPUHandle, mSumCPUHeapUAVCPUHandle,
+			mSumResource.Get(), clearValues,
+			0, nullptr
+		);
+	}
+
 	// Draw Scene
 	{
 		// Indicate a state transition on the resource usage.
@@ -816,6 +846,11 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 		UINT64 passCBElementByteSize = mPassConstantsBuffers->getElementByteSize();
 		mCommandList->SetGraphicsRootConstantBufferView(
 			2, passCBGPUAddr + mPassConstants->getID() * passCBElementByteSize
+		);
+
+		// Assign UAV
+		mCommandList->SetGraphicsRootDescriptorTable(
+			3, mSumUAVGPUHandle
 		);
 
 		// Draw Render Items
@@ -880,9 +915,14 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 		// Set Root Signature
 		mCommandList->SetGraphicsRootSignature(mRootSigns["post"].Get());
 
-		// Assign UAV
+		// Assign SRV
 		mCommandList->SetGraphicsRootDescriptorTable(
 			0, mMidSRVGPUHandle
+		);
+
+		// Assign UAV
+		mCommandList->SetGraphicsRootDescriptorTable(
+			1, mSumUAVGPUHandle
 		);
 
 		// Draw Render Items

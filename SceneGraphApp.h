@@ -30,9 +30,6 @@ public:
 	void BuildLights();
 	void BuildScene();
 
-	// Init Testing
-	void BuildTesting();
-
 	// Init Scene Resources
 	void BuildPassConstantBuffers();
 	void UpdateLightsInPassConstantBuffers();
@@ -46,8 +43,11 @@ public:
 	// Init Render Item Resources
 	void BuildObjectConstantBuffers();
 
-private:
+	// ScreenSize Concerned Resources' Init
+	void ResizeScreenUAV();
 	void ResizeMidRenderTarget();
+
+private:
 
 	virtual void OnResize()override;
 	virtual void Update(const GameTimer& gt)override;
@@ -64,8 +64,9 @@ private:
 	// Transparency concerned
 	// Just testing, so we do not sort them now.
 	Microsoft::WRL::ComPtr<ID3D12Resource> mSumResource;
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mUAVDescHeap;
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mUAVCPUDescHeap;
+	D3D12_CPU_DESCRIPTOR_HANDLE mSumUAVCPUHandle;
+	D3D12_GPU_DESCRIPTOR_HANDLE mSumUAVGPUHandle;
+	D3D12_CPU_DESCRIPTOR_HANDLE mSumCPUHeapUAVCPUHandle;
 
 	// Camera
 	Camera mCamera;
@@ -73,6 +74,7 @@ private:
 	// Descriptor Heaps
 	std::unique_ptr<StaticDescriptorHeap> mRTVHeap = nullptr;
 	std::unique_ptr<StaticDescriptorHeap> mCBVSRVUAVHeap = nullptr;
+	std::unique_ptr<StaticDescriptorHeap> mCBVSRVUAVCPUHeap = nullptr;
 
 	// Middle Ranger Target
 	DXGI_FORMAT mMidRenderTargetFormat;
