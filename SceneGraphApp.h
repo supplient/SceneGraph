@@ -6,6 +6,7 @@
 #include "Light.h"
 #include "RenderItem.h"
 #include "Camera.h"
+#include "StaticDescriptorHeap.h"
 
 class SceneGraphApp : public D3DApp
 {
@@ -69,14 +70,16 @@ private:
 	// Camera
 	Camera mCamera;
 
+	// Descriptor Heaps
+	std::unique_ptr<StaticDescriptorHeap> mRTVHeap = nullptr;
+	std::unique_ptr<StaticDescriptorHeap> mCBVSRVUAVHeap = nullptr;
+
 	// Middle Ranger Target
 	DXGI_FORMAT mMidRenderTargetFormat;
 	Microsoft::WRL::ComPtr<ID3D12Resource> mMidRenderTarget;
 	D3D12_CPU_DESCRIPTOR_HANDLE mMidRTVCPUHandle;
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mMidRTVDescHeap;
 	D3D12_CPU_DESCRIPTOR_HANDLE mMidSRVCPUHandle;
 	D3D12_GPU_DESCRIPTOR_HANDLE mMidSRVGPUHandle;
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mMidSRVDescHeap;
 
 	// Input Layout
 	std::unordered_map<std::string, std::vector<D3D12_INPUT_ELEMENT_DESC>> mInputLayouts;

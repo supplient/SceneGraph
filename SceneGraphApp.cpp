@@ -80,24 +80,23 @@ void SceneGraphApp::BuildDescriptorHeaps()
     rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
     rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 	rtvHeapDesc.NodeMask = 0;
-    ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
-        &rtvHeapDesc, 
-		IID_PPV_ARGS(&mMidRTVDescHeap)
-	));
+	mRTVHeap = std::make_unique<StaticDescriptorHeap>(
+		md3dDevice, rtvHeapDesc
+	);
 	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
     srvHeapDesc.NumDescriptors = 1;
 	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	srvHeapDesc.NodeMask = 0;
-    ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
-        &srvHeapDesc, 
-		IID_PPV_ARGS(&mMidSRVDescHeap)
-	));
+	mCBVSRVUAVHeap = std::make_unique<StaticDescriptorHeap>(
+		md3dDevice, srvHeapDesc
+	);
 
 	// Build Handle
-	mMidRTVCPUHandle = mMidRTVDescHeap->GetCPUDescriptorHandleForHeapStart();
-	mMidSRVCPUHandle = mMidSRVDescHeap->GetCPUDescriptorHandleForHeapStart();
-	mMidSRVGPUHandle = mMidSRVDescHeap->GetGPUDescriptorHandleForHeapStart();
+	mMidRTVCPUHandle = mRTVHeap->GetCPUHandle(mRTVHeap->Alloc());
+	UINT index = mCBVSRVUAVHeap->Alloc();
+	mMidSRVCPUHandle = mCBVSRVUAVHeap->GetCPUHandle(index);
+	mMidSRVGPUHandle = mCBVSRVUAVHeap->GetGPUHandle(index);
 }
 
 void SceneGraphApp::ResizeMidRenderTarget()
@@ -792,7 +791,7 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 
 	// Set Descriptor Heaps
 	{
-		ID3D12DescriptorHeap* descHeaps[] = { mMidSRVDescHeap.Get() };
+		ID3D12DescriptorHeap* descHeaps[] = { mCBVSRVUAVHeap->GetHeap() };
 		mCommandList->SetDescriptorHeaps(1, descHeaps);
 	}
 

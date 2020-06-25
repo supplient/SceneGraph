@@ -166,6 +166,7 @@
     <ClInclude Include="Light.h" />
     <ClInclude Include="RenderItem.h" />
     <ClInclude Include="SceneGraphApp.h" />
+    <ClInclude Include="StaticDescriptorHeap.h" />
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="PixelShader.hlsl">
