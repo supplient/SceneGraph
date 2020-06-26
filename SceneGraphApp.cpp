@@ -72,12 +72,17 @@ bool SceneGraphApp::Initialize()
 
 void SceneGraphApp::BuildRenderTargets()
 {
+	FLOAT clearValue[4];
+	clearValue[0] = 0.0f;
+	clearValue[1] = 0.0f;
+	clearValue[2] = 0.0f;
+	clearValue[3] = 0.0f;
 	mRenderTargets["opaque"] = std::make_unique<RenderTarget>(
-		L"opaque", DXGI_FORMAT_R8G8B8A8_UNORM);
+		L"opaque", DXGI_FORMAT_R8G8B8A8_UNORM, clearValue);
 	mRenderTargets["trans"] = std::make_unique<RenderTarget>(
-		L"transparent", DXGI_FORMAT_R32G32B32A32_FLOAT);
+		L"transparent", DXGI_FORMAT_R32G32B32A32_FLOAT, clearValue);
 	mRenderTargets["transBlend"] = std::make_unique<RenderTarget>(
-		L"transparent blend", DXGI_FORMAT_R8G8B8A8_UNORM);
+		L"transparent blend", DXGI_FORMAT_R8G8B8A8_UNORM, clearValue);
 }
 
 void SceneGraphApp::BuildDescriptorHeaps()
@@ -861,16 +866,9 @@ void SceneGraphApp::ResizeOpaqueRenderTarget()
 	desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 	desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
 
-	D3D12_CLEAR_VALUE clearValue;
-	clearValue.Format = mRenderTargets["opaque"]->format;
-	clearValue.Color[0] = 0.0f;
-	clearValue.Color[1] = 0.0f;
-	clearValue.Color[2] = 0.0f;
-	clearValue.Color[3] = 1.0f;
-
 	mRenderTargets["opaque"]->Resize(
 		md3dDevice,
-		&desc, &clearValue,
+		&desc,
 		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
 	);
 }
@@ -891,16 +889,9 @@ void SceneGraphApp::ResizeTransRenderTarget()
 	desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 	desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
 
-	D3D12_CLEAR_VALUE clearValue;
-	clearValue.Format = mRenderTargets["trans"]->format;
-	clearValue.Color[0] = 0.0f;
-	clearValue.Color[1] = 0.0f;
-	clearValue.Color[2] = 0.0f;
-	clearValue.Color[3] = 0.0f;
-
 	mRenderTargets["trans"]->Resize(
 		md3dDevice,
-		&desc, &clearValue,
+		&desc,
 		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
 	);
 }
@@ -921,16 +912,9 @@ void SceneGraphApp::ResizeTransBlendRenderTarget()
 	desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 	desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
 
-	D3D12_CLEAR_VALUE clearValue;
-	clearValue.Format = mRenderTargets["transBlend"]->format;
-	clearValue.Color[0] = 0.0f;
-	clearValue.Color[1] = 0.0f;
-	clearValue.Color[2] = 0.0f;
-	clearValue.Color[3] = 1.0f;
-
 	mRenderTargets["transBlend"]->Resize(
 		md3dDevice,
-		&desc, &clearValue,
+		&desc,
 		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
 	);
 }
@@ -1129,7 +1113,7 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 			mCommandList->OMSetRenderTargets(1, &mRenderTargets["opaque"]->rtvCPUHandle, true, &DepthStencilView());
 
 			// Clear the back buffer and depth buffer.
-			mCommandList->ClearRenderTargetView(mRenderTargets["opaque"]->rtvCPUHandle, Colors::Black, 0, nullptr);
+			mCommandList->ClearRenderTargetView(mRenderTargets["opaque"]->rtvCPUHandle, mRenderTargets["opaque"]->clearValue, 0, nullptr);
 			mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
 			// Draw Render Items
@@ -1161,8 +1145,7 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 			mCommandList->OMSetRenderTargets(1, &mRenderTargets["trans"]->rtvCPUHandle, true, &DepthStencilView());
 
 			// Clear Render Target
-			FLOAT clearValue[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-			mCommandList->ClearRenderTargetView(mRenderTargets["trans"]->rtvCPUHandle, clearValue, 0, nullptr);
+			mCommandList->ClearRenderTargetView(mRenderTargets["trans"]->rtvCPUHandle, mRenderTargets["trans"]->clearValue, 0, nullptr);
 
 			// Draw Render Items
 			DrawRenderItems(mTransRenderItemQueue);
@@ -1185,7 +1168,7 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 		// Clear the back buffer and depth buffer.
 		// TODO this may needless
 		FLOAT clearValue[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
-		mCommandList->ClearRenderTargetView(mRenderTargets["transBlend"]->rtvCPUHandle, clearValue, 0, nullptr);
+		mCommandList->ClearRenderTargetView(mRenderTargets["transBlend"]->rtvCPUHandle, mRenderTargets["transBlend"]->clearValue, 0, nullptr);
 		mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
 		// Set Root Signature

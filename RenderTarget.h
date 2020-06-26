@@ -4,15 +4,16 @@
 class RenderTarget 
 {
 public:
-	RenderTarget(std::wstring name, DXGI_FORMAT format)
+	RenderTarget(std::wstring name, DXGI_FORMAT format, FLOAT inClearValue[])
 		:name(name), format(format)
 	{
-
+		for (int i = 0; i < 4; i++)
+			clearValue[i] = inClearValue[i];
 	}
 
-	void Resize(Microsoft::WRL::ComPtr<ID3D12Device> device,
+	void Resize(
+		Microsoft::WRL::ComPtr<ID3D12Device> device,
 		D3D12_RESOURCE_DESC* desc,
-		D3D12_CLEAR_VALUE* clearValue,
 		D3D12_RESOURCE_STATES initState) 
 	{
 		if (format != desc->Format)
@@ -24,7 +25,9 @@ public:
 			D3D12_HEAP_FLAG_NONE,
 			desc,
 			initState,
-			clearValue,
+			&CD3DX12_CLEAR_VALUE(
+				format, clearValue
+			),
 			IID_PPV_ARGS(resource.ReleaseAndGetAddressOf())
 		));
 		resource->SetName(name.c_str());
@@ -53,6 +56,7 @@ public:
 	std::wstring name;
 
 	DXGI_FORMAT format;
+	FLOAT clearValue[4];
 	Microsoft::WRL::ComPtr<ID3D12Resource> resource = nullptr;
 	D3D12_CPU_DESCRIPTOR_HANDLE rtvCPUHandle;
 	D3D12_CPU_DESCRIPTOR_HANDLE srvCPUHandle;
