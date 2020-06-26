@@ -324,12 +324,29 @@ void SceneGraphApp::BuildRootSignature()
 
 void SceneGraphApp::BuildShaders()
 {
-	// Just load
-	mShaders["vs"] = d3dUtil::LoadBinary(L"VertexShader.cso");
-	mShaders["ps"] = d3dUtil::LoadBinary(L"PixelShader.cso");
-	mShaders["transBlendVS"] = d3dUtil::LoadBinary(L"transBlendVertex.cso");
-	mShaders["transBlendPS"] = d3dUtil::LoadBinary(L"transBlendPixel.cso");
-	mShaders["transPS"] = d3dUtil::LoadBinary(L"transparentPixel.cso");
+	static const std::string VS_TARGET = "vs_5_1";
+	static const std::string PS_TARGET = "ps_5_1";
+
+	std::vector<D3D_SHADER_MACRO> defines;
+	if(m4xMsaaState)
+		defines.push_back({ "MULTIPLE_SAMPLE", "4" });
+	defines.push_back({ NULL, NULL });
+
+	mShaders["vs"] = d3dUtil::CompileShader(
+		L"VertexShader.hlsl", defines.data(), "main", VS_TARGET
+	);
+	mShaders["ps"] = d3dUtil::CompileShader(
+		L"PixelShader.hlsl", defines.data(), "main", PS_TARGET
+	);
+	mShaders["transPS"] = d3dUtil::CompileShader(
+		L"transparentPixel.hlsl", defines.data(), "main", PS_TARGET
+	);
+	mShaders["transBlendVS"] = d3dUtil::CompileShader(
+		L"transBlendVertex.hlsl", defines.data(), "main", VS_TARGET
+	);
+	mShaders["transBlendPS"] = d3dUtil::CompileShader(
+		L"transBlendPixel.hlsl", defines.data(), "main", PS_TARGET
+	);
 }
 
 void SceneGraphApp::BuildPSOs()
@@ -361,10 +378,10 @@ void SceneGraphApp::BuildPSOs()
 	opaquePsoDesc.SampleMask = UINT_MAX;
 	opaquePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 	opaquePsoDesc.NumRenderTargets = 1;
-	opaquePsoDesc.RTVFormats[0] = mRenderTargets["opaque"]->format;
+	opaquePsoDesc.RTVFormats[0] = mRenderTargets["opaque"]->viewFormat;
 	opaquePsoDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
 	opaquePsoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
-	opaquePsoDesc.DSVFormat = mDepthStencilFormat;
+	opaquePsoDesc.DSVFormat = mDepthStencilViewFormat;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC transPsoDesc = opaquePsoDesc;
@@ -382,7 +399,7 @@ void SceneGraphApp::BuildPSOs()
 	transPsoDesc.BlendState.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
 	transPsoDesc.BlendState.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_DEST_ALPHA;
 	transPsoDesc.BlendState.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_SRC_ALPHA;
-	transPsoDesc.RTVFormats[0] = mRenderTargets["trans"]->format;
+	transPsoDesc.RTVFormats[0] = mRenderTargets["trans"]->viewFormat;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&transPsoDesc, IID_PPV_ARGS(&mPSOs["trans"])));
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC transBlendPsoDesc = opaquePsoDesc;
@@ -402,7 +419,7 @@ void SceneGraphApp::BuildPSOs()
 		mShaders["transBlendPS"]->GetBufferSize()
 	};
 	transBlendPsoDesc.DepthStencilState.DepthEnable = false;
-	transBlendPsoDesc.RTVFormats[0] = mRenderTargets["transBlend"]->format;
+	transBlendPsoDesc.RTVFormats[0] = mRenderTargets["transBlend"]->viewFormat;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&transBlendPsoDesc, IID_PPV_ARGS(&mPSOs["transBlend"])));
 }
 
@@ -704,7 +721,7 @@ void SceneGraphApp::BuildRenderItems()
 			renderItem->Submesh = mGeos["triangle"]->DrawArgs["board"];
 			renderItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 			renderItem->MtlConsts = mMtlConsts["blue"];
-			renderItem->PSO = mPSOs["opaque"];
+			renderItem->PSO = "opaque";
 			renderItem->ObjConsts = mObjConsts["blueBoard"];
 
 			// Save render items
@@ -732,7 +749,7 @@ void SceneGraphApp::BuildRenderItems()
 			renderItem->Submesh = mGeos["triangle"]->DrawArgs["board"];
 			renderItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 			renderItem->MtlConsts = mMtlConsts["red"];
-			renderItem->PSO = mPSOs["opaque"];
+			renderItem->PSO = "opaque";
 			renderItem->ObjConsts = mObjConsts["redBoard"];
 
 			// Save render items
@@ -754,7 +771,7 @@ void SceneGraphApp::BuildRenderItems()
 		renderItem->Submesh = mGeos["triangle"]->DrawArgs["triangle"];
 		renderItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 		renderItem->MtlConsts = mMtlConsts["white"];
-		renderItem->PSO = mPSOs["opaque"];
+		renderItem->PSO = "opaque";
 		renderItem->ObjConsts = mObjConsts["triangle"];
 
 		// Save render items
@@ -780,7 +797,7 @@ void SceneGraphApp::BuildRenderItems()
 			renderItem->Submesh = mGeos["triangle"]->DrawArgs["board"];
 			renderItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 			renderItem->MtlConsts = mMtlConsts["transBlue"];
-			renderItem->PSO = mPSOs["trans"];
+			renderItem->PSO = "trans";
 			renderItem->ObjConsts = mObjConsts["transBlueBoard"];
 
 			// Save render items
@@ -804,7 +821,7 @@ void SceneGraphApp::BuildRenderItems()
 			renderItem->Submesh = mGeos["triangle"]->DrawArgs["board"];
 			renderItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 			renderItem->MtlConsts = mMtlConsts["transRed"];
-			renderItem->PSO = mPSOs["trans"];
+			renderItem->PSO = "trans";
 			renderItem->ObjConsts = mObjConsts["transRedBoard"];
 
 			// Save render items
@@ -825,7 +842,7 @@ void SceneGraphApp::BuildRenderItems()
 		renderItem->Submesh = mGeos["background"]->DrawArgs["background"];
 		renderItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 		renderItem->MtlConsts = mMtlConsts["white"];
-		renderItem->PSO = mPSOs["transBlend"];
+		renderItem->PSO = "transBlend";
 		renderItem->ObjConsts = mObjConsts["background"];
 
 		// Save render items
@@ -892,7 +909,7 @@ void SceneGraphApp::ResizeScreenUAVSRV()
 		desc.Height = mClientHeight;
 		desc.DepthOrArraySize = 1;
 		desc.MipLevels = 1;
-		desc.Format = DXGI_FORMAT_R32_TYPELESS;
+		desc.Format = mZBufferResourceFormat;
 		desc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
 		desc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
 		desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
@@ -907,7 +924,7 @@ void SceneGraphApp::ResizeScreenUAVSRV()
 			IID_PPV_ARGS(mZBufferResource.GetAddressOf())));
 
 		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-		srvDesc.Format = mZBufferFormat;
+		srvDesc.Format = mZBufferViewFormat;
 		srvDesc.ViewDimension = m4xMsaaState ? D3D12_SRV_DIMENSION_TEXTURE2DMS : D3D12_SRV_DIMENSION_TEXTURE2D;
 		srvDesc.Texture2D.MipLevels = 1;
 		srvDesc.Texture2D.MostDetailedMip = 0;
@@ -929,7 +946,7 @@ void SceneGraphApp::ResizeRenderTargets()
 	opaqueDesc.Height = mClientHeight;
 	opaqueDesc.DepthOrArraySize = 1;
 	opaqueDesc.MipLevels = 1;
-	opaqueDesc.Format = mRenderTargets["opaque"]->format;
+	opaqueDesc.Format = mRenderTargets["opaque"]->viewFormat;
 	opaqueDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
 	opaqueDesc.SampleDesc.Quality = m4xMsaaState ? m4xMsaaQuality-1 : 0;
 	opaqueDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
@@ -943,7 +960,7 @@ void SceneGraphApp::ResizeRenderTargets()
 
 	// Transparent Rendering
 	D3D12_RESOURCE_DESC transDesc = opaqueDesc;
-	transDesc.Format = mRenderTargets["trans"]->format;
+	transDesc.Format = mRenderTargets["trans"]->viewFormat;
 
 	mRenderTargets["trans"]->Resize(
 		md3dDevice,
@@ -953,7 +970,7 @@ void SceneGraphApp::ResizeRenderTargets()
 
 	// Transparent Blending
 	D3D12_RESOURCE_DESC transBlendDesc = opaqueDesc;
-	transBlendDesc.Format = mRenderTargets["transBlend"]->format;
+	transBlendDesc.Format = mRenderTargets["transBlend"]->viewFormat;
 
 	mRenderTargets["transBlend"]->Resize(
 		md3dDevice,
@@ -973,8 +990,8 @@ void SceneGraphApp::DrawRenderItems(const std::vector<std::shared_ptr<RenderItem
 
 	for (auto renderItem : renderItemQueue) {
 		// Change PSO if needed
-		if (!nowPSO || nowPSO.Get() != renderItem->PSO.Get()) {
-			nowPSO = renderItem->PSO;
+		if (!nowPSO || nowPSO.Get() != mPSOs[renderItem->PSO].Get()) {
+			nowPSO = mPSOs[renderItem->PSO];
 			mCommandList->SetPipelineState(nowPSO.Get());
 		}
 
@@ -1005,6 +1022,14 @@ void SceneGraphApp::DrawRenderItems(const std::vector<std::shared_ptr<RenderItem
 			0
 		);
 	}
+}
+
+void SceneGraphApp::OnMsaaStateChange()
+{
+	D3DApp::OnMsaaStateChange();
+
+	BuildShaders();
+	BuildPSOs();
 }
 
 void SceneGraphApp::OnResize()
@@ -1224,7 +1249,7 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 
 		// Draw Render Items
 		auto& renderItem = mBackgroundRenderItem;
-		mCommandList->SetPipelineState(renderItem->PSO.Get());
+		mCommandList->SetPipelineState(mPSOs[renderItem->PSO].Get());
 
 		// Set IA
 		D3D12_VERTEX_BUFFER_VIEW VBVs[1] = {

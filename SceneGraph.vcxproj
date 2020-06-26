@@ -217,6 +217,7 @@
   <ItemGroup>
     <None Include="Header.hlsli" />
     <None Include="Light.hlsli" />
+    <None Include="MultiSampleLoader.hlsli" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

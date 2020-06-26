@@ -1,5 +1,5 @@
-#ifndef LIGHT_HEADER
-#define LIGHT_HEADER
+#ifndef LIGHT_H
+#define LIGHT_H
 
 #include "Header.hlsli"
 
@@ -73,4 +73,4 @@ float3 calLights(float4 posW, float4 normalW)
     return sum;
 }
 
-#endif
+#endif// LIGHT_H

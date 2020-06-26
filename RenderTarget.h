@@ -4,8 +4,8 @@
 class RenderTarget 
 {
 public:
-	RenderTarget(std::wstring name, DXGI_FORMAT format, FLOAT inClearValue[])
-		:name(name), format(format)
+	RenderTarget(std::wstring name, DXGI_FORMAT viewFormat, FLOAT inClearValue[])
+		:name(name), viewFormat(viewFormat)
 	{
 		for (int i = 0; i < 4; i++)
 			clearValue[i] = inClearValue[i];
@@ -16,7 +16,7 @@ public:
 		D3D12_RESOURCE_DESC* desc,
 		D3D12_RESOURCE_STATES initState) 
 	{
-		if (format != desc->Format)
+		if (viewFormat != desc->Format)
 			throw "Format not match!";
 
 		// Build Resource
@@ -26,7 +26,7 @@ public:
 			desc,
 			initState,
 			&CD3DX12_CLEAR_VALUE(
-				format, clearValue
+				viewFormat, clearValue
 			),
 			IID_PPV_ARGS(resource.ReleaseAndGetAddressOf())
 		));
@@ -37,7 +37,7 @@ public:
 
 		// Build Descriptor
 		D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
-		rtvDesc.Format = format;
+		rtvDesc.Format = viewFormat;
 		rtvDesc.ViewDimension = useMSAA ? D3D12_RTV_DIMENSION_TEXTURE2DMS : D3D12_RTV_DIMENSION_TEXTURE2D;
 		rtvDesc.Texture2D.MipSlice = 0;
 		device->CreateRenderTargetView(
@@ -45,7 +45,7 @@ public:
 			&rtvDesc, rtvCPUHandle
 		);
 		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-		srvDesc.Format = format;
+		srvDesc.Format = viewFormat;
 		srvDesc.ViewDimension = useMSAA ? D3D12_SRV_DIMENSION_TEXTURE2DMS : D3D12_SRV_DIMENSION_TEXTURE2D;
 		srvDesc.Texture2D.MipLevels = 1;
 		srvDesc.Texture2D.MostDetailedMip = 0;
@@ -58,7 +58,8 @@ public:
 
 	std::wstring name;
 
-	DXGI_FORMAT format;
+	DXGI_FORMAT resourceFormat;
+	DXGI_FORMAT viewFormat;
 	FLOAT clearValue[4];
 	Microsoft::WRL::ComPtr<ID3D12Resource> resource = nullptr;
 	D3D12_CPU_DESCRIPTOR_HANDLE rtvCPUHandle;

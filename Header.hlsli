@@ -1,5 +1,5 @@
-#ifndef BUFFER_HEADER_H
-#define BUFFER_HEADER_H
+#ifndef HEADER_H
+#define HEADER_H
 
 #define MAX_LIGHT_NUM 16
 
@@ -43,6 +43,11 @@ cbuffer cbPerPass : register(b2)
 };
 
 RWTexture2D<uint> uabNCount : register(u0);
-Texture2DMS<float> srbZBuffer : register(t0);
 
-#endif//BUFFER_HEADER_H
+#ifdef MULTIPLE_SAMPLE
+    Texture2DMS<float> srbZBuffer : register(t0);
+#else
+    Texture2D srbZBuffer : register(t0);
+#endif//MULTIPLE_SAMPLE
+
+#endif//HEADER_H

@@ -129,5 +129,8 @@
     <None Include="Header.hlsli">
       <Filter>Shaders</Filter>
     </None>
+    <None Include="MultiSampleLoader.hlsli">
+      <Filter>Shaders</Filter>
+    </None>
   </ItemGroup>
 </Project>

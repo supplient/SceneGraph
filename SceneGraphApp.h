@@ -60,6 +60,7 @@ public:
 
 private:
 
+	virtual void OnMsaaStateChange()override;
 	virtual void OnResize()override;
 	virtual void Update(const GameTimer& gt)override;
 	virtual void Draw(const GameTimer& gt)override;
@@ -91,7 +92,8 @@ private:
 	D3D12_CPU_DESCRIPTOR_HANDLE mNCountUAVCPUHeapCPUHandle;
 
 	// ZBuffer SRV
-	DXGI_FORMAT mZBufferFormat = DXGI_FORMAT_R32_FLOAT;
+	DXGI_FORMAT mZBufferResourceFormat = DXGI_FORMAT_R32_TYPELESS;
+	DXGI_FORMAT mZBufferViewFormat = DXGI_FORMAT_R32_FLOAT;
 	Microsoft::WRL::ComPtr<ID3D12Resource> mZBufferResource;
 	D3D12_CPU_DESCRIPTOR_HANDLE mZBufferSRVCPUHandle;
 	D3D12_GPU_DESCRIPTOR_HANDLE mZBufferSRVGPUHandle;

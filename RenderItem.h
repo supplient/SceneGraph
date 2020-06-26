@@ -13,7 +13,7 @@ public:
 	std::shared_ptr<MaterialConstants> MtlConsts = nullptr;
 
 	// Shader concerned
-	Microsoft::WRL::ComPtr<ID3D12PipelineState> PSO = nullptr;
+	std::string PSO;
 
 	// Object Constants concerned
 	std::shared_ptr<ObjectConstants> ObjConsts = nullptr;

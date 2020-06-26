@@ -1,3 +1,4 @@
+#include "MultiSampleLoader.hlsli"
 #include "Header.hlsli"
 #include "Light.hlsli"
 
@@ -5,7 +6,7 @@ float4 main(VertexOut pin, uint sampleIndex: SV_SampleIndex) : SV_TARGET
 {
     int2 posS;
     posS = floor(pin.posH.xy);
-    float baseZ = srbZBuffer.Load(int2(posS), sampleIndex).x;
+    float baseZ = LoadFloat(srbZBuffer, posS, sampleIndex).x;
     clip(baseZ - pin.posH.z);
     InterlockedAdd(uabNCount[posS], 1);
     
