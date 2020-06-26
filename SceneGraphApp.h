@@ -6,6 +6,7 @@
 #include "Light.h"
 #include "RenderItem.h"
 #include "Camera.h"
+#include "StaticDescriptorHeap.h"
 
 class SceneGraphApp : public D3DApp
 {
@@ -16,6 +17,9 @@ public:
 	virtual bool Initialize()override;
 
 	// Initialize
+	// Init DirectX
+	void BuildDescriptorHeaps();
+
 	// Init PSOs
 	void BuildInputLayout();
 	void BuildRootSignature();
@@ -39,7 +43,19 @@ public:
 	// Init Render Item Resources
 	void BuildObjectConstantBuffers();
 
+	// ScreenSize Concerned Resources' Init
+	void ResizeScreenUAVSRV();
+	void ResizeTransRenderTarget();
+	void ResizeMidRenderTarget();
+
+	/// <summary>
+	/// 把renderItemQueue中的RenderItem逐个绘制。不设置RenderTarget、RootSignature。会自动设置PSO。
+	/// </summary>
+	/// <param name="renderItemQueue">RenderItem队列</param>
+	void DrawRenderItems(const std::vector<std::shared_ptr<RenderItem>>& renderItemQueue);
+
 private:
+
 	virtual void OnResize()override;
 	virtual void Update(const GameTimer& gt)override;
 	virtual void Draw(const GameTimer& gt)override;
@@ -55,11 +71,43 @@ private:
 	// Camera
 	Camera mCamera;
 
+	// Descriptor Heaps
+	std::unique_ptr<StaticDescriptorHeap> mRTVHeap = nullptr;
+	std::unique_ptr<StaticDescriptorHeap> mCBVSRVUAVHeap = nullptr;
+	std::unique_ptr<StaticDescriptorHeap> mCBVSRVUAVCPUHeap = nullptr;
+
+	// Middle Render Target
+	DXGI_FORMAT mMidRenderTargetFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+	Microsoft::WRL::ComPtr<ID3D12Resource> mMidRenderTarget;
+	D3D12_CPU_DESCRIPTOR_HANDLE mMidRTVCPUHandle;
+	D3D12_CPU_DESCRIPTOR_HANDLE mMidSRVCPUHandle;
+	D3D12_GPU_DESCRIPTOR_HANDLE mMidSRVGPUHandle;
+
+	// Transparent Render Target
+	DXGI_FORMAT mTransRenderTargetFormat = DXGI_FORMAT_R32G32B32A32_FLOAT;
+	Microsoft::WRL::ComPtr<ID3D12Resource> mTransRenderTarget;
+	D3D12_CPU_DESCRIPTOR_HANDLE mTransRTVCPUHandle;
+	D3D12_CPU_DESCRIPTOR_HANDLE mTransSRVCPUHandle;
+	D3D12_GPU_DESCRIPTOR_HANDLE mTransSRVGPUHandle;
+
+	// NCount UAV
+	DXGI_FORMAT mNCountFormat = DXGI_FORMAT_R32_UINT;
+	Microsoft::WRL::ComPtr<ID3D12Resource> mNCountResource;
+	D3D12_CPU_DESCRIPTOR_HANDLE mNCountUAVCPUHandle;
+	D3D12_GPU_DESCRIPTOR_HANDLE mNCountUAVGPUHandle;
+	D3D12_CPU_DESCRIPTOR_HANDLE mNCountUAVCPUHeapCPUHandle;
+
+	// ZBuffer SRV
+	DXGI_FORMAT mZBufferFormat = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+	Microsoft::WRL::ComPtr<ID3D12Resource> mZBufferResource;
+	D3D12_CPU_DESCRIPTOR_HANDLE mZBufferSRVCPUHandle;
+	D3D12_GPU_DESCRIPTOR_HANDLE mZBufferSRVGPUHandle;
+
 	// Input Layout
-	std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
+	std::unordered_map<std::string, std::vector<D3D12_INPUT_ELEMENT_DESC>> mInputLayouts;
 
 	// Root Signature
-	Microsoft::WRL::ComPtr<ID3D12RootSignature> mRootSignature;
+	std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3D12RootSignature>> mRootSigns;
 
 	// Shaders
 	std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3DBlob>> mShaders;
@@ -86,6 +134,8 @@ private:
 
 	// Render Items
 	std::vector<std::shared_ptr<RenderItem>> mRenderItemQueue;
+	std::vector<std::shared_ptr<RenderItem>> mTransRenderItemQueue;
+	std::shared_ptr<RenderItem> mBackgroundRenderItem = nullptr;
 
 	// Constant Buffers
 	std::unique_ptr<UploadBuffer<MaterialConstants::Content>> mMaterialConstantsBuffers;
