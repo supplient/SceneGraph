@@ -46,7 +46,7 @@ public:
 	// ScreenSize Concerned Resources' Init
 	void ResizeScreenUAVSRV();
 	void ResizeTransRenderTarget();
-	void ResizeMidRenderTarget();
+	void ResizeOpaqueRenderTarget();
 
 	/// <summary>
 	/// 把renderItemQueue中的RenderItem逐个绘制。不设置RenderTarget、RootSignature。会自动设置PSO。
@@ -76,12 +76,12 @@ private:
 	std::unique_ptr<StaticDescriptorHeap> mCBVSRVUAVHeap = nullptr;
 	std::unique_ptr<StaticDescriptorHeap> mCBVSRVUAVCPUHeap = nullptr;
 
-	// Middle Render Target
-	DXGI_FORMAT mMidRenderTargetFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
-	Microsoft::WRL::ComPtr<ID3D12Resource> mMidRenderTarget;
-	D3D12_CPU_DESCRIPTOR_HANDLE mMidRTVCPUHandle;
-	D3D12_CPU_DESCRIPTOR_HANDLE mMidSRVCPUHandle;
-	D3D12_GPU_DESCRIPTOR_HANDLE mMidSRVGPUHandle;
+	// Opaque Render Target
+	DXGI_FORMAT mOpaqueRenderTargetFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+	Microsoft::WRL::ComPtr<ID3D12Resource> mOpaqueRenderTarget;
+	D3D12_CPU_DESCRIPTOR_HANDLE mOpaqueRTVCPUHandle;
+	D3D12_CPU_DESCRIPTOR_HANDLE mOpaqueSRVCPUHandle;
+	D3D12_GPU_DESCRIPTOR_HANDLE mOpaqueSRVGPUHandle;
 
 	// Transparent Render Target
 	DXGI_FORMAT mTransRenderTargetFormat = DXGI_FORMAT_R32G32B32A32_FLOAT;

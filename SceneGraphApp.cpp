@@ -84,7 +84,7 @@ void SceneGraphApp::BuildDescriptorHeaps()
 		);
 
 		// Build Handle
-		mMidRTVCPUHandle = mRTVHeap->GetCPUHandle(mRTVHeap->Alloc());
+		mOpaqueRTVCPUHandle = mRTVHeap->GetCPUHandle(mRTVHeap->Alloc());
 		mTransRTVCPUHandle = mRTVHeap->GetCPUHandle(mRTVHeap->Alloc());
 	}
 
@@ -101,8 +101,8 @@ void SceneGraphApp::BuildDescriptorHeaps()
 		);
 
 		UINT index = mCBVSRVUAVHeap->Alloc();
-		mMidSRVCPUHandle = mCBVSRVUAVHeap->GetCPUHandle(index);
-		mMidSRVGPUHandle = mCBVSRVUAVHeap->GetGPUHandle(index);
+		mOpaqueSRVCPUHandle = mCBVSRVUAVHeap->GetCPUHandle(index);
+		mOpaqueSRVGPUHandle = mCBVSRVUAVHeap->GetGPUHandle(index);
 		index = mCBVSRVUAVHeap->Alloc();
 		mTransSRVCPUHandle = mCBVSRVUAVHeap->GetCPUHandle(index);
 		mTransSRVGPUHandle = mCBVSRVUAVHeap->GetGPUHandle(index);
@@ -267,8 +267,8 @@ void SceneGraphApp::BuildRootSignature()
 		uab<uint8> testUA;
 	*/
 		// Descriptor ranges
-		std::vector<D3D12_DESCRIPTOR_RANGE> midSRVRanges;
-		midSRVRanges.push_back(CD3DX12_DESCRIPTOR_RANGE(
+		std::vector<D3D12_DESCRIPTOR_RANGE> opaqueSRVRanges;
+		opaqueSRVRanges.push_back(CD3DX12_DESCRIPTOR_RANGE(
 			D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 
 			1, 0, 
 			0, 0U
@@ -288,7 +288,7 @@ void SceneGraphApp::BuildRootSignature()
 
 		// Describe root parameters
 		std::vector<D3D12_ROOT_PARAMETER> rootParams;
-		rootParams.push_back(GetTableParam(midSRVRanges));
+		rootParams.push_back(GetTableParam(opaqueSRVRanges));
 		rootParams.push_back(GetTableParam(transSRVRanges));
 		rootParams.push_back(GetTableParam(UAVRanges));
 
@@ -341,7 +341,7 @@ void SceneGraphApp::BuildPSOs()
 	opaquePsoDesc.SampleMask = UINT_MAX;
 	opaquePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 	opaquePsoDesc.NumRenderTargets = 1;
-	opaquePsoDesc.RTVFormats[0] = mMidRenderTargetFormat;
+	opaquePsoDesc.RTVFormats[0] = mOpaqueRenderTargetFormat;
 	opaquePsoDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
 	opaquePsoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
 	opaquePsoDesc.DSVFormat = mDepthStencilFormat;
@@ -881,7 +881,7 @@ void SceneGraphApp::ResizeTransRenderTarget()
 	);
 }
 
-void SceneGraphApp::ResizeMidRenderTarget()
+void SceneGraphApp::ResizeOpaqueRenderTarget()
 {
 	// Build Resource
 	D3D12_RESOURCE_DESC desc;
@@ -891,14 +891,14 @@ void SceneGraphApp::ResizeMidRenderTarget()
 	desc.Height = mClientHeight;
 	desc.DepthOrArraySize = 1;
 	desc.MipLevels = 1;
-	desc.Format = mMidRenderTargetFormat;
+	desc.Format = mOpaqueRenderTargetFormat;
 	desc.SampleDesc.Count = 1;
 	desc.SampleDesc.Quality = 0;
 	desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 	desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
 
 	D3D12_CLEAR_VALUE clearValue;
-	clearValue.Format = mMidRenderTargetFormat;
+	clearValue.Format = mOpaqueRenderTargetFormat;
 	clearValue.Color[0] = 0.0f;
 	clearValue.Color[1] = 0.0f;
 	clearValue.Color[2] = 0.0f;
@@ -909,27 +909,27 @@ void SceneGraphApp::ResizeMidRenderTarget()
 		&desc,
 		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 		&clearValue,
-		IID_PPV_ARGS(&mMidRenderTarget)
+		IID_PPV_ARGS(&mOpaqueRenderTarget)
 	));
 
 	// Build Descriptor
 	D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
-	rtvDesc.Format = mMidRenderTargetFormat;
+	rtvDesc.Format = mOpaqueRenderTargetFormat;
 	rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
 	rtvDesc.Texture2D.MipSlice = 0;
 	md3dDevice->CreateRenderTargetView(
-		mMidRenderTarget.Get(),
-		&rtvDesc, mMidRTVCPUHandle
+		mOpaqueRenderTarget.Get(),
+		&rtvDesc, mOpaqueRTVCPUHandle
 	);
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-	srvDesc.Format = mMidRenderTargetFormat;
+	srvDesc.Format = mOpaqueRenderTargetFormat;
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 	srvDesc.Texture2D.MipLevels = 1;
 	srvDesc.Texture2D.MostDetailedMip = 0;
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 	md3dDevice->CreateShaderResourceView(
-		mMidRenderTarget.Get(),
-		&srvDesc, mMidSRVCPUHandle
+		mOpaqueRenderTarget.Get(),
+		&srvDesc, mOpaqueSRVCPUHandle
 	);
 }
 
@@ -982,7 +982,7 @@ void SceneGraphApp::OnResize()
 {
 	D3DApp::OnResize();
 
-	ResizeMidRenderTarget();
+	ResizeOpaqueRenderTarget();
 	ResizeTransRenderTarget();
 	ResizeScreenUAVSRV();
 }
@@ -1119,21 +1119,21 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 		// Opaque
 		{
 			// Trans to Render Target
-			mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mMidRenderTarget.Get(),
+			mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mOpaqueRenderTarget.Get(),
 				D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET));
 
 			// Specify the buffers we are going to render to.
-			mCommandList->OMSetRenderTargets(1, &mMidRTVCPUHandle, true, &DepthStencilView());
+			mCommandList->OMSetRenderTargets(1, &mOpaqueRTVCPUHandle, true, &DepthStencilView());
 
 			// Clear the back buffer and depth buffer.
-			mCommandList->ClearRenderTargetView(mMidRTVCPUHandle, Colors::Black, 0, nullptr);
+			mCommandList->ClearRenderTargetView(mOpaqueRTVCPUHandle, Colors::Black, 0, nullptr);
 			mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
 			// Draw Render Items
 			DrawRenderItems(mRenderItemQueue);
 
 			// Trans back to Shader Resource
-			mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mMidRenderTarget.Get(),
+			mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mOpaqueRenderTarget.Get(),
 				D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
 		}
 
@@ -1188,7 +1188,7 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 
 		// Assign SRV
 		mCommandList->SetGraphicsRootDescriptorTable(
-			0, mMidSRVGPUHandle
+			0, mOpaqueSRVGPUHandle
 		);
 		mCommandList->SetGraphicsRootDescriptorTable(
 			1, mTransSRVGPUHandle
