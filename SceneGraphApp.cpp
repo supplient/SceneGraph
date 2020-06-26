@@ -850,71 +850,45 @@ void SceneGraphApp::ResizeScreenUAVSRV()
 	}
 }
 
-void SceneGraphApp::ResizeOpaqueRenderTarget()
+void SceneGraphApp::ResizeRenderTargets()
 {
-	// Build Resource
-	D3D12_RESOURCE_DESC desc;
-	desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-	desc.Alignment = 0;
-	desc.Width = mClientWidth;
-	desc.Height = mClientHeight;
-	desc.DepthOrArraySize = 1;
-	desc.MipLevels = 1;
-	desc.Format = mRenderTargets["opaque"]->format;
-	desc.SampleDesc.Count = 1;
-	desc.SampleDesc.Quality = 0;
-	desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-	desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+	// Opaque Rendering
+	D3D12_RESOURCE_DESC opaqueDesc;
+	opaqueDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	opaqueDesc.Alignment = 0;
+	opaqueDesc.Width = mClientWidth;
+	opaqueDesc.Height = mClientHeight;
+	opaqueDesc.DepthOrArraySize = 1;
+	opaqueDesc.MipLevels = 1;
+	opaqueDesc.Format = mRenderTargets["opaque"]->format;
+	opaqueDesc.SampleDesc.Count = 1;
+	opaqueDesc.SampleDesc.Quality = 0;
+	opaqueDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+	opaqueDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
 
 	mRenderTargets["opaque"]->Resize(
 		md3dDevice,
-		&desc,
+		&opaqueDesc,
 		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
 	);
-}
 
-void SceneGraphApp::ResizeTransRenderTarget()
-{
-	// Build Resource
-	D3D12_RESOURCE_DESC desc;
-	desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-	desc.Alignment = 0;
-	desc.Width = mClientWidth;
-	desc.Height = mClientHeight;
-	desc.DepthOrArraySize = 1;
-	desc.MipLevels = 1;
-	desc.Format = mRenderTargets["trans"]->format;
-	desc.SampleDesc.Count = 1;
-	desc.SampleDesc.Quality = 0;
-	desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-	desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+	// Transparent Rendering
+	D3D12_RESOURCE_DESC transDesc = opaqueDesc;
+	transDesc.Format = mRenderTargets["trans"]->format;
 
 	mRenderTargets["trans"]->Resize(
 		md3dDevice,
-		&desc,
+		&transDesc,
 		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
 	);
-}
 
-void SceneGraphApp::ResizeTransBlendRenderTarget()
-{
-	// Build Resource
-	D3D12_RESOURCE_DESC desc;
-	desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-	desc.Alignment = 0;
-	desc.Width = mClientWidth;
-	desc.Height = mClientHeight;
-	desc.DepthOrArraySize = 1;
-	desc.MipLevels = 1;
-	desc.Format = mRenderTargets["transBlend"]->format;
-	desc.SampleDesc.Count = 1;
-	desc.SampleDesc.Quality = 0;
-	desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-	desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+	// Transparent Blending
+	D3D12_RESOURCE_DESC transBlendDesc = opaqueDesc;
+	transBlendDesc.Format = mRenderTargets["transBlend"]->format;
 
 	mRenderTargets["transBlend"]->Resize(
 		md3dDevice,
-		&desc,
+		&transBlendDesc,
 		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
 	);
 }
@@ -969,9 +943,7 @@ void SceneGraphApp::OnResize()
 	D3DApp::OnResize();
 
 	ResizeScreenUAVSRV();
-	ResizeOpaqueRenderTarget();
-	ResizeTransRenderTarget();
-	ResizeTransBlendRenderTarget();
+	ResizeRenderTargets();
 }
 
 void SceneGraphApp::Update(const GameTimer& gt)

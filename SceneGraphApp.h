@@ -50,9 +50,7 @@ public:
 
 	// ScreenSize Concerned Resources' Init
 	void ResizeScreenUAVSRV();
-	void ResizeOpaqueRenderTarget();
-	void ResizeTransRenderTarget();
-	void ResizeTransBlendRenderTarget();
+	void ResizeRenderTargets();
 
 	/// <summary>
 	/// 把renderItemQueue中的RenderItem逐个绘制。不设置RenderTarget、RootSignature。会自动设置PSO。
