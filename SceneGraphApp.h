@@ -7,6 +7,7 @@
 #include "RenderItem.h"
 #include "Camera.h"
 #include "StaticDescriptorHeap.h"
+#include "RenderTarget.h"
 
 class SceneGraphApp : public D3DApp
 {
@@ -18,6 +19,10 @@ public:
 
 	// Initialize
 	// Init DirectX
+	/// <summary>
+	/// 仅仅初始化RenderTarget，不建立资源，也不建立描述符
+	/// </summary>
+	void BuildRenderTargets();
 	void BuildDescriptorHeaps();
 
 	// Init PSOs
@@ -45,8 +50,7 @@ public:
 
 	// ScreenSize Concerned Resources' Init
 	void ResizeScreenUAVSRV();
-	void ResizeTransRenderTarget();
-	void ResizeMidRenderTarget();
+	void ResizeRenderTargets();
 
 	/// <summary>
 	/// 把renderItemQueue中的RenderItem逐个绘制。不设置RenderTarget、RootSignature。会自动设置PSO。
@@ -56,6 +60,7 @@ public:
 
 private:
 
+	virtual void OnMsaaStateChange()override;
 	virtual void OnResize()override;
 	virtual void Update(const GameTimer& gt)override;
 	virtual void Draw(const GameTimer& gt)override;
@@ -76,19 +81,8 @@ private:
 	std::unique_ptr<StaticDescriptorHeap> mCBVSRVUAVHeap = nullptr;
 	std::unique_ptr<StaticDescriptorHeap> mCBVSRVUAVCPUHeap = nullptr;
 
-	// Middle Render Target
-	DXGI_FORMAT mMidRenderTargetFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
-	Microsoft::WRL::ComPtr<ID3D12Resource> mMidRenderTarget;
-	D3D12_CPU_DESCRIPTOR_HANDLE mMidRTVCPUHandle;
-	D3D12_CPU_DESCRIPTOR_HANDLE mMidSRVCPUHandle;
-	D3D12_GPU_DESCRIPTOR_HANDLE mMidSRVGPUHandle;
-
-	// Transparent Render Target
-	DXGI_FORMAT mTransRenderTargetFormat = DXGI_FORMAT_R32G32B32A32_FLOAT;
-	Microsoft::WRL::ComPtr<ID3D12Resource> mTransRenderTarget;
-	D3D12_CPU_DESCRIPTOR_HANDLE mTransRTVCPUHandle;
-	D3D12_CPU_DESCRIPTOR_HANDLE mTransSRVCPUHandle;
-	D3D12_GPU_DESCRIPTOR_HANDLE mTransSRVGPUHandle;
+	// Render Targets
+	std::unordered_map<std::string, std::unique_ptr<RenderTarget>> mRenderTargets;
 
 	// NCount UAV
 	DXGI_FORMAT mNCountFormat = DXGI_FORMAT_R32_UINT;
@@ -98,7 +92,8 @@ private:
 	D3D12_CPU_DESCRIPTOR_HANDLE mNCountUAVCPUHeapCPUHandle;
 
 	// ZBuffer SRV
-	DXGI_FORMAT mZBufferFormat = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+	DXGI_FORMAT mZBufferResourceFormat = DXGI_FORMAT_R32_TYPELESS;
+	DXGI_FORMAT mZBufferViewFormat = DXGI_FORMAT_R32_FLOAT;
 	Microsoft::WRL::ComPtr<ID3D12Resource> mZBufferResource;
 	D3D12_CPU_DESCRIPTOR_HANDLE mZBufferSRVCPUHandle;
 	D3D12_GPU_DESCRIPTOR_HANDLE mZBufferSRVGPUHandle;
