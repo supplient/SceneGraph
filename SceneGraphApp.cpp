@@ -171,7 +171,7 @@ void SceneGraphApp::BuildInputLayout() {
 		pos.InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA;
 		pos.InstanceDataStepRate = 0;
 
-		mInputLayouts["post"] = { pos };
+		mInputLayouts["transBlend"] = { pos };
 	}
 }
 
@@ -298,7 +298,7 @@ void SceneGraphApp::BuildRootSignature()
 		rootSignDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
 		// Serialize And Create RootSignature
-		mRootSigns["post"] = SerializeAndCreateRootSignature(md3dDevice, &rootSignDesc);
+		mRootSigns["transBlend"] = SerializeAndCreateRootSignature(md3dDevice, &rootSignDesc);
 	}
 }
 
@@ -307,8 +307,8 @@ void SceneGraphApp::BuildShaders()
 	// Just load
 	mShaders["vs"] = d3dUtil::LoadBinary(L"VertexShader.cso");
 	mShaders["ps"] = d3dUtil::LoadBinary(L"PixelShader.cso");
-	mShaders["postVS"] = d3dUtil::LoadBinary(L"postVertex.cso");
-	mShaders["postPS"] = d3dUtil::LoadBinary(L"postPixel.cso");
+	mShaders["transBlendVS"] = d3dUtil::LoadBinary(L"transBlendVertex.cso");
+	mShaders["transBlendPS"] = d3dUtil::LoadBinary(L"transBlendPixel.cso");
 	mShaders["transPS"] = d3dUtil::LoadBinary(L"transparentPixel.cso");
 }
 
@@ -367,22 +367,22 @@ void SceneGraphApp::BuildPSOs()
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC postPsoDesc = opaquePsoDesc;
 	postPsoDesc.InputLayout = { 
-		mInputLayouts["post"].data(), 
-		(UINT)mInputLayouts["post"].size() 
+		mInputLayouts["transBlend"].data(), 
+		(UINT)mInputLayouts["transBlend"].size() 
 	};
-	postPsoDesc.pRootSignature = mRootSigns["post"].Get();
+	postPsoDesc.pRootSignature = mRootSigns["transBlend"].Get();
 	postPsoDesc.VS =
 	{
-		reinterpret_cast<BYTE*>(mShaders["postVS"]->GetBufferPointer()),
-		mShaders["postVS"]->GetBufferSize()
+		reinterpret_cast<BYTE*>(mShaders["transBlendVS"]->GetBufferPointer()),
+		mShaders["transBlendVS"]->GetBufferSize()
 	};
 	postPsoDesc.PS =
 	{
-		reinterpret_cast<BYTE*>(mShaders["postPS"]->GetBufferPointer()),
-		mShaders["postPS"]->GetBufferSize()
+		reinterpret_cast<BYTE*>(mShaders["transBlendPS"]->GetBufferPointer()),
+		mShaders["transBlendPS"]->GetBufferSize()
 	};
 	postPsoDesc.DepthStencilState.DepthEnable = false;
-	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&postPsoDesc, IID_PPV_ARGS(&mPSOs["post"])));
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&postPsoDesc, IID_PPV_ARGS(&mPSOs["transBlend"])));
 }
 
 void SceneGraphApp::BuildLights()
@@ -735,7 +735,7 @@ void SceneGraphApp::BuildRenderItems()
 		renderItem->Submesh = mGeos["background"]->DrawArgs["background"];
 		renderItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 		renderItem->MtlConsts = mMtlConsts["white"];
-		renderItem->PSO = mPSOs["post"];
+		renderItem->PSO = mPSOs["transBlend"];
 		renderItem->ObjConsts = mObjConsts["background"];
 
 		// Save render items
@@ -1184,7 +1184,7 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 		mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
 		// Set Root Signature
-		mCommandList->SetGraphicsRootSignature(mRootSigns["post"].Get());
+		mCommandList->SetGraphicsRootSignature(mRootSigns["transBlend"].Get());
 
 		// Assign SRV
 		mCommandList->SetGraphicsRootDescriptorTable(
