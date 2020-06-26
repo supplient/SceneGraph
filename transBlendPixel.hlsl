@@ -20,8 +20,10 @@ float4 main(float4 posH : SV_POSITION, uint sampleIndex : SV_SampleIndex) : SV_T
         return float4(opaqueColor.xyz, 1.0);
 
     float4 transValue = LoadFloat4(trans, posS, sampleIndex);
-    float3 transColor = transValue.xyz;
     float transAlpha = transValue.a;
+    if(transAlpha == 0.0f)
+        return float4(opaqueColor.xyz, 1.0);
+    float3 transColor = transValue.xyz;
 
     float3 avgColor = transColor / transAlpha;
     float avgAlpha = transAlpha / n;
