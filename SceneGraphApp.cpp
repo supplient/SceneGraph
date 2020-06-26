@@ -110,8 +110,8 @@ void SceneGraphApp::BuildDescriptorHeaps()
 		mZBufferSRVCPUHandle = mCBVSRVUAVHeap->GetCPUHandle(index);
 		mZBufferSRVGPUHandle = mCBVSRVUAVHeap->GetGPUHandle(index);
 		index = mCBVSRVUAVHeap->Alloc();
-		mSumUAVCPUHandle = mCBVSRVUAVHeap->GetCPUHandle(index);
-		mSumUAVGPUHandle = mCBVSRVUAVHeap->GetGPUHandle(index);
+		mNCountUAVCPUHandle = mCBVSRVUAVHeap->GetCPUHandle(index);
+		mNCountUAVGPUHandle = mCBVSRVUAVHeap->GetGPUHandle(index);
 	}
 
 	// CBV, SRV, UAV
@@ -128,7 +128,7 @@ void SceneGraphApp::BuildDescriptorHeaps()
 		);
 
 		UINT index = mCBVSRVUAVCPUHeap->Alloc();
-		mSumCPUHeapUAVCPUHandle = mCBVSRVUAVCPUHeap->GetCPUHandle(index);
+		mNCountUAVCPUHeapCPUHandle = mCBVSRVUAVCPUHeap->GetCPUHandle(index);
 	}
 }
 
@@ -229,10 +229,11 @@ void SceneGraphApp::BuildRootSignature()
 			float4x4 projMat;
 		}
 
-		uab<uint8> testUA;
+		uab<uint32> ncount;
+		srb zbuffer;
 	*/
-		std::vector<D3D12_DESCRIPTOR_RANGE> sumUAVranges;
-		sumUAVranges.push_back(CD3DX12_DESCRIPTOR_RANGE(
+		std::vector<D3D12_DESCRIPTOR_RANGE> nCountUAVranges;
+		nCountUAVranges.push_back(CD3DX12_DESCRIPTOR_RANGE(
 			D3D12_DESCRIPTOR_RANGE_TYPE_UAV,
 			1, 0,
 			0, 0U
@@ -249,7 +250,7 @@ void SceneGraphApp::BuildRootSignature()
 		rootParams.push_back(GetCBVParam(0));
 		rootParams.push_back(GetCBVParam(1));
 		rootParams.push_back(GetCBVParam(2));
-		rootParams.push_back(GetTableParam(sumUAVranges));
+		rootParams.push_back(GetTableParam(nCountUAVranges));
 		rootParams.push_back(GetTableParam(zbufferSRVranges));
 
 		// Create desc for root signature
@@ -752,7 +753,7 @@ void SceneGraphApp::BuildObjectConstantBuffers()
 
 void SceneGraphApp::ResizeScreenUAVSRV()
 {
-	// Sum UAV
+	// NCount UAV
 	{
 		// Build Resources
 		D3D12_RESOURCE_DESC desc;
@@ -762,7 +763,7 @@ void SceneGraphApp::ResizeScreenUAVSRV()
 		desc.Height = mClientHeight;
 		desc.DepthOrArraySize = 1;
 		desc.MipLevels = 1;
-		desc.Format = DXGI_FORMAT_R32_UINT;
+		desc.Format = mNCountFormat;
 		desc.SampleDesc.Count = 1;
 		desc.SampleDesc.Quality = 0;
 		desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
@@ -774,21 +775,21 @@ void SceneGraphApp::ResizeScreenUAVSRV()
 			&desc,
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 			nullptr,
-			IID_PPV_ARGS(&mSumResource)
+			IID_PPV_ARGS(&mNCountResource)
 		));
 
 		// Build Descriptor
 		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
-		uavDesc.Format = DXGI_FORMAT_R32_UINT;
+		uavDesc.Format = mNCountFormat;
 		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
 		uavDesc.Texture2D.MipSlice = 0;
 		md3dDevice->CreateUnorderedAccessView(
-			mSumResource.Get(), nullptr,
-			&uavDesc, mSumUAVCPUHandle
+			mNCountResource.Get(), nullptr,
+			&uavDesc, mNCountUAVCPUHandle
 		);
 		md3dDevice->CreateUnorderedAccessView(
-			mSumResource.Get(), nullptr,
-			&uavDesc, mSumCPUHeapUAVCPUHandle
+			mNCountResource.Get(), nullptr,
+			&uavDesc, mNCountUAVCPUHeapCPUHandle
 		);
 	}
 
@@ -1087,8 +1088,8 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 	{
 		UINT clearValues[4] = { 0, 0, 0, 0 };
 		mCommandList->ClearUnorderedAccessViewUint(
-			mSumUAVGPUHandle, mSumCPUHeapUAVCPUHandle,
-			mSumResource.Get(), clearValues,
+			mNCountUAVGPUHandle, mNCountUAVCPUHeapCPUHandle,
+			mNCountResource.Get(), clearValues,
 			0, nullptr
 		);
 	}
@@ -1107,7 +1108,7 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 
 		// Assign UAV
 		mCommandList->SetGraphicsRootDescriptorTable(
-			3, mSumUAVGPUHandle
+			3, mNCountUAVGPUHandle
 		);
 
 		// Assign ZBuffer for reference
@@ -1195,7 +1196,7 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 
 		// Assign UAV
 		mCommandList->SetGraphicsRootDescriptorTable(
-			2, mSumUAVGPUHandle
+			2, mNCountUAVGPUHandle
 		);
 
 		// Draw Render Items

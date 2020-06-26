@@ -7,7 +7,7 @@ float4 main(VertexOut pin) : SV_TARGET
     posS = pin.posH.xy - 0.5f;
     float baseZ = srbZBuffer.Load(int3(posS, 0)).x;
     clip(baseZ - pin.posH.z);
-    InterlockedAdd(uabSum[posS], 1);
+    InterlockedAdd(uabNCount[posS], 1);
     
     float4 normalW = normalize(pin.normalW);
 

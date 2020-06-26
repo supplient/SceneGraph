@@ -48,6 +48,10 @@ public:
 	void ResizeTransRenderTarget();
 	void ResizeMidRenderTarget();
 
+	/// <summary>
+	/// 把renderItemQueue中的RenderItem逐个绘制。不设置RenderTarget、RootSignature。会自动设置PSO。
+	/// </summary>
+	/// <param name="renderItemQueue">RenderItem队列</param>
 	void DrawRenderItems(const std::vector<std::shared_ptr<RenderItem>>& renderItemQueue);
 
 private:
@@ -63,13 +67,6 @@ private:
 
 	virtual void OnKeyUp(WPARAM vKey)override;
 	virtual void OnKeyDown(WPARAM vKey)override;
-
-	// Transparency concerned
-	// Just testing, so we do not sort them now.
-	Microsoft::WRL::ComPtr<ID3D12Resource> mSumResource;
-	D3D12_CPU_DESCRIPTOR_HANDLE mSumUAVCPUHandle;
-	D3D12_GPU_DESCRIPTOR_HANDLE mSumUAVGPUHandle;
-	D3D12_CPU_DESCRIPTOR_HANDLE mSumCPUHeapUAVCPUHandle;
 
 	// Camera
 	Camera mCamera;
@@ -92,6 +89,13 @@ private:
 	D3D12_CPU_DESCRIPTOR_HANDLE mTransRTVCPUHandle;
 	D3D12_CPU_DESCRIPTOR_HANDLE mTransSRVCPUHandle;
 	D3D12_GPU_DESCRIPTOR_HANDLE mTransSRVGPUHandle;
+
+	// NCount UAV
+	DXGI_FORMAT mNCountFormat = DXGI_FORMAT_R32_UINT;
+	Microsoft::WRL::ComPtr<ID3D12Resource> mNCountResource;
+	D3D12_CPU_DESCRIPTOR_HANDLE mNCountUAVCPUHandle;
+	D3D12_GPU_DESCRIPTOR_HANDLE mNCountUAVGPUHandle;
+	D3D12_CPU_DESCRIPTOR_HANDLE mNCountUAVCPUHeapCPUHandle;
 
 	// ZBuffer SRV
 	DXGI_FORMAT mZBufferFormat = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;

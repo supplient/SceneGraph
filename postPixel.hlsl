@@ -1,13 +1,13 @@
 Texture2D opaque : register(t0);
 Texture2D trans : register(t1);
-RWTexture2D<uint> sum : register(u0);
+RWTexture2D<uint> nCount : register(u0);
 
 float4 main(float4 posH : SV_POSITION) : SV_TARGET
 {
     int2 posS;
     posS = posH.xy - 0.5f;
     float4 opaqueColor = opaque.Load(int3(posS, 0));
-    uint n = sum.Load(posS);
+    uint n = nCount.Load(posS);
     if(n == 0)
         return float4(opaqueColor.xyz, 1.0);
 
