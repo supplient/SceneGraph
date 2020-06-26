@@ -643,6 +643,14 @@ void SceneGraphApp::BuildMaterials()
 	whiteMtl->content.Diffuse = { 1.0f, 1.0f, 1.0f, 1.0f };
 	mMtlConsts["white"] = whiteMtl;
 
+	auto blueMtl = std::make_shared<MaterialConstants>();
+	blueMtl->content.Diffuse = { 0.0f, 0.0f, 1.0f, 1.0f };
+	mMtlConsts["blue"] = blueMtl;
+
+	auto redMtl = std::make_shared<MaterialConstants>();
+	redMtl->content.Diffuse = { 1.0f, 0.0f, 0.0f, 1.0f };
+	mMtlConsts["red"] = redMtl;
+	
 	auto transBlueMtl = std::make_shared<MaterialConstants>();
 	transBlueMtl->content.Diffuse = { 0.0f, 0.0f, 0.8f, 0.7f };
 	mMtlConsts["transBlue"] = transBlueMtl;
@@ -672,6 +680,67 @@ void SceneGraphApp::BuildAndUpdateMaterialConstantBuffers()
 
 void SceneGraphApp::BuildRenderItems()
 {
+	/*
+	// Test
+	{
+		// blue
+		{
+			// Create Object constants
+			auto consts = std::make_shared<ObjectConstants>();
+			auto translationMat = XMMatrixTranslation(0.0f, 0.0f, -0.8f);
+			XMStoreFloat4x4(
+				&consts->content.ModelMat, 
+				XMMatrixTranspose(translationMat)
+			);
+			XMMATRIX normalModelMat = MathHelper::GenNormalModelMat(consts->content.ModelMat);
+				// Has Transported above
+			XMStoreFloat4x4(&consts->content.NormalModelMat, normalModelMat);
+
+			mObjConsts["blueBoard"] = consts;
+
+			// Create render items
+			auto renderItem = std::make_shared<RenderItem>();
+			renderItem->Geo = mGeos["triangle"];
+			renderItem->Submesh = mGeos["triangle"]->DrawArgs["board"];
+			renderItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+			renderItem->MtlConsts = mMtlConsts["blue"];
+			renderItem->PSO = mPSOs["opaque"];
+			renderItem->ObjConsts = mObjConsts["blueBoard"];
+
+			// Save render items
+			mRenderItemQueue.push_back(std::move(renderItem));
+		}
+
+		// red
+		{
+			// Create Object constants
+			auto consts = std::make_shared<ObjectConstants>();
+			auto translationMat = XMMatrixTranslation(0.0f, 0.0f, 0.8f);
+			XMStoreFloat4x4(
+				&consts->content.ModelMat, 
+				XMMatrixTranspose(translationMat)
+			);
+			XMMATRIX normalModelMat = MathHelper::GenNormalModelMat(consts->content.ModelMat);
+				// Has Transported above
+			XMStoreFloat4x4(&consts->content.NormalModelMat, normalModelMat);
+
+			mObjConsts["redBoard"] = consts;
+
+			// Create render items
+			auto renderItem = std::make_shared<RenderItem>();
+			renderItem->Geo = mGeos["triangle"];
+			renderItem->Submesh = mGeos["triangle"]->DrawArgs["board"];
+			renderItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+			renderItem->MtlConsts = mMtlConsts["red"];
+			renderItem->PSO = mPSOs["opaque"];
+			renderItem->ObjConsts = mObjConsts["redBoard"];
+
+			// Save render items
+			mRenderItemQueue.push_back(std::move(renderItem));
+		}
+	}
+	*/
+
 	// Opaque
 	{
 		// Create Object constants
@@ -823,11 +892,11 @@ void SceneGraphApp::ResizeScreenUAVSRV()
 		desc.Height = mClientHeight;
 		desc.DepthOrArraySize = 1;
 		desc.MipLevels = 1;
-		desc.Format = mZBufferFormat;
+		desc.Format = DXGI_FORMAT_R32_TYPELESS;
 		desc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
 		desc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
 		desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-		desc.Flags = D3D12_RESOURCE_FLAG_NONE;
+		desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 
 		ThrowIfFailed(md3dDevice->CreateCommittedResource(
 			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
@@ -839,7 +908,7 @@ void SceneGraphApp::ResizeScreenUAVSRV()
 
 		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 		srvDesc.Format = mZBufferFormat;
-		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+		srvDesc.ViewDimension = m4xMsaaState ? D3D12_SRV_DIMENSION_TEXTURE2DMS : D3D12_SRV_DIMENSION_TEXTURE2D;
 		srvDesc.Texture2D.MipLevels = 1;
 		srvDesc.Texture2D.MostDetailedMip = 0;
 		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
@@ -861,8 +930,8 @@ void SceneGraphApp::ResizeRenderTargets()
 	opaqueDesc.DepthOrArraySize = 1;
 	opaqueDesc.MipLevels = 1;
 	opaqueDesc.Format = mRenderTargets["opaque"]->format;
-	opaqueDesc.SampleDesc.Count = 1;
-	opaqueDesc.SampleDesc.Quality = 0;
+	opaqueDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
+	opaqueDesc.SampleDesc.Quality = m4xMsaaState ? m4xMsaaQuality-1 : 0;
 	opaqueDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 	opaqueDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
 
@@ -942,8 +1011,21 @@ void SceneGraphApp::OnResize()
 {
 	D3DApp::OnResize();
 
+	// Flush before changing any resources.
+	FlushCommandQueue();
+
+	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
+
 	ResizeScreenUAVSRV();
 	ResizeRenderTargets();
+
+	// Execute the resize commands.
+	ThrowIfFailed(mCommandList->Close());
+	ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
+	mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
+
+	// Wait until resize is complete.
+	FlushCommandQueue();
 }
 
 void SceneGraphApp::Update(const GameTimer& gt)
@@ -968,24 +1050,6 @@ void SceneGraphApp::Update(const GameTimer& gt)
 
 	// Update Object Constants
 	{
-		auto& content = mObjConsts["triangle"]->content;
-
-		XMMATRIX modelMat = XMLoadFloat4x4(&MathHelper::Identity4x4());
-		modelMat = XMMatrixTranspose(modelMat);
-		XMStoreFloat4x4(&content.ModelMat, modelMat);
-		
-		XMFLOAT4X4 normalModelFloat4x4 = content.ModelMat;
-		normalModelFloat4x4._14 = 0;
-		normalModelFloat4x4._24 = 0;
-		normalModelFloat4x4._34 = 0;
-		normalModelFloat4x4._41 = 0;
-		normalModelFloat4x4._42 = 0;
-		normalModelFloat4x4._43 = 0;
-		normalModelFloat4x4._44 = 1;
-		XMMATRIX normalModelMat = XMLoadFloat4x4(&normalModelFloat4x4);
-		normalModelMat = MathHelper::InverseTranspose(normalModelMat);
-			// Has Transported above
-		XMStoreFloat4x4(&content.NormalModelMat, normalModelMat);
 	}
 
 	// Update Pass Constant Buffers
@@ -1139,7 +1203,6 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 
 		// Clear the back buffer and depth buffer.
 		// TODO this may needless
-		FLOAT clearValue[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
 		mCommandList->ClearRenderTargetView(mRenderTargets["transBlend"]->rtvCPUHandle, mRenderTargets["transBlend"]->clearValue, 0, nullptr);
 		mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
@@ -1185,16 +1248,33 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 			// D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
 	}
 
-	// Copy to BackBuffer
-	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["transBlend"]->resource.Get(),
-		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_SOURCE));
-	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
-		D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_COPY_DEST));
-	mCommandList->CopyResource(CurrentBackBuffer(), mRenderTargets["transBlend"]->resource.Get());
-	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["transBlend"]->resource.Get(),
-		D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
-	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
-		D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PRESENT));
+	// Copy/Resolve to BackBuffer
+	if (m4xMsaaState) {
+		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["transBlend"]->resource.Get(),
+			D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RESOLVE_SOURCE));
+		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
+			D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RESOLVE_DEST));
+		mCommandList->ResolveSubresource(
+			CurrentBackBuffer(), 0, 
+			mRenderTargets["transBlend"]->resource.Get(), 0, 
+			mBackBufferFormat
+		);
+		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["transBlend"]->resource.Get(),
+			D3D12_RESOURCE_STATE_RESOLVE_SOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
+		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
+			D3D12_RESOURCE_STATE_RESOLVE_DEST, D3D12_RESOURCE_STATE_PRESENT));
+	}
+	else {
+		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["transBlend"]->resource.Get(),
+			D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_SOURCE));
+		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
+			D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_COPY_DEST));
+		mCommandList->CopyResource(CurrentBackBuffer(), mRenderTargets["transBlend"]->resource.Get());
+		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["transBlend"]->resource.Get(),
+			D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
+		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
+			D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PRESENT));
+	}
 
 	// CommandList End Recording
 	{

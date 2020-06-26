@@ -1,17 +1,17 @@
-Texture2D opaque : register(t0);
-Texture2D trans : register(t1);
+Texture2DMS<float4> opaque : register(t0);
+Texture2DMS<float4> trans : register(t1);
 RWTexture2D<uint> nCount : register(u0);
 
-float4 main(float4 posH : SV_POSITION) : SV_TARGET
+float4 main(float4 posH : SV_POSITION, uint sampleIndex: SV_SampleIndex) : SV_TARGET
 {
     int2 posS;
     posS = floor(posH.xy);
-    float4 opaqueColor = opaque.Load(int3(posS, 0));
+    float4 opaqueColor = opaque.Load(posS, sampleIndex);
     uint n = nCount.Load(posS);
     if(n == 0)
         return float4(opaqueColor.xyz, 1.0);
 
-    float4 transValue = trans.Load(int3(posS, 0));
+    float4 transValue = trans.Load(posS, sampleIndex);
     float3 transColor = transValue.xyz;
     float transAlpha = transValue.a;
 
