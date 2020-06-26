@@ -4,7 +4,7 @@
 float4 main(VertexOut pin) : SV_TARGET
 {
     int2 posS;
-    posS = pin.posH.xy - 0.5f;
+    posS = floor(pin.posH.xy);
     float baseZ = srbZBuffer.Load(int3(posS, 0)).x;
     clip(baseZ - pin.posH.z);
     InterlockedAdd(uabNCount[posS], 1);

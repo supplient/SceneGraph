@@ -5,7 +5,7 @@ RWTexture2D<uint> nCount : register(u0);
 float4 main(float4 posH : SV_POSITION) : SV_TARGET
 {
     int2 posS;
-    posS = posH.xy - 0.5f;
+    posS = floor(posH.xy);
     float4 opaqueColor = opaque.Load(int3(posS, 0));
     uint n = nCount.Load(posS);
     if(n == 0)
