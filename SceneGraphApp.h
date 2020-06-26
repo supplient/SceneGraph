@@ -7,6 +7,7 @@
 #include "RenderItem.h"
 #include "Camera.h"
 #include "StaticDescriptorHeap.h"
+#include "RenderTarget.h"
 
 class SceneGraphApp : public D3DApp
 {
@@ -18,6 +19,10 @@ public:
 
 	// Initialize
 	// Init DirectX
+	/// <summary>
+	/// 仅仅初始化RenderTarget，不建立资源，也不建立描述符
+	/// </summary>
+	void BuildRenderTargets();
 	void BuildDescriptorHeaps();
 
 	// Init PSOs
@@ -77,26 +82,8 @@ private:
 	std::unique_ptr<StaticDescriptorHeap> mCBVSRVUAVHeap = nullptr;
 	std::unique_ptr<StaticDescriptorHeap> mCBVSRVUAVCPUHeap = nullptr;
 
-	// Opaque Render Target
-	DXGI_FORMAT mOpaqueRenderTargetFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
-	Microsoft::WRL::ComPtr<ID3D12Resource> mOpaqueRenderTarget;
-	D3D12_CPU_DESCRIPTOR_HANDLE mOpaqueRTVCPUHandle;
-	D3D12_CPU_DESCRIPTOR_HANDLE mOpaqueSRVCPUHandle;
-	D3D12_GPU_DESCRIPTOR_HANDLE mOpaqueSRVGPUHandle;
-
-	// Transparent Render Target
-	DXGI_FORMAT mTransRenderTargetFormat = DXGI_FORMAT_R32G32B32A32_FLOAT;
-	Microsoft::WRL::ComPtr<ID3D12Resource> mTransRenderTarget;
-	D3D12_CPU_DESCRIPTOR_HANDLE mTransRTVCPUHandle;
-	D3D12_CPU_DESCRIPTOR_HANDLE mTransSRVCPUHandle;
-	D3D12_GPU_DESCRIPTOR_HANDLE mTransSRVGPUHandle;
-
-	// Transparent Blend Render Target
-	DXGI_FORMAT mTransBlendRenderTargetFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
-	Microsoft::WRL::ComPtr<ID3D12Resource> mTransBlendRenderTarget;
-	D3D12_CPU_DESCRIPTOR_HANDLE mTransBlendRTVCPUHandle;
-	D3D12_CPU_DESCRIPTOR_HANDLE mTransBlendSRVCPUHandle;
-	D3D12_GPU_DESCRIPTOR_HANDLE mTransBlendSRVGPUHandle;
+	// Render Targets
+	std::unordered_map<std::string, std::unique_ptr<RenderTarget>> mRenderTargets;
 
 	// NCount UAV
 	DXGI_FORMAT mNCountFormat = DXGI_FORMAT_R32_UINT;

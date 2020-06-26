@@ -30,6 +30,7 @@ bool SceneGraphApp::Initialize()
 	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
 	// Init DirectX
+	BuildRenderTargets();
 	BuildDescriptorHeaps();
 
 	// Init PSO concerned
@@ -69,6 +70,16 @@ bool SceneGraphApp::Initialize()
 	return true;
 }
 
+void SceneGraphApp::BuildRenderTargets()
+{
+	mRenderTargets["opaque"] = std::make_unique<RenderTarget>(
+		L"opaque", DXGI_FORMAT_R8G8B8A8_UNORM);
+	mRenderTargets["trans"] = std::make_unique<RenderTarget>(
+		L"transparent", DXGI_FORMAT_R32G32B32A32_FLOAT);
+	mRenderTargets["transBlend"] = std::make_unique<RenderTarget>(
+		L"transparent blend", DXGI_FORMAT_R8G8B8A8_UNORM);
+}
+
 void SceneGraphApp::BuildDescriptorHeaps()
 {
 	// RTV
@@ -84,9 +95,9 @@ void SceneGraphApp::BuildDescriptorHeaps()
 		);
 
 		// Build Handle
-		mOpaqueRTVCPUHandle = mRTVHeap->GetCPUHandle(mRTVHeap->Alloc());
-		mTransRTVCPUHandle = mRTVHeap->GetCPUHandle(mRTVHeap->Alloc());
-		mTransBlendRTVCPUHandle = mRTVHeap->GetCPUHandle(mRTVHeap->Alloc());
+		mRenderTargets["opaque"]->rtvCPUHandle = mRTVHeap->GetCPUHandle(mRTVHeap->Alloc());
+		mRenderTargets["trans"]->rtvCPUHandle = mRTVHeap->GetCPUHandle(mRTVHeap->Alloc());
+		mRenderTargets["transBlend"]->rtvCPUHandle = mRTVHeap->GetCPUHandle(mRTVHeap->Alloc());
 	}
 
 	// CBV, SRV, UAV
@@ -102,14 +113,14 @@ void SceneGraphApp::BuildDescriptorHeaps()
 		);
 
 		UINT index = mCBVSRVUAVHeap->Alloc();
-		mOpaqueSRVCPUHandle = mCBVSRVUAVHeap->GetCPUHandle(index);
-		mOpaqueSRVGPUHandle = mCBVSRVUAVHeap->GetGPUHandle(index);
+		mRenderTargets["opaque"]->srvCPUHandle = mCBVSRVUAVHeap->GetCPUHandle(index);
+		mRenderTargets["opaque"]->srvGPUHandle = mCBVSRVUAVHeap->GetGPUHandle(index);
 		index = mCBVSRVUAVHeap->Alloc();
-		mTransSRVCPUHandle = mCBVSRVUAVHeap->GetCPUHandle(index);
-		mTransSRVGPUHandle = mCBVSRVUAVHeap->GetGPUHandle(index);
+		mRenderTargets["trans"]->srvCPUHandle = mCBVSRVUAVHeap->GetCPUHandle(index);
+		mRenderTargets["trans"]->srvGPUHandle = mCBVSRVUAVHeap->GetGPUHandle(index);
 		index = mCBVSRVUAVHeap->Alloc();
-		mTransBlendSRVCPUHandle = mCBVSRVUAVHeap->GetCPUHandle(index);
-		mTransBlendSRVGPUHandle = mCBVSRVUAVHeap->GetGPUHandle(index);
+		mRenderTargets["transBlend"]->srvCPUHandle = mCBVSRVUAVHeap->GetCPUHandle(index);
+		mRenderTargets["transBlend"]->srvGPUHandle = mCBVSRVUAVHeap->GetGPUHandle(index);
 		index = mCBVSRVUAVHeap->Alloc();
 		mZBufferSRVCPUHandle = mCBVSRVUAVHeap->GetCPUHandle(index);
 		mZBufferSRVGPUHandle = mCBVSRVUAVHeap->GetGPUHandle(index);
@@ -345,7 +356,7 @@ void SceneGraphApp::BuildPSOs()
 	opaquePsoDesc.SampleMask = UINT_MAX;
 	opaquePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 	opaquePsoDesc.NumRenderTargets = 1;
-	opaquePsoDesc.RTVFormats[0] = mOpaqueRenderTargetFormat;
+	opaquePsoDesc.RTVFormats[0] = mRenderTargets["opaque"]->format;
 	opaquePsoDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
 	opaquePsoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
 	opaquePsoDesc.DSVFormat = mDepthStencilFormat;
@@ -366,27 +377,28 @@ void SceneGraphApp::BuildPSOs()
 	transPsoDesc.BlendState.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
 	transPsoDesc.BlendState.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_DEST_ALPHA;
 	transPsoDesc.BlendState.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_SRC_ALPHA;
-	transPsoDesc.RTVFormats[0] = mTransRenderTargetFormat;
+	transPsoDesc.RTVFormats[0] = mRenderTargets["trans"]->format;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&transPsoDesc, IID_PPV_ARGS(&mPSOs["trans"])));
 
-	D3D12_GRAPHICS_PIPELINE_STATE_DESC postPsoDesc = opaquePsoDesc;
-	postPsoDesc.InputLayout = { 
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC transBlendPsoDesc = opaquePsoDesc;
+	transBlendPsoDesc.InputLayout = { 
 		mInputLayouts["transBlend"].data(), 
 		(UINT)mInputLayouts["transBlend"].size() 
 	};
-	postPsoDesc.pRootSignature = mRootSigns["transBlend"].Get();
-	postPsoDesc.VS =
+	transBlendPsoDesc.pRootSignature = mRootSigns["transBlend"].Get();
+	transBlendPsoDesc.VS =
 	{
 		reinterpret_cast<BYTE*>(mShaders["transBlendVS"]->GetBufferPointer()),
 		mShaders["transBlendVS"]->GetBufferSize()
 	};
-	postPsoDesc.PS =
+	transBlendPsoDesc.PS =
 	{
 		reinterpret_cast<BYTE*>(mShaders["transBlendPS"]->GetBufferPointer()),
 		mShaders["transBlendPS"]->GetBufferSize()
 	};
-	postPsoDesc.DepthStencilState.DepthEnable = false;
-	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&postPsoDesc, IID_PPV_ARGS(&mPSOs["transBlend"])));
+	transBlendPsoDesc.DepthStencilState.DepthEnable = false;
+	transBlendPsoDesc.RTVFormats[0] = mRenderTargets["transBlend"]->format;
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&transBlendPsoDesc, IID_PPV_ARGS(&mPSOs["transBlend"])));
 }
 
 void SceneGraphApp::BuildLights()
@@ -843,45 +855,23 @@ void SceneGraphApp::ResizeOpaqueRenderTarget()
 	desc.Height = mClientHeight;
 	desc.DepthOrArraySize = 1;
 	desc.MipLevels = 1;
-	desc.Format = mOpaqueRenderTargetFormat;
+	desc.Format = mRenderTargets["opaque"]->format;
 	desc.SampleDesc.Count = 1;
 	desc.SampleDesc.Quality = 0;
 	desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 	desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
 
 	D3D12_CLEAR_VALUE clearValue;
-	clearValue.Format = mOpaqueRenderTargetFormat;
+	clearValue.Format = mRenderTargets["opaque"]->format;
 	clearValue.Color[0] = 0.0f;
 	clearValue.Color[1] = 0.0f;
 	clearValue.Color[2] = 0.0f;
 	clearValue.Color[3] = 1.0f;
-	ThrowIfFailed(md3dDevice->CreateCommittedResource(
-		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-		D3D12_HEAP_FLAG_NONE,
-		&desc,
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-		&clearValue,
-		IID_PPV_ARGS(&mOpaqueRenderTarget)
-	));
 
-	// Build Descriptor
-	D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
-	rtvDesc.Format = mOpaqueRenderTargetFormat;
-	rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
-	rtvDesc.Texture2D.MipSlice = 0;
-	md3dDevice->CreateRenderTargetView(
-		mOpaqueRenderTarget.Get(),
-		&rtvDesc, mOpaqueRTVCPUHandle
-	);
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-	srvDesc.Format = mOpaqueRenderTargetFormat;
-	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	srvDesc.Texture2D.MipLevels = 1;
-	srvDesc.Texture2D.MostDetailedMip = 0;
-	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	md3dDevice->CreateShaderResourceView(
-		mOpaqueRenderTarget.Get(),
-		&srvDesc, mOpaqueSRVCPUHandle
+	mRenderTargets["opaque"]->Resize(
+		md3dDevice,
+		&desc, &clearValue,
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
 	);
 }
 
@@ -895,45 +885,23 @@ void SceneGraphApp::ResizeTransRenderTarget()
 	desc.Height = mClientHeight;
 	desc.DepthOrArraySize = 1;
 	desc.MipLevels = 1;
-	desc.Format = mTransRenderTargetFormat;
+	desc.Format = mRenderTargets["trans"]->format;
 	desc.SampleDesc.Count = 1;
 	desc.SampleDesc.Quality = 0;
 	desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 	desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
 
 	D3D12_CLEAR_VALUE clearValue;
-	clearValue.Format = mTransRenderTargetFormat;
+	clearValue.Format = mRenderTargets["trans"]->format;
 	clearValue.Color[0] = 0.0f;
 	clearValue.Color[1] = 0.0f;
 	clearValue.Color[2] = 0.0f;
 	clearValue.Color[3] = 0.0f;
-	ThrowIfFailed(md3dDevice->CreateCommittedResource(
-		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-		D3D12_HEAP_FLAG_NONE,
-		&desc,
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-		&clearValue,
-		IID_PPV_ARGS(&mTransRenderTarget)
-	));
 
-	// Build Descriptor
-	D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
-	rtvDesc.Format = mTransRenderTargetFormat;
-	rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
-	rtvDesc.Texture2D.MipSlice = 0;
-	md3dDevice->CreateRenderTargetView(
-		mTransRenderTarget.Get(),
-		&rtvDesc, mTransRTVCPUHandle
-	);
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-	srvDesc.Format = mTransRenderTargetFormat;
-	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	srvDesc.Texture2D.MipLevels = 1;
-	srvDesc.Texture2D.MostDetailedMip = 0;
-	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	md3dDevice->CreateShaderResourceView(
-		mTransRenderTarget.Get(),
-		&srvDesc, mTransSRVCPUHandle
+	mRenderTargets["trans"]->Resize(
+		md3dDevice,
+		&desc, &clearValue,
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
 	);
 }
 
@@ -947,45 +915,23 @@ void SceneGraphApp::ResizeTransBlendRenderTarget()
 	desc.Height = mClientHeight;
 	desc.DepthOrArraySize = 1;
 	desc.MipLevels = 1;
-	desc.Format = mTransBlendRenderTargetFormat;
+	desc.Format = mRenderTargets["transBlend"]->format;
 	desc.SampleDesc.Count = 1;
 	desc.SampleDesc.Quality = 0;
 	desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 	desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
 
 	D3D12_CLEAR_VALUE clearValue;
-	clearValue.Format = mTransBlendRenderTargetFormat;
+	clearValue.Format = mRenderTargets["transBlend"]->format;
 	clearValue.Color[0] = 0.0f;
 	clearValue.Color[1] = 0.0f;
 	clearValue.Color[2] = 0.0f;
 	clearValue.Color[3] = 1.0f;
-	ThrowIfFailed(md3dDevice->CreateCommittedResource(
-		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-		D3D12_HEAP_FLAG_NONE,
-		&desc,
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-		&clearValue,
-		IID_PPV_ARGS(&mTransBlendRenderTarget)
-	));
 
-	// Build Descriptor
-	D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
-	rtvDesc.Format = mTransBlendRenderTargetFormat;
-	rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
-	rtvDesc.Texture2D.MipSlice = 0;
-	md3dDevice->CreateRenderTargetView(
-		mTransBlendRenderTarget.Get(),
-		&rtvDesc, mTransBlendRTVCPUHandle
-	);
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-	srvDesc.Format = mTransBlendRenderTargetFormat;
-	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	srvDesc.Texture2D.MipLevels = 1;
-	srvDesc.Texture2D.MostDetailedMip = 0;
-	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	md3dDevice->CreateShaderResourceView(
-		mTransBlendRenderTarget.Get(),
-		&srvDesc, mTransBlendSRVCPUHandle
+	mRenderTargets["transBlend"]->Resize(
+		md3dDevice,
+		&desc, &clearValue,
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
 	);
 }
 
@@ -1176,21 +1122,21 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 		// Opaque
 		{
 			// Trans to Render Target
-			mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mOpaqueRenderTarget.Get(),
+			mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["opaque"]->resource.Get(),
 				D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET));
 
 			// Specify the buffers we are going to render to.
-			mCommandList->OMSetRenderTargets(1, &mOpaqueRTVCPUHandle, true, &DepthStencilView());
+			mCommandList->OMSetRenderTargets(1, &mRenderTargets["opaque"]->rtvCPUHandle, true, &DepthStencilView());
 
 			// Clear the back buffer and depth buffer.
-			mCommandList->ClearRenderTargetView(mOpaqueRTVCPUHandle, Colors::Black, 0, nullptr);
+			mCommandList->ClearRenderTargetView(mRenderTargets["opaque"]->rtvCPUHandle, Colors::Black, 0, nullptr);
 			mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
 			// Draw Render Items
 			DrawRenderItems(mRenderItemQueue);
 
 			// Trans back to Shader Resource
-			mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mOpaqueRenderTarget.Get(),
+			mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["opaque"]->resource.Get(),
 				D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
 		}
 
@@ -1208,21 +1154,21 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 		// Transparent
 		{
 			// Trans to Render Target
-			mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mTransRenderTarget.Get(),
+			mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["trans"]->resource.Get(),
 				D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET));
 
 			// Specify the buffers we are going to render to.
-			mCommandList->OMSetRenderTargets(1, &mTransRTVCPUHandle, true, &DepthStencilView());
+			mCommandList->OMSetRenderTargets(1, &mRenderTargets["trans"]->rtvCPUHandle, true, &DepthStencilView());
 
 			// Clear Render Target
 			FLOAT clearValue[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-			mCommandList->ClearRenderTargetView(mTransRTVCPUHandle, clearValue, 0, nullptr);
+			mCommandList->ClearRenderTargetView(mRenderTargets["trans"]->rtvCPUHandle, clearValue, 0, nullptr);
 
 			// Draw Render Items
 			DrawRenderItems(mTransRenderItemQueue);
 
 			// Trans back to Shader Resource
-			mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mTransRenderTarget.Get(),
+			mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["trans"]->resource.Get(),
 				D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
 		}
 	}
@@ -1230,16 +1176,16 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 	// Transparent Blend
 	{
 		// Indicate a state transition on the resource usage.
-		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mTransBlendRenderTarget.Get(),
+		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["transBlend"]->resource.Get(),
 			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET));
 
 		// Specify the buffers we are going to render to.
-		mCommandList->OMSetRenderTargets(1, &mTransBlendRTVCPUHandle, true, &DepthStencilView());
+		mCommandList->OMSetRenderTargets(1, &mRenderTargets["transBlend"]->rtvCPUHandle, true, &DepthStencilView());
 
 		// Clear the back buffer and depth buffer.
 		// TODO this may needless
 		FLOAT clearValue[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
-		mCommandList->ClearRenderTargetView(mTransBlendRTVCPUHandle, clearValue, 0, nullptr);
+		mCommandList->ClearRenderTargetView(mRenderTargets["transBlend"]->rtvCPUHandle, clearValue, 0, nullptr);
 		mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
 		// Set Root Signature
@@ -1247,10 +1193,10 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 
 		// Assign SRV
 		mCommandList->SetGraphicsRootDescriptorTable(
-			0, mOpaqueSRVGPUHandle
+			0, mRenderTargets["opaque"]->srvGPUHandle
 		);
 		mCommandList->SetGraphicsRootDescriptorTable(
-			1, mTransSRVGPUHandle
+			1, mRenderTargets["trans"]->srvGPUHandle
 		);
 
 		// Assign UAV
@@ -1285,12 +1231,12 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 	}
 
 	// Copy to BackBuffer
-	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mTransBlendRenderTarget.Get(),
+	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["transBlend"]->resource.Get(),
 		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_SOURCE));
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
 		D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_COPY_DEST));
-	mCommandList->CopyResource(CurrentBackBuffer(), mTransBlendRenderTarget.Get());
-	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mTransBlendRenderTarget.Get(),
+	mCommandList->CopyResource(CurrentBackBuffer(), mRenderTargets["transBlend"]->resource.Get());
+	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["transBlend"]->resource.Get(),
 		D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
 		D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PRESENT));
