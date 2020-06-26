@@ -165,6 +165,7 @@
     <ClInclude Include="Constants.h" />
     <ClInclude Include="Light.h" />
     <ClInclude Include="RenderItem.h" />
+    <ClInclude Include="RenderTarget.h" />
     <ClInclude Include="SceneGraphApp.h" />
     <ClInclude Include="StaticDescriptorHeap.h" />
   </ItemGroup>

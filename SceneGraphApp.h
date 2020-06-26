@@ -45,8 +45,9 @@ public:
 
 	// ScreenSize Concerned Resources' Init
 	void ResizeScreenUAVSRV();
-	void ResizeTransRenderTarget();
 	void ResizeOpaqueRenderTarget();
+	void ResizeTransRenderTarget();
+	void ResizeTransBlendRenderTarget();
 
 	/// <summary>
 	/// 把renderItemQueue中的RenderItem逐个绘制。不设置RenderTarget、RootSignature。会自动设置PSO。
@@ -89,6 +90,13 @@ private:
 	D3D12_CPU_DESCRIPTOR_HANDLE mTransRTVCPUHandle;
 	D3D12_CPU_DESCRIPTOR_HANDLE mTransSRVCPUHandle;
 	D3D12_GPU_DESCRIPTOR_HANDLE mTransSRVGPUHandle;
+
+	// Transparent Blend Render Target
+	DXGI_FORMAT mTransBlendRenderTargetFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+	Microsoft::WRL::ComPtr<ID3D12Resource> mTransBlendRenderTarget;
+	D3D12_CPU_DESCRIPTOR_HANDLE mTransBlendRTVCPUHandle;
+	D3D12_CPU_DESCRIPTOR_HANDLE mTransBlendSRVCPUHandle;
+	D3D12_GPU_DESCRIPTOR_HANDLE mTransBlendSRVGPUHandle;
 
 	// NCount UAV
 	DXGI_FORMAT mNCountFormat = DXGI_FORMAT_R32_UINT;
