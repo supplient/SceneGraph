@@ -344,7 +344,7 @@ void SceneGraphApp::BuildShaders()
 		L"PixelShader.hlsl", defines.data(), "main", PS_TARGET
 	);
 	mShaders["transPS"] = d3dUtil::CompileShader(
-		L"transparentPixel.hlsl", defines.data(), "main", PS_TARGET
+		L"transPixel.hlsl", defines.data(), "main", PS_TARGET
 	);
 	mShaders["transBlendVS"] = d3dUtil::CompileShader(
 		L"transBlendVertex.hlsl", defines.data(), "main", VS_TARGET
@@ -871,7 +871,7 @@ void SceneGraphApp::ResizeScreenUAVSRV()
 		D3D12_RESOURCE_DESC desc;
 		desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
 		desc.Alignment = 0;
-		desc.Width = mClientWidth;
+		desc.Width = m4xMsaaState ? 4*mClientWidth : mClientWidth;
 		desc.Height = mClientHeight;
 		desc.DepthOrArraySize = 1;
 		desc.MipLevels = 1;

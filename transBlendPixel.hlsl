@@ -15,11 +15,12 @@ float4 main(float4 posH : SV_POSITION, uint sampleIndex : SV_SampleIndex) : SV_T
     int2 posS;
     posS = floor(posH.xy);
     float4 opaqueColor = LoadFloat4(opaque, posS, sampleIndex);
-    uint n = nCount.Load(posS);
+
+    int2 nCountPos = posS;
 #ifdef MULTIPLE_SAMPLE
-    float nFloat = n / 4.0f;
-    n = ceil(nFloat);
-#endif//MULTIPLE_SAMPLE
+    nCountPos.x = 4*nCountPos.x + sampleIndex;
+#endif
+    uint n = nCount.Load(nCountPos);
 
     float4 transValue = LoadFloat4(trans, posS, sampleIndex);
     float transAlpha = transValue.a;

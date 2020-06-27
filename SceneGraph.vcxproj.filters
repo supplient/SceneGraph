@@ -115,13 +115,13 @@
     <FxCompile Include="PixelShader.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
-    <FxCompile Include="transparentPixel.hlsl">
-      <Filter>Shaders</Filter>
-    </FxCompile>
     <FxCompile Include="transBlendPixel.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
     <FxCompile Include="transBlendVertex.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="transPixel.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
   </ItemGroup>

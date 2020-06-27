@@ -8,7 +8,12 @@ float4 main(VertexOut pin, uint sampleIndex: SV_SampleIndex) : SV_TARGET
     posS = floor(pin.posH.xy);
     float baseZ = LoadFloat(srbZBuffer, posS, sampleIndex).x;
     clip(baseZ - pin.posH.z);
-    InterlockedAdd(uabNCount[posS], 1);
+
+    int2 nCountPos = posS;
+#ifdef MULTIPLE_SAMPLE
+    nCountPos.x = 4*nCountPos.x + sampleIndex;
+#endif
+    InterlockedAdd(uabNCount[nCountPos], 1);
     
     float4 normalW = normalize(pin.normalW);
 
