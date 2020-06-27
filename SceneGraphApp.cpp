@@ -1287,7 +1287,7 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 		mCommandList->ResolveSubresource(
 			CurrentBackBuffer(), 0, 
 			mRenderTargets["transBlend"]->resource.Get(), 0, 
-			mBackBufferFormat
+			mBackBufferResourceFormat
 		);
 		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["transBlend"]->resource.Get(),
 			D3D12_RESOURCE_STATE_RESOLVE_SOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));

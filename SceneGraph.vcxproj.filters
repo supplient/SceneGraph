@@ -138,5 +138,8 @@
     <None Include="Predefine.hlsli">
       <Filter>Shaders</Filter>
     </None>
+    <None Include="Fxaa3_11.hlsli">
+      <Filter>Shaders</Filter>
+    </None>
   </ItemGroup>
 </Project>

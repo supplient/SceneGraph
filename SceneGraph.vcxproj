@@ -216,6 +216,7 @@
     </FxCompile>
   </ItemGroup>
   <ItemGroup>
+    <None Include="Fxaa3_11.hlsli" />
     <None Include="Header.hlsli" />
     <None Include="Light.hlsli" />
     <None Include="MultiSampleLoader.hlsli" />

@@ -21,6 +21,8 @@ float4 main(float4 posH : SV_POSITION, uint sampleIndex : SV_SampleIndex) : SV_T
     nCountPos.x = 4*nCountPos.x + sampleIndex;
 #endif
     uint n = nCount.Load(nCountPos);
+    if(n==0)
+        return float4(opaqueColor.xyz, 1.0);
 
     float4 transValue = LoadFloat4(trans, posS, sampleIndex);
     float transAlpha = transValue.a;
