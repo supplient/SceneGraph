@@ -8,6 +8,7 @@
 
 #include "SceneGraphApp.h"
 #include "../Common/GeometryGenerator.h"
+#include "Predefine.h"
 
 using namespace DirectX;
 using Microsoft::WRL::ComPtr;
@@ -327,11 +328,15 @@ void SceneGraphApp::BuildShaders()
 	static const std::string VS_TARGET = "vs_5_1";
 	static const std::string PS_TARGET = "ps_5_1";
 
+	// defines
 	std::vector<D3D_SHADER_MACRO> defines;
 	if(m4xMsaaState)
 		defines.push_back({ "MULTIPLE_SAMPLE", "4" });
+	std::string maxLightNumStr = std::to_string(MAX_LIGHT_NUM);
+	defines.push_back({ "MAX_LIGHT_NUM", maxLightNumStr.c_str() });
 	defines.push_back({ NULL, NULL });
 
+	// compile
 	mShaders["vs"] = d3dUtil::CompileShader(
 		L"VertexShader.hlsl", defines.data(), "main", VS_TARGET
 	);

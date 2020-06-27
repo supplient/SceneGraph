@@ -104,6 +104,9 @@
     <ClInclude Include="RenderTarget.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="Predefine.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="VertexShader.hlsl">
@@ -130,6 +133,9 @@
       <Filter>Shaders</Filter>
     </None>
     <None Include="MultiSampleLoader.hlsli">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="Predefine.hlsli">
       <Filter>Shaders</Filter>
     </None>
   </ItemGroup>

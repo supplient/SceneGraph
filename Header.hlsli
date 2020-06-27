@@ -1,7 +1,6 @@
 #ifndef HEADER_H
 #define HEADER_H
-
-#define MAX_LIGHT_NUM 16
+#include "Predefine.hlsli"
 
 struct Light
 {

@@ -1,7 +1,7 @@
 #ifndef MULTI_SAMPLE_LOADER_H
 #define MULTI_SAMPLE_LOADER_H
 
-// #define MULTIPLE_SAMPLE 4
+#include "Predefine.hlsli"
 
 #ifdef MULTIPLE_SAMPLE
 

@@ -1,7 +1,6 @@
 #pragma once
 #include "../Common/d3dUtil.h"
-
-constexpr unsigned int MAX_LIGHT_NUM = 16;
+#include "Predefine.h"
 
 class ObjectConstants {
 public:

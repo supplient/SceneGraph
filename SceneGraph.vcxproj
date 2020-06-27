@@ -164,6 +164,7 @@
     <ClInclude Include="Camera.h" />
     <ClInclude Include="Constants.h" />
     <ClInclude Include="Light.h" />
+    <ClInclude Include="Predefine.h" />
     <ClInclude Include="RenderItem.h" />
     <ClInclude Include="RenderTarget.h" />
     <ClInclude Include="SceneGraphApp.h" />
@@ -218,6 +219,7 @@
     <None Include="Header.hlsli" />
     <None Include="Light.hlsli" />
     <None Include="MultiSampleLoader.hlsli" />
+    <None Include="Predefine.hlsli" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
