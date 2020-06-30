@@ -90,11 +90,29 @@ void SceneGraphApp::BuildRenderTargets()
 	mRenderTargets["afterResolve"] = std::make_unique<RenderTarget>(
 		L"afterResolve", DXGI_FORMAT_R8G8B8A8_UNORM, clearValue);
 	mRenderTargets["fxaa"] = std::make_unique<RenderTarget>(
-		L"fxaa", DXGI_FORMAT_R8G8B8A8_UNORM, clearValue);
+		L"fxaa", DXGI_FORMAT_R8G8B8A8_UNORM, clearValue,
+		true, L"fxaa depth"
+		);
 }
 
 void SceneGraphApp::BuildDescriptorHeaps()
 {
+	// DSV
+	{
+		// Build Descriptor Heap
+		D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
+		heapDesc.NumDescriptors = 1;
+		heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+		heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+		heapDesc.NodeMask = 0;
+		mDSVHeap = std::make_unique<StaticDescriptorHeap>(
+			md3dDevice, heapDesc
+		);
+
+		// Build Handle
+		mRenderTargets["fxaa"]->dsvCPUHandle = mDSVHeap->GetCPUHandle(mDSVHeap->Alloc());
+	}
+
 	// RTV
 	{
 		// Build Descriptor Heap
@@ -115,8 +133,7 @@ void SceneGraphApp::BuildDescriptorHeaps()
 		mRenderTargets["fxaa"]->rtvCPUHandle = mRTVHeap->GetCPUHandle(mRTVHeap->Alloc());
 	}
 
-	// CBV, SRV, UAV
-	// GPU heap
+	// CBV, SRV, UAV // GPU heap
 	{
 		D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
 		heapDesc.NumDescriptors = 7;
@@ -150,8 +167,7 @@ void SceneGraphApp::BuildDescriptorHeaps()
 		mNCountUAVGPUHandle = mCBVSRVUAVHeap->GetGPUHandle(index);
 	}
 
-	// CBV, SRV, UAV
-	// CPU heap
+	// CBV, SRV, UAV // CPU heap
 	{
 		D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
 		heapDesc.NumDescriptors = 1;
@@ -487,6 +503,8 @@ void SceneGraphApp::BuildPSOs()
 		mShaders["fxaaPS"]->GetBufferSize()
 	};
 	fxaaPsoDesc.RTVFormats[0] = mRenderTargets["fxaa"]->viewFormat;
+	fxaaPsoDesc.SampleDesc.Count = 1;
+	fxaaPsoDesc.SampleDesc.Quality = 0;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&fxaaPsoDesc, IID_PPV_ARGS(&mPSOs["fxaa"])));
 }
 
@@ -1090,10 +1108,24 @@ void SceneGraphApp::ResizeRenderTargets()
 	D3D12_RESOURCE_DESC fxaaDesc = afterResolveDesc;
 	fxaaDesc.Format = mRenderTargets["fxaa"]->viewFormat;
 
+	D3D12_RESOURCE_DESC fxaaDSDesc;
+	fxaaDSDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	fxaaDSDesc.Alignment = 0;
+    fxaaDSDesc.Width = mClientWidth;
+    fxaaDSDesc.Height = mClientHeight;
+    fxaaDSDesc.DepthOrArraySize = 1;
+    fxaaDSDesc.MipLevels = 1;
+	fxaaDSDesc.Format = mRenderTargets["fxaa"]->dsResourceFormat;
+	fxaaDSDesc.SampleDesc.Count = 1;
+    fxaaDSDesc.SampleDesc.Quality = 0;
+    fxaaDSDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+    fxaaDSDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+
 	mRenderTargets["fxaa"]->Resize(
 		md3dDevice,
 		&fxaaDesc,
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+		&fxaaDSDesc
 	);
 }
 
@@ -1460,12 +1492,17 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET));
 
 		// Specify the buffers we are going to render to.
-		mCommandList->OMSetRenderTargets(1, &mRenderTargets["fxaa"]->rtvCPUHandle, true, &DepthStencilView());
+		mCommandList->OMSetRenderTargets(1, &mRenderTargets["fxaa"]->rtvCPUHandle, true, &mRenderTargets["fxaa"]->dsvCPUHandle);
 
 		// Clear the back buffer and depth buffer.
 		// TODO this may needless
 		mCommandList->ClearRenderTargetView(mRenderTargets["fxaa"]->rtvCPUHandle, mRenderTargets["fxaa"]->clearValue, 0, nullptr);
-		mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
+		mCommandList->ClearDepthStencilView(
+			mRenderTargets["fxaa"]->dsvCPUHandle, 
+			D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 
+			mRenderTargets["fxaa"]->depthClearValue, mRenderTargets["fxaa"]->stencilClearValue, 
+			0, nullptr
+		);
 
 		// Set Root Signature
 		mCommandList->SetGraphicsRootSignature(mRootSigns["fxaa"].Get());

@@ -83,6 +83,7 @@ private:
 	Camera mCamera;
 
 	// Descriptor Heaps
+	std::unique_ptr<StaticDescriptorHeap> mDSVHeap = nullptr;
 	std::unique_ptr<StaticDescriptorHeap> mRTVHeap = nullptr;
 	std::unique_ptr<StaticDescriptorHeap> mCBVSRVUAVHeap = nullptr;
 	std::unique_ptr<StaticDescriptorHeap> mCBVSRVUAVCPUHeap = nullptr;
