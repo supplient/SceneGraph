@@ -20,16 +20,18 @@ SamplerState bilinearWrap : register(s0);
 
 float4 main(float4 posH : SV_POSITION) : SV_TARGET
 {
+    float2 pos = posH.xy * gFxaaQualityRcpFrame;
+    
     float4 consolePos;
-    consolePos.xy = floor(posH.xy);
-    consolePos.zw = ceil(posH.xy);
+    consolePos.xy = floor(posH.xy) * gFxaaQualityRcpFrame;
+    consolePos.zw = ceil(posH.xy) * gFxaaQualityRcpFrame;
 
     FxaaTex fxaaTex;
     fxaaTex.smpl = bilinearWrap;
     fxaaTex.tex = tex;
     
     return FxaaPixelShader(
-        posH.xy,
+        pos,
         consolePos,
         fxaaTex, fxaaTex, fxaaTex,
         gFxaaQualityRcpFrame,
