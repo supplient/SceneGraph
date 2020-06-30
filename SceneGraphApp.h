@@ -48,9 +48,13 @@ public:
 	// Init Render Item Resources
 	void BuildObjectConstantBuffers();
 
+	// Init Postprocess Resources
+	void InitFxaa();
+
 	// ScreenSize Concerned Resources' Init
 	void ResizeScreenUAVSRV();
 	void ResizeRenderTargets();
+	void ResizeFxaa();
 
 	/// <summary>
 	/// 把renderItemQueue中的RenderItem逐个绘制。不设置RenderTarget、RootSignature。会自动设置PSO。
@@ -64,6 +68,8 @@ private:
 	virtual void OnResize()override;
 	virtual void Update(const GameTimer& gt)override;
 	virtual void Draw(const GameTimer& gt)override;
+
+	virtual std::vector<CD3DX12_STATIC_SAMPLER_DESC> GetStaticSamplers();
 
 	virtual void OnMouseDown(WPARAM btnState, int x, int y)override;
 	virtual void OnMouseUp(WPARAM btnState, int x, int y)override;
@@ -127,6 +133,9 @@ private:
 	// Object Constants
 	std::unordered_map<std::string, std::shared_ptr<ObjectConstants>> mObjConsts;
 
+	// PostProcess Constants
+	std::unique_ptr<FxaaConstants> mFxaaConstants;
+
 	// Render Items
 	std::vector<std::shared_ptr<RenderItem>> mRenderItemQueue;
 	std::vector<std::shared_ptr<RenderItem>> mTransRenderItemQueue;
@@ -136,4 +145,5 @@ private:
 	std::unique_ptr<UploadBuffer<MaterialConstants::Content>> mMaterialConstantsBuffers;
 	std::unique_ptr<UploadBuffer<ObjectConstants::Content>> mObjectConstantsBuffers;
 	std::unique_ptr<UploadBuffer<PassConstants::Content>> mPassConstantsBuffers;
+	std::unique_ptr<UploadBuffer<FxaaConstants::Content>> mFxaaConstantsBuffers;
 };

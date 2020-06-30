@@ -57,6 +57,9 @@ bool SceneGraphApp::Initialize()
 	// Init Render Item Resources
 	BuildObjectConstantBuffers();
 
+	// Init Postprocess Resources
+	InitFxaa();
+
 	// Execute the initialization commands.
 	ThrowIfFailed(mCommandList->Close());
 	ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
@@ -84,6 +87,10 @@ void SceneGraphApp::BuildRenderTargets()
 		L"transparent", DXGI_FORMAT_R32G32B32A32_FLOAT, clearValue);
 	mRenderTargets["transBlend"] = std::make_unique<RenderTarget>(
 		L"transparent blend", DXGI_FORMAT_R8G8B8A8_UNORM, clearValue);
+	mRenderTargets["afterResolve"] = std::make_unique<RenderTarget>(
+		L"afterResolve", DXGI_FORMAT_R8G8B8A8_UNORM, clearValue);
+	mRenderTargets["fxaa"] = std::make_unique<RenderTarget>(
+		L"fxaa", DXGI_FORMAT_R8G8B8A8_UNORM, clearValue);
 }
 
 void SceneGraphApp::BuildDescriptorHeaps()
@@ -92,7 +99,7 @@ void SceneGraphApp::BuildDescriptorHeaps()
 	{
 		// Build Descriptor Heap
 		D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-		heapDesc.NumDescriptors = 3;
+		heapDesc.NumDescriptors = 5;
 		heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
 		heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 		heapDesc.NodeMask = 0;
@@ -104,13 +111,15 @@ void SceneGraphApp::BuildDescriptorHeaps()
 		mRenderTargets["opaque"]->rtvCPUHandle = mRTVHeap->GetCPUHandle(mRTVHeap->Alloc());
 		mRenderTargets["trans"]->rtvCPUHandle = mRTVHeap->GetCPUHandle(mRTVHeap->Alloc());
 		mRenderTargets["transBlend"]->rtvCPUHandle = mRTVHeap->GetCPUHandle(mRTVHeap->Alloc());
+		mRenderTargets["afterResolve"]->rtvCPUHandle = mRTVHeap->GetCPUHandle(mRTVHeap->Alloc());
+		mRenderTargets["fxaa"]->rtvCPUHandle = mRTVHeap->GetCPUHandle(mRTVHeap->Alloc());
 	}
 
 	// CBV, SRV, UAV
 	// GPU heap
 	{
 		D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-		heapDesc.NumDescriptors = 5;
+		heapDesc.NumDescriptors = 7;
 		heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 		heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 		heapDesc.NodeMask = 0;
@@ -127,6 +136,12 @@ void SceneGraphApp::BuildDescriptorHeaps()
 		index = mCBVSRVUAVHeap->Alloc();
 		mRenderTargets["transBlend"]->srvCPUHandle = mCBVSRVUAVHeap->GetCPUHandle(index);
 		mRenderTargets["transBlend"]->srvGPUHandle = mCBVSRVUAVHeap->GetGPUHandle(index);
+		index = mCBVSRVUAVHeap->Alloc();
+		mRenderTargets["afterResolve"]->srvCPUHandle = mCBVSRVUAVHeap->GetCPUHandle(index);
+		mRenderTargets["afterResolve"]->srvGPUHandle = mCBVSRVUAVHeap->GetGPUHandle(index);
+		index = mCBVSRVUAVHeap->Alloc();
+		mRenderTargets["fxaa"]->srvCPUHandle = mCBVSRVUAVHeap->GetCPUHandle(index);
+		mRenderTargets["fxaa"]->srvGPUHandle = mCBVSRVUAVHeap->GetGPUHandle(index);
 		index = mCBVSRVUAVHeap->Alloc();
 		mZBufferSRVCPUHandle = mCBVSRVUAVHeap->GetCPUHandle(index);
 		mZBufferSRVGPUHandle = mCBVSRVUAVHeap->GetGPUHandle(index);
@@ -192,7 +207,7 @@ void SceneGraphApp::BuildInputLayout() {
 		pos.InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA;
 		pos.InstanceDataStepRate = 0;
 
-		mInputLayouts["transBlend"] = { pos };
+		mInputLayouts["onlyPos"] = { pos };
 	}
 }
 
@@ -237,7 +252,9 @@ void SceneGraphApp::BuildRootSignature()
 		return param;
 	};
 
-	{
+	auto staticSamplers = GetStaticSamplers();
+
+	{ // Standard
 	/*
 		cb perObject{
 			float4x4 modelMat;
@@ -283,7 +300,7 @@ void SceneGraphApp::BuildRootSignature()
 		mRootSigns["standard"] = SerializeAndCreateRootSignature(md3dDevice, &rootSignDesc);
 	}
 
-	{
+	{ // transBlend
 	/*
 		uab<uint8> testUA;
 	*/
@@ -321,6 +338,38 @@ void SceneGraphApp::BuildRootSignature()
 		// Serialize And Create RootSignature
 		mRootSigns["transBlend"] = SerializeAndCreateRootSignature(md3dDevice, &rootSignDesc);
 	}
+
+	{ // FXAA
+	/*
+		cb fxaa;
+		tex tex;
+	*/
+		// Descriptor Ranges
+		std::vector<D3D12_DESCRIPTOR_RANGE> texSRVRanges;
+		texSRVRanges.push_back(CD3DX12_DESCRIPTOR_RANGE(
+			D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 
+			1, 0, 
+			0, 0U
+		));
+
+		// Describe root parameters
+		std::vector<D3D12_ROOT_PARAMETER> rootParams;
+		rootParams.push_back(GetCBVParam(0));
+		rootParams.push_back(GetTableParam(texSRVRanges));
+
+		// Create desc for root signature
+		CD3DX12_ROOT_SIGNATURE_DESC rootSignDesc;
+		rootSignDesc.Init(
+			static_cast<UINT>(rootParams.size()),
+			rootParams.data(),
+			static_cast<UINT>(staticSamplers.size()),
+			staticSamplers.data(),
+			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
+		);
+
+		// Serialize And Create RootSignature
+		mRootSigns["fxaa"] = SerializeAndCreateRootSignature(md3dDevice, &rootSignDesc);
+	}
 }
 
 void SceneGraphApp::BuildShaders()
@@ -346,11 +395,14 @@ void SceneGraphApp::BuildShaders()
 	mShaders["transPS"] = d3dUtil::CompileShader(
 		L"transPixel.hlsl", defines.data(), "main", PS_TARGET
 	);
-	mShaders["transBlendVS"] = d3dUtil::CompileShader(
-		L"transBlendVertex.hlsl", defines.data(), "main", VS_TARGET
+	mShaders["simpleVS"] = d3dUtil::CompileShader(
+		L"simpleVertex.hlsl", defines.data(), "main", VS_TARGET
 	);
 	mShaders["transBlendPS"] = d3dUtil::CompileShader(
 		L"transBlendPixel.hlsl", defines.data(), "main", PS_TARGET
+	);
+	mShaders["fxaaPS"] = d3dUtil::CompileShader(
+		L"fxaaPixel.hlsl", defines.data(), "main", PS_TARGET
 	);
 }
 
@@ -409,14 +461,14 @@ void SceneGraphApp::BuildPSOs()
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC transBlendPsoDesc = opaquePsoDesc;
 	transBlendPsoDesc.InputLayout = { 
-		mInputLayouts["transBlend"].data(), 
-		(UINT)mInputLayouts["transBlend"].size() 
+		mInputLayouts["onlyPos"].data(), 
+		(UINT)mInputLayouts["onlyPos"].size() 
 	};
 	transBlendPsoDesc.pRootSignature = mRootSigns["transBlend"].Get();
 	transBlendPsoDesc.VS =
 	{
-		reinterpret_cast<BYTE*>(mShaders["transBlendVS"]->GetBufferPointer()),
-		mShaders["transBlendVS"]->GetBufferSize()
+		reinterpret_cast<BYTE*>(mShaders["simpleVS"]->GetBufferPointer()),
+		mShaders["simpleVS"]->GetBufferSize()
 	};
 	transBlendPsoDesc.PS =
 	{
@@ -426,6 +478,16 @@ void SceneGraphApp::BuildPSOs()
 	transBlendPsoDesc.DepthStencilState.DepthEnable = false;
 	transBlendPsoDesc.RTVFormats[0] = mRenderTargets["transBlend"]->viewFormat;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&transBlendPsoDesc, IID_PPV_ARGS(&mPSOs["transBlend"])));
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC fxaaPsoDesc = transBlendPsoDesc;
+	fxaaPsoDesc.pRootSignature = mRootSigns["fxaa"].Get();
+	fxaaPsoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["fxaaPS"]->GetBufferPointer()),
+		mShaders["fxaaPS"]->GetBufferSize()
+	};
+	fxaaPsoDesc.RTVFormats[0] = mRenderTargets["fxaa"]->viewFormat;
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&fxaaPsoDesc, IID_PPV_ARGS(&mPSOs["fxaa"])));
 }
 
 void SceneGraphApp::BuildLights()
@@ -847,7 +909,6 @@ void SceneGraphApp::BuildRenderItems()
 		renderItem->Submesh = mGeos["background"]->DrawArgs["background"];
 		renderItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 		renderItem->MtlConsts = mMtlConsts["white"];
-		renderItem->PSO = "transBlend";
 		renderItem->ObjConsts = mObjConsts["background"];
 
 		// Save render items
@@ -860,6 +921,36 @@ void SceneGraphApp::BuildObjectConstantBuffers()
 	mObjectConstantsBuffers = std::make_unique<UploadBuffer<ObjectConstants::Content>>(
 		md3dDevice.Get(), 
 		ObjectConstants::getTotalNum(), true
+	);
+}
+
+void SceneGraphApp::InitFxaa()
+{
+	// Settings
+	constexpr float qualitySubpix = 0.75f;
+	constexpr float qualityEdgeThreshold = 0.166f;
+	constexpr float qualityEdgeThresholdMin = 0.0833f;
+	constexpr float consoleEdgeSharpness = 8.0f;
+	constexpr float consoleEdgeThreshold = 0.125f;
+	constexpr float consoleEdgeThresholdMin = 0.05f;
+
+	// Create constants
+	mFxaaConstants = std::make_unique<FxaaConstants>();
+
+	// Init constants
+	auto& content = mFxaaConstants->content;
+	content.QualitySubpix = qualitySubpix;
+	content.QualityEdgeThreshold = qualityEdgeThreshold;
+	content.QualityEdgeThresholdMin = qualityEdgeThresholdMin;
+	content.ConsoleEdgeSharpness = consoleEdgeSharpness;
+	content.ConsoleEdgeThreshold = consoleEdgeThreshold;
+	content.ConsoleEdgeThresholdMin = consoleEdgeThresholdMin;
+	content.Console360ConstDir = { 0.0f, 0.0f, 0.0f, 0.0f };
+
+	// Create buffer
+	mFxaaConstantsBuffers = std::make_unique<UploadBuffer<FxaaConstants::Content>>(
+		md3dDevice.Get(), 
+		FxaaConstants::getTotalNum(), true
 	);
 }
 
@@ -982,6 +1073,49 @@ void SceneGraphApp::ResizeRenderTargets()
 		&transBlendDesc,
 		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
 	);
+
+	// After Resolve
+	D3D12_RESOURCE_DESC afterResolveDesc = transBlendDesc;
+	afterResolveDesc.Format = mRenderTargets["afterResolve"]->viewFormat;
+	afterResolveDesc.SampleDesc.Count = 1;
+	afterResolveDesc.SampleDesc.Quality = 0;
+
+	mRenderTargets["afterResolve"]->Resize(
+		md3dDevice,
+		&afterResolveDesc,
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
+	);
+
+	// Fxaa
+	D3D12_RESOURCE_DESC fxaaDesc = afterResolveDesc;
+	fxaaDesc.Format = mRenderTargets["fxaa"]->viewFormat;
+
+	mRenderTargets["fxaa"]->Resize(
+		md3dDevice,
+		&fxaaDesc,
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
+	);
+}
+
+void SceneGraphApp::ResizeFxaa()
+{
+	constexpr float N = 0.5f;
+
+	auto& content = mFxaaConstants->content;
+	content.QualityRcpFrame.x = 1.0f / mClientWidth;
+	content.QualityRcpFrame.y = 1.0f / mClientHeight;
+	content.ConsoleRcpFrameOpt.x = -N / mClientWidth;
+	content.ConsoleRcpFrameOpt.y = -N / mClientHeight;
+	content.ConsoleRcpFrameOpt.z = N / mClientWidth;
+	content.ConsoleRcpFrameOpt.w = N / mClientHeight;
+	content.ConsoleRcpFrameOpt2.x = -2.0f / mClientWidth;
+	content.ConsoleRcpFrameOpt2.y = -2.0f / mClientHeight;
+	content.ConsoleRcpFrameOpt2.z = 2.0f / mClientWidth;
+	content.ConsoleRcpFrameOpt2.w = 2.0f / mClientHeight;
+	content.Console360RcpFrameOpt2.x = 8.0f / mClientWidth;
+	content.Console360RcpFrameOpt2.y = 8.0f / mClientHeight;
+	content.Console360RcpFrameOpt2.z = -4.0f / mClientWidth;
+	content.Console360RcpFrameOpt2.w = -4.0f / mClientHeight;
 }
 
 void SceneGraphApp::DrawRenderItems(const std::vector<std::shared_ptr<RenderItem>>& renderItemQueue)
@@ -1048,6 +1182,7 @@ void SceneGraphApp::OnResize()
 
 	ResizeScreenUAVSRV();
 	ResizeRenderTargets();
+	ResizeFxaa();
 
 	// Execute the resize commands.
 	ThrowIfFailed(mCommandList->Close());
@@ -1107,6 +1242,14 @@ void SceneGraphApp::Update(const GameTimer& gt)
 		mObjectConstantsBuffers->CopyData(
 			mBackgroundRenderItem->ObjConsts->getID(),
 			mBackgroundRenderItem->ObjConsts->content
+		);
+	}
+
+	// Update Fxaa Constant Buffers
+	{
+		mFxaaConstantsBuffers->CopyData(
+			mFxaaConstants->getID(),
+			mFxaaConstants->content
 		);
 	}
 }
@@ -1254,7 +1397,7 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 
 		// Draw Render Items
 		auto& renderItem = mBackgroundRenderItem;
-		mCommandList->SetPipelineState(mPSOs[renderItem->PSO].Get());
+		mCommandList->SetPipelineState(mPSOs["transBlend"].Get());
 
 		// Set IA
 		D3D12_VERTEX_BUFFER_VIEW VBVs[1] = {
@@ -1278,29 +1421,104 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 			// D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
 	}
 
-	// Copy/Resolve to BackBuffer
+	// Resolve/Just copy
+	// TODO This copy is needless
 	if (m4xMsaaState) {
 		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["transBlend"]->resource.Get(),
 			D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RESOLVE_SOURCE));
-		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
-			D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RESOLVE_DEST));
+		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["afterResolve"]->resource.Get(),
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RESOLVE_DEST));
 		mCommandList->ResolveSubresource(
-			CurrentBackBuffer(), 0, 
+			mRenderTargets["afterResolve"]->resource.Get(), 0, 
 			mRenderTargets["transBlend"]->resource.Get(), 0, 
 			mBackBufferResourceFormat
 		);
 		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["transBlend"]->resource.Get(),
 			D3D12_RESOURCE_STATE_RESOLVE_SOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
-		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
-			D3D12_RESOURCE_STATE_RESOLVE_DEST, D3D12_RESOURCE_STATE_PRESENT));
+		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["afterResolve"]->resource.Get(),
+			D3D12_RESOURCE_STATE_RESOLVE_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
 	}
 	else {
 		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["transBlend"]->resource.Get(),
 			D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_SOURCE));
+		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["afterResolve"]->resource.Get(),
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST));
+		mCommandList->CopyResource(
+			mRenderTargets["afterResolve"]->resource.Get(), 
+			mRenderTargets["transBlend"]->resource.Get()
+		);
+		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["transBlend"]->resource.Get(),
+			D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
+		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["afterResolve"]->resource.Get(),
+			D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
+	}
+
+	// FXAA
+	{
+		// Indicate a state transition on the resource usage.
+		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["fxaa"]->resource.Get(),
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET));
+
+		// Specify the buffers we are going to render to.
+		mCommandList->OMSetRenderTargets(1, &mRenderTargets["fxaa"]->rtvCPUHandle, true, &DepthStencilView());
+
+		// Clear the back buffer and depth buffer.
+		// TODO this may needless
+		mCommandList->ClearRenderTargetView(mRenderTargets["fxaa"]->rtvCPUHandle, mRenderTargets["fxaa"]->clearValue, 0, nullptr);
+		mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
+
+		// Set Root Signature
+		mCommandList->SetGraphicsRootSignature(mRootSigns["fxaa"].Get());
+
+		// Assign CBV
+		auto fxaaCBGPUAddr = mFxaaConstantsBuffers->Resource()->GetGPUVirtualAddress();
+		UINT64 fxaaCBElementByteSize = mFxaaConstantsBuffers->getElementByteSize();
+		mCommandList->SetGraphicsRootConstantBufferView(
+			0, fxaaCBGPUAddr + mFxaaConstants->getID() * fxaaCBElementByteSize
+		);
+
+		// Assign SRV
+		mCommandList->SetGraphicsRootDescriptorTable(
+			1, mRenderTargets["afterResolve"]->srvGPUHandle
+		);
+
+		// Draw Render Items
+		auto& renderItem = mBackgroundRenderItem;
+		mCommandList->SetPipelineState(mPSOs["fxaa"].Get());
+
+		// Set IA
+		D3D12_VERTEX_BUFFER_VIEW VBVs[1] = {
+			renderItem->Geo->VertexBufferView()
+		};
+		mCommandList->IASetVertexBuffers(0, 1, VBVs);
+		mCommandList->IASetIndexBuffer(&renderItem->Geo->IndexBufferView());
+		mCommandList->IASetPrimitiveTopology(renderItem->PrimitiveTopology);
+
+		// Draw Call
+		mCommandList->DrawIndexedInstanced(
+			renderItem->Submesh.IndexCount, 
+			1,
+			renderItem->Submesh.StartIndexLocation,
+			renderItem->Submesh.BaseVertexLocation,
+			0
+		);
+
+		// Trans back states
+		// mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["fxaa"]->resource.Get(),
+			// D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
+	}
+
+	// Copy to BackBuffer
+	{
+		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["fxaa"]->resource.Get(),
+			D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_SOURCE));
 		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
 			D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_COPY_DEST));
-		mCommandList->CopyResource(CurrentBackBuffer(), mRenderTargets["transBlend"]->resource.Get());
-		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["transBlend"]->resource.Get(),
+		mCommandList->CopyResource(
+			CurrentBackBuffer(),
+			mRenderTargets["fxaa"]->resource.Get()
+		);
+		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["fxaa"]->resource.Get(),
 			D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
 		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
 			D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PRESENT));
@@ -1330,5 +1548,20 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 	// done for simplicity.  Later we will show how to organize our rendering code
 	// so we do not have to wait per frame.
 	FlushCommandQueue();
+}
+
+std::vector<CD3DX12_STATIC_SAMPLER_DESC> SceneGraphApp::GetStaticSamplers()
+{
+	const CD3DX12_STATIC_SAMPLER_DESC bilinearWrap(
+		0,
+		D3D12_FILTER_MIN_MAG_LINEAR_MIP_POINT,
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP
+	);
+
+	return {
+		bilinearWrap
+	};
 }
 
