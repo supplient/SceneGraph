@@ -31,6 +31,8 @@ void SceneGraphApp::OnMouseWheel(WORD keyState, int delta, int x, int y)
 void SceneGraphApp::OnKeyUp(WPARAM vKey)
 {
 	D3DApp::OnKeyUp(vKey);
+	if (vKey == VK_F3)
+		UpdateFXAAState(!mUseFXAA);
 }
 
 void SceneGraphApp::OnKeyDown(WPARAM vKey)

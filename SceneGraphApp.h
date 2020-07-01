@@ -65,6 +65,7 @@ public:
 private:
 
 	virtual void OnMsaaStateChange()override;
+	virtual void OnFxaaStateChange();
 	virtual void OnResize()override;
 	virtual void Update(const GameTimer& gt)override;
 	virtual void Draw(const GameTimer& gt)override;
@@ -80,7 +81,8 @@ private:
 	virtual void OnKeyDown(WPARAM vKey)override;
 
 	// Settings
-	// bool mUseFXAA = true;
+	bool mUseFXAA = true;
+	void UpdateFXAAState(bool newState);
 
 	// Camera
 	Camera mCamera;
@@ -93,7 +95,7 @@ private:
 
 	// Render Targets
 	std::unordered_map<std::string, std::unique_ptr<SingleRenderTarget>> mRenderTargets;
-	std::unique_ptr<SwapChainRenderTarget> mSwapChain_;
+	std::unique_ptr<SwapChainRenderTarget> mSwapChain;
 
 	// NCount UAV
 	DXGI_FORMAT mNCountFormat = DXGI_FORMAT_R32_UINT;

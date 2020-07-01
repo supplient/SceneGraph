@@ -119,7 +119,7 @@ void SceneGraphApp::BuildRenderTargets()
 	UINT rtvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 	UINT srvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
-	mSwapChain_ = std::make_unique<SwapChainRenderTarget>(
+	mSwapChain = std::make_unique<SwapChainRenderTarget>(
 		L"swap chain",
 		mdxgiFactory, mCommandQueue,
 		&sd, clearValue,
@@ -150,7 +150,7 @@ void SceneGraphApp::BuildDescriptorHeaps()
 	{
 		// Build Descriptor Heap
 		D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-		heapDesc.NumDescriptors = (UINT)mRenderTargets.size() + mSwapChain_->GetSwapChainBufferCount();
+		heapDesc.NumDescriptors = (UINT)mRenderTargets.size() + mSwapChain->GetSwapChainBufferCount();
 		heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
 		heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 		heapDesc.NodeMask = 0;
@@ -164,14 +164,14 @@ void SceneGraphApp::BuildDescriptorHeaps()
 		mRenderTargets["transBlend"]->SetRTVCPUHandle(mRTVHeap->GetCPUHandle(mRTVHeap->Alloc()));
 		mRenderTargets["afterResolve"]->SetRTVCPUHandle(mRTVHeap->GetCPUHandle(mRTVHeap->Alloc()));
 		mRenderTargets["fxaa"]->SetRTVCPUHandle(mRTVHeap->GetCPUHandle(mRTVHeap->Alloc()));
-		UINT index = mRTVHeap->Alloc(mSwapChain_->GetSwapChainBufferCount());
-		mSwapChain_->SetRTVCPUHandleStart(mRTVHeap->GetCPUHandle(index));
+		UINT index = mRTVHeap->Alloc(mSwapChain->GetSwapChainBufferCount());
+		mSwapChain->SetRTVCPUHandleStart(mRTVHeap->GetCPUHandle(index));
 	}
 
 	// CBV, SRV, UAV // GPU heap
 	{
 		D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-		heapDesc.NumDescriptors = 2 + (UINT)mRenderTargets.size() + mSwapChain_->GetSwapChainBufferCount();
+		heapDesc.NumDescriptors = 2 + (UINT)mRenderTargets.size() + mSwapChain->GetSwapChainBufferCount();
 		heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 		heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 		heapDesc.NodeMask = 0;
@@ -195,9 +195,9 @@ void SceneGraphApp::BuildDescriptorHeaps()
 		mRenderTargets["fxaa"]->SetSRVCPUHandle(mCBVSRVUAVHeap->GetCPUHandle(index));
 		mRenderTargets["fxaa"]->SetSRVGPUHandle(mCBVSRVUAVHeap->GetGPUHandle(index));
 
-		index = mCBVSRVUAVHeap->Alloc(mSwapChain_->GetSwapChainBufferCount());
-		mSwapChain_->SetSRVCPUHandleStart(mCBVSRVUAVHeap->GetCPUHandle(index));
-		mSwapChain_->SetSRVGPUHandleStart(mCBVSRVUAVHeap->GetGPUHandle(index));
+		index = mCBVSRVUAVHeap->Alloc(mSwapChain->GetSwapChainBufferCount());
+		mSwapChain->SetSRVCPUHandleStart(mCBVSRVUAVHeap->GetCPUHandle(index));
+		mSwapChain->SetSRVGPUHandleStart(mCBVSRVUAVHeap->GetGPUHandle(index));
 
 		index = mCBVSRVUAVHeap->Alloc();
 		mZBufferSRVCPUHandle = mCBVSRVUAVHeap->GetCPUHandle(index);
@@ -1161,7 +1161,7 @@ void SceneGraphApp::ResizeRenderTargets()
 	);
 
 	// Swap Chain
-	mSwapChain_->Resize(
+	mSwapChain->Resize(
 		md3dDevice,
 		mClientWidth, mClientHeight
 	);
@@ -1239,6 +1239,11 @@ void SceneGraphApp::OnMsaaStateChange()
 
 	BuildShaders();
 	BuildPSOs();
+}
+
+void SceneGraphApp::OnFxaaStateChange()
+{
+	// Do nothing.
 }
 
 void SceneGraphApp::OnResize()
@@ -1602,88 +1607,90 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 	}
 
 	// FXAA
-	auto prevColorRenderTarget = nowColorRenderTarget;
-	nowColorRenderTarget = mRenderTargets["fxaa"].get();
-	nowDSRenderTarget = mRenderTargets["fxaa"].get();
-	{
-		// Turn to Shader Resource
-		TransResourceState(
-			mCommandList,
-			{ prevColorRenderTarget->GetColorResource() },
-			{ D3D12_RESOURCE_STATE_RENDER_TARGET},
-			{ D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE }
-		);
+	if (mUseFXAA) {
+		auto prevColorRenderTarget = nowColorRenderTarget;
+		nowColorRenderTarget = mRenderTargets["fxaa"].get();
+		nowDSRenderTarget = mRenderTargets["fxaa"].get();
+		{
+			// Turn to Shader Resource
+			TransResourceState(
+				mCommandList,
+				{ prevColorRenderTarget->GetColorResource() },
+				{ D3D12_RESOURCE_STATE_RENDER_TARGET},
+				{ D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE }
+			);
 
-		// Specify the buffers we are going to render to.
-		mCommandList->OMSetRenderTargets(
-			1, &nowColorRenderTarget->GetRTVCPUHandle(), 
-			true, &nowDSRenderTarget->GetDSVCPUHandle()
-		);
+			// Specify the buffers we are going to render to.
+			mCommandList->OMSetRenderTargets(
+				1, &nowColorRenderTarget->GetRTVCPUHandle(), 
+				true, &nowDSRenderTarget->GetDSVCPUHandle()
+			);
 
-		// Clear the back buffer and depth buffer.
-		mCommandList->ClearRenderTargetView(
-			nowColorRenderTarget->GetRTVCPUHandle(), 
-			nowColorRenderTarget->GetColorClearValue(), 
-			0, nullptr
-		);
-		mCommandList->ClearDepthStencilView(
-			nowDSRenderTarget->GetDSVCPUHandle(), 
-			D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 
-			nowDSRenderTarget->GetDepthClearValue(),  
-			nowDSRenderTarget->GetStencilClearValue(),
-			0, nullptr
-		);
+			// Clear the back buffer and depth buffer.
+			mCommandList->ClearRenderTargetView(
+				nowColorRenderTarget->GetRTVCPUHandle(), 
+				nowColorRenderTarget->GetColorClearValue(), 
+				0, nullptr
+			);
+			mCommandList->ClearDepthStencilView(
+				nowDSRenderTarget->GetDSVCPUHandle(), 
+				D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 
+				nowDSRenderTarget->GetDepthClearValue(),  
+				nowDSRenderTarget->GetStencilClearValue(),
+				0, nullptr
+			);
 
-		// Set Root Signature
-		mCommandList->SetGraphicsRootSignature(mRootSigns["fxaa"].Get());
+			// Set Root Signature
+			mCommandList->SetGraphicsRootSignature(mRootSigns["fxaa"].Get());
 
-		// Assign CBV
-		auto fxaaCBGPUAddr = mFxaaConstantsBuffers->Resource()->GetGPUVirtualAddress();
-		UINT64 fxaaCBElementByteSize = mFxaaConstantsBuffers->getElementByteSize();
-		mCommandList->SetGraphicsRootConstantBufferView(
-			0, fxaaCBGPUAddr + mFxaaConstants->getID() * fxaaCBElementByteSize
-		);
+			// Assign CBV
+			auto fxaaCBGPUAddr = mFxaaConstantsBuffers->Resource()->GetGPUVirtualAddress();
+			UINT64 fxaaCBElementByteSize = mFxaaConstantsBuffers->getElementByteSize();
+			mCommandList->SetGraphicsRootConstantBufferView(
+				0, fxaaCBGPUAddr + mFxaaConstants->getID() * fxaaCBElementByteSize
+			);
 
-		// Assign SRV
-		mCommandList->SetGraphicsRootDescriptorTable(
-			1, prevColorRenderTarget->GetSRVGPUHandle()
-		);
+			// Assign SRV
+			mCommandList->SetGraphicsRootDescriptorTable(
+				1, prevColorRenderTarget->GetSRVGPUHandle()
+			);
 
-		// Draw Render Items
-		auto& renderItem = mBackgroundRenderItem;
-		mCommandList->SetPipelineState(mPSOs["fxaa"].Get());
+			// Draw Render Items
+			auto& renderItem = mBackgroundRenderItem;
+			mCommandList->SetPipelineState(mPSOs["fxaa"].Get());
 
-		// Set IA
-		D3D12_VERTEX_BUFFER_VIEW VBVs[1] = {
-			renderItem->Geo->VertexBufferView()
-		};
-		mCommandList->IASetVertexBuffers(0, 1, VBVs);
-		mCommandList->IASetIndexBuffer(&renderItem->Geo->IndexBufferView());
-		mCommandList->IASetPrimitiveTopology(renderItem->PrimitiveTopology);
+			// Set IA
+			D3D12_VERTEX_BUFFER_VIEW VBVs[1] = {
+				renderItem->Geo->VertexBufferView()
+			};
+			mCommandList->IASetVertexBuffers(0, 1, VBVs);
+			mCommandList->IASetIndexBuffer(&renderItem->Geo->IndexBufferView());
+			mCommandList->IASetPrimitiveTopology(renderItem->PrimitiveTopology);
 
-		// Draw Call
-		mCommandList->DrawIndexedInstanced(
-			renderItem->Submesh.IndexCount, 
-			1,
-			renderItem->Submesh.StartIndexLocation,
-			renderItem->Submesh.BaseVertexLocation,
-			0
-		);
+			// Draw Call
+			mCommandList->DrawIndexedInstanced(
+				renderItem->Submesh.IndexCount, 
+				1,
+				renderItem->Submesh.StartIndexLocation,
+				renderItem->Submesh.BaseVertexLocation,
+				0
+			);
 
-		// Turn Back
-		TransResourceState(
-			mCommandList,
-			{ prevColorRenderTarget->GetColorResource() },
-			{ D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE },
-			{ D3D12_RESOURCE_STATE_RENDER_TARGET}
-		);
+			// Turn Back
+			TransResourceState(
+				mCommandList,
+				{ prevColorRenderTarget->GetColorResource() },
+				{ D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE },
+				{ D3D12_RESOURCE_STATE_RENDER_TARGET}
+			);
+		}
 	}
 
 	// Copy to BackBuffer
 	{
 		CopyResource(
 			mCommandList,
-			mSwapChain_->GetColorResource(),
+			mSwapChain->GetColorResource(),
 			D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_PRESENT,
 			nowColorRenderTarget->GetColorResource(),
 			D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RENDER_TARGET
@@ -1706,7 +1713,7 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 	// Swap Chain
 	{
 		// swap the back and front buffers
-		mSwapChain_->Swap();
+		mSwapChain->Swap();
 	}
 
 	// Wait until frame commands are complete.  This waiting is inefficient and is
@@ -1730,3 +1737,9 @@ std::vector<CD3DX12_STATIC_SAMPLER_DESC> SceneGraphApp::GetStaticSamplers()
 	};
 }
 
+void SceneGraphApp::UpdateFXAAState(bool newState) {
+    if(mUseFXAA != newState)
+    {
+        mUseFXAA = newState;
+    }
+}
