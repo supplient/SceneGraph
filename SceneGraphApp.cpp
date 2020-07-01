@@ -7,7 +7,7 @@
 //***************************************************************************************
 
 #include "SceneGraphApp.h"
-#include "../Common/GeometryGenerator.h"
+#include "Common/GeometryGenerator.h"
 #include "Predefine.h"
 
 using namespace DirectX;

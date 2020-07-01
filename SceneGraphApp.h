@@ -1,8 +1,8 @@
 #pragma once
 #include <DirectXColors.h>
 
-#include "../Common/d3dApp.h"
-#include "../Common/UploadBuffer.h"
+#include "Common/d3dApp.h"
+#include "Common/UploadBuffer.h"
 #include "Light.h"
 #include "RenderItem.h"
 #include "Camera.h"
