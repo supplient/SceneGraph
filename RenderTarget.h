@@ -59,7 +59,6 @@ public:
 	void Resize(
 		Microsoft::WRL::ComPtr<ID3D12Device> device,
 		D3D12_RESOURCE_DESC* desc,
-		D3D12_RESOURCE_STATES initState,
 		D3D12_RESOURCE_DESC* depthStencilDesc=nullptr
 		) 
 	{
@@ -80,7 +79,7 @@ public:
 			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
 			D3D12_HEAP_FLAG_NONE,
 			desc,
-			initState,
+			D3D12_RESOURCE_STATE_RENDER_TARGET,
 			&CD3DX12_CLEAR_VALUE(
 				viewFormat, clearValue
 			),

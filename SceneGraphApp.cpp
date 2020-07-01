@@ -1113,7 +1113,6 @@ void SceneGraphApp::ResizeRenderTargets()
 	mRenderTargets["opaque"]->Resize(
 		md3dDevice,
 		&opaqueDesc,
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 		&opaqueDSDesc
 	);
 
@@ -1123,8 +1122,7 @@ void SceneGraphApp::ResizeRenderTargets()
 
 	mRenderTargets["trans"]->Resize(
 		md3dDevice,
-		&transDesc,
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
+		&transDesc
 	);
 
 	// Transparent Blending
@@ -1133,8 +1131,7 @@ void SceneGraphApp::ResizeRenderTargets()
 
 	mRenderTargets["transBlend"]->Resize(
 		md3dDevice,
-		&transBlendDesc,
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
+		&transBlendDesc
 	);
 
 	// After Resolve
@@ -1145,8 +1142,7 @@ void SceneGraphApp::ResizeRenderTargets()
 
 	mRenderTargets["afterResolve"]->Resize(
 		md3dDevice,
-		&afterResolveDesc,
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
+		&afterResolveDesc
 	);
 
 	// Fxaa
@@ -1161,7 +1157,6 @@ void SceneGraphApp::ResizeRenderTargets()
 	mRenderTargets["fxaa"]->Resize(
 		md3dDevice,
 		&fxaaDesc,
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 		&fxaaDSDesc
 	);
 
@@ -1329,6 +1324,48 @@ void SceneGraphApp::Update(const GameTimer& gt)
 	}
 }
 
+void TransResourceState(
+	ComPtr<ID3D12GraphicsCommandList> commandList,
+	std::vector<ID3D12Resource*> resources,
+	std::vector<D3D12_RESOURCE_STATES> fromStates,
+	std::vector<D3D12_RESOURCE_STATES> toStates
+) {
+	if (resources.size() != fromStates.size() || fromStates.size() != toStates.size())
+		throw "Size does not match.";
+	std::vector<CD3DX12_RESOURCE_BARRIER> barriers;
+	for (UINT i = 0; i < resources.size(); i++) {
+		barriers.push_back(CD3DX12_RESOURCE_BARRIER::Transition(
+			resources[i],
+			fromStates[i], toStates[i]
+		));
+	}
+	commandList->ResourceBarrier(static_cast<UINT>(barriers.size()), barriers.data());
+}
+
+void CopyResource(
+	ComPtr<ID3D12GraphicsCommandList> commandList,
+	ID3D12Resource* dst,
+	D3D12_RESOURCE_STATES dstFromState, D3D12_RESOURCE_STATES dstToState,
+	ID3D12Resource* src,
+	D3D12_RESOURCE_STATES srcFromState, D3D12_RESOURCE_STATES srcToState
+) {
+	TransResourceState(
+		commandList,
+		{ src, dst },
+		{ srcFromState, dstFromState },
+		{ D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_COPY_DEST }
+	);
+
+	commandList->CopyResource(dst, src);
+
+	TransResourceState(
+		commandList,
+		{ src, dst },
+		{ D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_COPY_DEST },
+		{ srcToState, dstToState }
+	);
+};
+
 void SceneGraphApp::Draw(const GameTimer& gt)
 {
 	// CommandList Start Recoding
@@ -1365,6 +1402,10 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 		);
 	}
 
+	// Vars for convenience. Note, do not alloc or free for these vars, only assign.
+	RenderTarget* nowColorRenderTarget = nullptr;
+	RenderTarget* nowDSRenderTarget = nullptr;
+
 	// Draw Scene
 	{
 		// Set Root Signature
@@ -1388,79 +1429,106 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 		);
 
 		// Opaque
+		nowColorRenderTarget = mRenderTargets["opaque"].get();
+		nowDSRenderTarget = mRenderTargets["opaque"].get();
 		{
-			// Trans to Render Target
-			mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["opaque"]->GetColorResource(),
-				D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET));
-
 			// Specify the buffers we are going to render to.
-			mCommandList->OMSetRenderTargets(1, &mRenderTargets["opaque"]->GetRTVCPUHandle(), true, &mRenderTargets["opaque"]->GetDSVCPUHandle());
+			mCommandList->OMSetRenderTargets(
+				1, &nowColorRenderTarget->GetRTVCPUHandle(), 
+				true, &nowDSRenderTarget->GetDSVCPUHandle()
+			);
 
 			// Clear the back buffer and depth buffer.
-			mCommandList->ClearRenderTargetView(mRenderTargets["opaque"]->GetRTVCPUHandle(), mRenderTargets["opaque"]->GetColorClearValue(), 0, nullptr);
+			mCommandList->ClearRenderTargetView(
+				nowColorRenderTarget->GetRTVCPUHandle(), 
+				nowColorRenderTarget->GetColorClearValue(), 
+				0, nullptr
+			);
 			mCommandList->ClearDepthStencilView(
-				mRenderTargets["opaque"]->GetDSVCPUHandle(), 
+				nowDSRenderTarget->GetDSVCPUHandle(), 
 				D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 
-				mRenderTargets["opaque"]->GetDepthClearValue(),  mRenderTargets["opaque"]->GetStencilClearValue(),
+				nowDSRenderTarget->GetDepthClearValue(),  
+				nowDSRenderTarget->GetStencilClearValue(),
 				0, nullptr
 			);
 
 			// Draw Render Items
 			DrawRenderItems(mRenderItemQueue);
-
-			// Trans back to Shader Resource
-			mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["opaque"]->GetColorResource(),
-				D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
 		}
 
 		// Copy ZBuffer for reference
-		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["opaque"]->GetDepthStencilResource(),
-			D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_COPY_SOURCE));
-		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mZBufferResource.Get(),
-			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST));
-		mCommandList->CopyResource(mZBufferResource.Get(), mRenderTargets["opaque"]->GetDepthStencilResource());
-		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["opaque"]->GetDepthStencilResource(),
-			D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_DEPTH_WRITE));
-		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mZBufferResource.Get(),
-			D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
+		CopyResource(mCommandList,
+			mZBufferResource.Get(),
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+			mRenderTargets["opaque"]->GetDepthStencilResource(),
+			D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_DEPTH_WRITE
+		);
 
 		// Transparent
+		nowColorRenderTarget = mRenderTargets["trans"].get();
 		{
-			// Trans to Render Target
-			mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["trans"]->GetColorResource(),
-				D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET));
+			// Trans Previous RenderTarget to Shader Resource
+			TransResourceState(
+				mCommandList,
+				{ mRenderTargets["opaque"]->GetColorResource() },
+				{ D3D12_RESOURCE_STATE_RENDER_TARGET },
+				{ D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE }
+			);
 
 			// Specify the buffers we are going to render to.
-			mCommandList->OMSetRenderTargets(1, &mRenderTargets["trans"]->GetRTVCPUHandle(), true, &mRenderTargets["opaque"]->GetDSVCPUHandle());
+			mCommandList->OMSetRenderTargets(
+				1, &nowColorRenderTarget->GetRTVCPUHandle(), 
+				true, &nowDSRenderTarget->GetDSVCPUHandle()
+			);
 
 			// Clear Render Target
-			mCommandList->ClearRenderTargetView(mRenderTargets["trans"]->GetRTVCPUHandle(), mRenderTargets["trans"]->GetColorClearValue(), 0, nullptr);
+			mCommandList->ClearRenderTargetView(
+				nowColorRenderTarget->GetRTVCPUHandle(), 
+				nowColorRenderTarget->GetColorClearValue(), 
+				0, nullptr
+			);
 
 			// Draw Render Items
 			DrawRenderItems(mTransRenderItemQueue);
 
-			// Trans back to Shader Resource
-			mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["trans"]->GetColorResource(),
-				D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
+			// Trans back to Render Target
+			TransResourceState(
+				mCommandList,
+				{ mRenderTargets["opaque"]->GetColorResource() },
+				{ D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE },
+				{ D3D12_RESOURCE_STATE_RENDER_TARGET }
+			);
 		}
 	}
 
 	// Transparent Blend
+	nowColorRenderTarget = mRenderTargets["transBlend"].get();
 	{
-		// Indicate a state transition on the resource usage.
-		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["transBlend"]->GetColorResource(),
-			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET));
+		// Trans Previous RenderTarget to Shader Resource
+		TransResourceState(
+			mCommandList,
+			{ mRenderTargets["opaque"]->GetColorResource(), mRenderTargets["trans"]->GetColorResource() },
+			{ D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RENDER_TARGET },
+			{ D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE }
+		);
 
 		// Specify the buffers we are going to render to.
-		mCommandList->OMSetRenderTargets(1, &mRenderTargets["transBlend"]->GetRTVCPUHandle(), true, &mRenderTargets["opaque"]->GetDSVCPUHandle());
+		mCommandList->OMSetRenderTargets(
+			1, &nowColorRenderTarget->GetRTVCPUHandle(), 
+			true, &nowDSRenderTarget->GetDSVCPUHandle()
+		);
 
 		// Clear the back buffer and depth buffer.
-		// TODO this may needless
-		mCommandList->ClearRenderTargetView(mRenderTargets["transBlend"]->GetRTVCPUHandle(), mRenderTargets["transBlend"]->GetColorClearValue(), 0, nullptr);
+		mCommandList->ClearRenderTargetView(
+			nowColorRenderTarget->GetRTVCPUHandle(), 
+			nowColorRenderTarget->GetColorClearValue(), 
+			0, nullptr
+		);
 		mCommandList->ClearDepthStencilView(
-			mRenderTargets["opaque"]->GetDSVCPUHandle(), 
+			nowDSRenderTarget->GetDSVCPUHandle(), 
 			D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 
-			mRenderTargets["opaque"]->GetDepthClearValue(),  mRenderTargets["opaque"]->GetStencilClearValue(),
+			nowDSRenderTarget->GetDepthClearValue(),  
+			nowDSRenderTarget->GetStencilClearValue(),
 			0, nullptr
 		);
 
@@ -1501,58 +1569,68 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 			0
 		);
 
-		// Trans back to Shader Resource
-		// mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mTransBlendRenderTarget.Get(),
-			// D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
+		// Trans Back to Render Targets
+		TransResourceState(
+			mCommandList,
+			{ mRenderTargets["opaque"]->GetColorResource(), mRenderTargets["trans"]->GetColorResource() },
+			{ D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE },
+			{ D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RENDER_TARGET }
+		);
 	}
 
-	// Resolve/Just copy // TODO This copy is needless
+	// Resolve
 	if (m4xMsaaState) {
-		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["transBlend"]->GetColorResource(),
-			D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RESOLVE_SOURCE));
-		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["afterResolve"]->GetColorResource(),
-			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RESOLVE_DEST));
+		TransResourceState(
+			mCommandList,
+			{ mRenderTargets["transBlend"]->GetColorResource(), mRenderTargets["afterResolve"]->GetColorResource() },
+			{ D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RENDER_TARGET },
+			{ D3D12_RESOURCE_STATE_RESOLVE_SOURCE, D3D12_RESOURCE_STATE_RESOLVE_DEST }
+		);
 		mCommandList->ResolveSubresource(
 			mRenderTargets["afterResolve"]->GetColorResource(), 0, 
 			mRenderTargets["transBlend"]->GetColorResource(), 0, 
 			mRenderTargets["afterResolve"]->GetColorViewFormat()
 		);
-		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["transBlend"]->GetColorResource(),
-			D3D12_RESOURCE_STATE_RESOLVE_SOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
-		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["afterResolve"]->GetColorResource(),
-			D3D12_RESOURCE_STATE_RESOLVE_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
-	}
-	else {
-		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["transBlend"]->GetColorResource(),
-			D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_SOURCE));
-		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["afterResolve"]->GetColorResource(),
-			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST));
-		mCommandList->CopyResource(
-			mRenderTargets["afterResolve"]->GetColorResource(), 
-			mRenderTargets["transBlend"]->GetColorResource()
+		TransResourceState(
+			mCommandList,
+			{ mRenderTargets["transBlend"]->GetColorResource(), mRenderTargets["afterResolve"]->GetColorResource() },
+			{ D3D12_RESOURCE_STATE_RESOLVE_SOURCE, D3D12_RESOURCE_STATE_RESOLVE_DEST },
+			{ D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RENDER_TARGET }
 		);
-		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["transBlend"]->GetColorResource(),
-			D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
-		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["afterResolve"]->GetColorResource(),
-			D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
+
+		nowColorRenderTarget = mRenderTargets["afterResolve"].get();
 	}
 
 	// FXAA
+	auto prevColorRenderTarget = nowColorRenderTarget;
+	nowColorRenderTarget = mRenderTargets["fxaa"].get();
+	nowDSRenderTarget = mRenderTargets["fxaa"].get();
 	{
-		// Indicate a state transition on the resource usage.
-		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["fxaa"]->GetColorResource(),
-			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET));
+		// Turn to Shader Resource
+		TransResourceState(
+			mCommandList,
+			{ prevColorRenderTarget->GetColorResource() },
+			{ D3D12_RESOURCE_STATE_RENDER_TARGET},
+			{ D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE }
+		);
 
 		// Specify the buffers we are going to render to.
-		mCommandList->OMSetRenderTargets(1, &mRenderTargets["fxaa"]->GetRTVCPUHandle(), true, &mRenderTargets["fxaa"]->GetDSVCPUHandle());
+		mCommandList->OMSetRenderTargets(
+			1, &nowColorRenderTarget->GetRTVCPUHandle(), 
+			true, &nowDSRenderTarget->GetDSVCPUHandle()
+		);
 
 		// Clear the back buffer and depth buffer.
-		// TODO this may needless
-		mCommandList->ClearRenderTargetView(mRenderTargets["fxaa"]->GetRTVCPUHandle(), mRenderTargets["fxaa"]->GetColorClearValue(), 0, nullptr);
+		mCommandList->ClearRenderTargetView(
+			nowColorRenderTarget->GetRTVCPUHandle(), 
+			nowColorRenderTarget->GetColorClearValue(), 
+			0, nullptr
+		);
 		mCommandList->ClearDepthStencilView(
-			mRenderTargets["fxaa"]->GetDSVCPUHandle(), 
+			nowDSRenderTarget->GetDSVCPUHandle(), 
 			D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 
-			mRenderTargets["fxaa"]->GetDepthClearValue(), mRenderTargets["fxaa"]->GetStencilClearValue(), 
+			nowDSRenderTarget->GetDepthClearValue(),  
+			nowDSRenderTarget->GetStencilClearValue(),
 			0, nullptr
 		);
 
@@ -1568,7 +1646,7 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 
 		// Assign SRV
 		mCommandList->SetGraphicsRootDescriptorTable(
-			1, mRenderTargets["afterResolve"]->GetSRVGPUHandle()
+			1, prevColorRenderTarget->GetSRVGPUHandle()
 		);
 
 		// Draw Render Items
@@ -1592,25 +1670,24 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 			0
 		);
 
-		// Trans back states
-		// mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["fxaa"]->resource.Get(),
-			// D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
+		// Turn Back
+		TransResourceState(
+			mCommandList,
+			{ prevColorRenderTarget->GetColorResource() },
+			{ D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE },
+			{ D3D12_RESOURCE_STATE_RENDER_TARGET}
+		);
 	}
 
 	// Copy to BackBuffer
 	{
-		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["fxaa"]->GetColorResource(),
-			D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_SOURCE));
-		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mSwapChain_->GetColorResource(),
-			D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_COPY_DEST));
-		mCommandList->CopyResource(
+		CopyResource(
+			mCommandList,
 			mSwapChain_->GetColorResource(),
-			mRenderTargets["fxaa"]->GetColorResource()
+			D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_PRESENT,
+			nowColorRenderTarget->GetColorResource(),
+			D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RENDER_TARGET
 		);
-		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mRenderTargets["fxaa"]->GetColorResource(),
-			D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
-		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mSwapChain_->GetColorResource(),
-			D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PRESENT));
 	}
 
 	// CommandList End Recording
