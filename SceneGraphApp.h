@@ -79,6 +79,9 @@ private:
 	virtual void OnKeyUp(WPARAM vKey)override;
 	virtual void OnKeyDown(WPARAM vKey)override;
 
+	// Settings
+	// bool mUseFXAA = true;
+
 	// Camera
 	Camera mCamera;
 
@@ -89,7 +92,8 @@ private:
 	std::unique_ptr<StaticDescriptorHeap> mCBVSRVUAVCPUHeap = nullptr;
 
 	// Render Targets
-	std::unordered_map<std::string, std::unique_ptr<RenderTarget>> mRenderTargets;
+	std::unordered_map<std::string, std::unique_ptr<SingleRenderTarget>> mRenderTargets;
+	std::unique_ptr<SwapChainRenderTarget> mSwapChain_;
 
 	// NCount UAV
 	DXGI_FORMAT mNCountFormat = DXGI_FORMAT_R32_UINT;
