@@ -1,5 +1,5 @@
 #pragma once
-#include "../Common/d3dUtil.h"
+#include "Common/d3dUtil.h"
 #include "Predefine.h"
 
 class ObjectConstants {
@@ -73,6 +73,34 @@ public:
 		DirectX::XMFLOAT4X4 ProjMat = MathHelper::Identity4x4();
 		DirectX::XMUINT4 LightPerTypeNum = { 0, 0, 0, 0 };
 		LightConstants::Content Lights[MAX_LIGHT_NUM];
+	} content;
+
+private:
+	UINT mID;
+	static UINT sIDCount;
+};
+
+class FxaaConstants {
+public:
+	FxaaConstants() {
+		mID = sIDCount;
+		sIDCount++;
+	}
+	UINT getID()const { return mID; }
+	static UINT getTotalNum() { return sIDCount; }
+
+	struct Content {
+		FLOAT QualitySubpix;//1: pack count
+		FLOAT QualityEdgeThreshold;//2
+		DirectX::XMFLOAT2 QualityRcpFrame;//4
+		DirectX::XMFLOAT4 ConsoleRcpFrameOpt;//4
+		DirectX::XMFLOAT4 ConsoleRcpFrameOpt2;//4
+		DirectX::XMFLOAT4 Console360RcpFrameOpt2;//4
+		FLOAT QualityEdgeThresholdMin;//1
+		FLOAT ConsoleEdgeSharpness;//2
+		FLOAT ConsoleEdgeThreshold;//3
+		FLOAT ConsoleEdgeThresholdMin;//4
+		DirectX::XMFLOAT4 Console360ConstDir;//4
 	} content;
 
 private:
