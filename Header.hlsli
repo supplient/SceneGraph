@@ -13,12 +13,14 @@ struct VertexIn
 {
     float3 posL : POSITION;
     float3 normalL : NORMAL;
+    float2 tex : TEXTURE;
 };
 
 struct VertexOut
 {
     float4 posW : POSITION;
     float4 normalW : NORMAL;
+    float2 tex : TEXTURE;
     float4 posH : SV_POSITION;
 };
 
@@ -31,6 +33,7 @@ cbuffer cbPerObject: register(b0)
 cbuffer cbPerMaterial : register(b1)
 {
     float4 gDiffuse;
+    int gDiffuseTexID;
 };
 
 cbuffer cbPerPass : register(b2)
@@ -41,12 +44,20 @@ cbuffer cbPerPass : register(b2)
     Light gLights[MAX_LIGHT_NUM];
 };
 
+// NCount for weighted-average
 RWTexture2D<uint> uabNCount : register(u0);
 
+// ZBuffer for referce
 #ifdef MULTIPLE_SAMPLE
     Texture2DMS<float> srbZBuffer : register(t0);
 #else
     Texture2D srbZBuffer : register(t0);
-#endif//MULTIPLE_SAMPLE
+#endif
+
+// Textures
+Texture2D srbTexs[TEXTURE_NUM] : register(t1);
+
+// Samplers
+SamplerState bilinearWrap : register(s0);
 
 #endif//HEADER_H

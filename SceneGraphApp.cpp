@@ -30,6 +30,10 @@ bool SceneGraphApp::Initialize()
 	ThrowIfFailed(mDirectCmdListAlloc->Reset());
 	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
+	// Init Scene
+	BuildLights();
+	BuildTextures();
+
 	// Init DirectX
 	BuildRenderTargets();
 	BuildDescriptorHeaps();
@@ -39,16 +43,14 @@ bool SceneGraphApp::Initialize()
 	BuildRootSignature();
 	BuildShaders();
 	BuildPSOs();
-
-	// Init Scene
-	BuildLights();
-	BuildScene();
 	
 	// Init Scene Resources
+	LoadTextures();
+	BuildPassConstants();
 	BuildPassConstantBuffers();
 	UpdateLightsInPassConstantBuffers();
 	BuildGeos();
-	BuildMaterials();
+	BuildMaterialConstants();
 	BuildAndUpdateMaterialConstantBuffers();
 
 	// Init Render Items
@@ -72,6 +74,30 @@ bool SceneGraphApp::Initialize()
     OnResize();
 
 	return true;
+}
+
+void SceneGraphApp::BuildLights()
+{
+	mDirLights.push_back({
+		{1.0f, 1.0f, 1.0f},
+		{1.0f, 0.0f, 1.0f}
+	});
+
+	mPointLights.push_back({
+		{0.8f, 0.2f, 0.0f},
+		{0.0f, 1.0f, 0.0f}
+	});
+
+	mSpotLights.push_back({
+		{0.1f, 0.7f, 0.2f},
+		{1.0f, 0.0f, 0.0f},
+		{-1.0f, 0.0f, 0.0f}
+	});
+}
+
+void SceneGraphApp::BuildTextures()
+{
+	mTextures["bricks"] = std::make_unique<Texture>(TEXTURE_PATH_HEAD + L"bricks.dds");
 }
 
 void SceneGraphApp::BuildRenderTargets()
@@ -171,7 +197,7 @@ void SceneGraphApp::BuildDescriptorHeaps()
 	// CBV, SRV, UAV // GPU heap
 	{
 		D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-		heapDesc.NumDescriptors = 2 + (UINT)mRenderTargets.size() + mSwapChain->GetSwapChainBufferCount();
+		heapDesc.NumDescriptors = 2 + (UINT)mRenderTargets.size() + mSwapChain->GetSwapChainBufferCount() + (UINT)mTextures.size();
 		heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 		heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 		heapDesc.NodeMask = 0;
@@ -205,6 +231,10 @@ void SceneGraphApp::BuildDescriptorHeaps()
 		index = mCBVSRVUAVHeap->Alloc();
 		mNCountUAVCPUHandle = mCBVSRVUAVHeap->GetCPUHandle(index);
 		mNCountUAVGPUHandle = mCBVSRVUAVHeap->GetGPUHandle(index);
+
+		index = mCBVSRVUAVHeap->Alloc((UINT)mTextures.size());
+		mTexGPUHandleStart = mCBVSRVUAVHeap->GetGPUHandle(index);
+		mTexCPUHandleStart = mCBVSRVUAVHeap->GetCPUHandle(index);
 	}
 
 	// CBV, SRV, UAV // CPU heap
@@ -230,6 +260,7 @@ void SceneGraphApp::BuildInputLayout() {
 		Vertex {
 			float3 pos;
 			float3 normal;
+			float2 tex;
 		}
 	*/
 		// Describe vertex input element
@@ -243,10 +274,14 @@ void SceneGraphApp::BuildInputLayout() {
 		pos.InstanceDataStepRate = 0;
 
 		auto normal = pos;
-		pos.SemanticName = "NORMAL";
-		pos.AlignedByteOffset = sizeof(XMFLOAT3);
+		normal.SemanticName = "NORMAL";
+		normal.AlignedByteOffset = sizeof(XMFLOAT3);
 
-		mInputLayouts["standard"] = { pos, normal };
+		auto tex = pos;
+		tex.SemanticName = "TEXTURE";
+		tex.AlignedByteOffset = 2 * sizeof(XMFLOAT3);
+
+		mInputLayouts["standard"] = { pos, normal, tex };
 	}
 	{
 	/*
@@ -325,6 +360,7 @@ void SceneGraphApp::BuildRootSignature()
 
 		uab<uint32> ncount;
 		srb zbuffer;
+		srb textures[];
 	*/
 		std::vector<D3D12_DESCRIPTOR_RANGE> nCountUAVranges;
 		nCountUAVranges.push_back(CD3DX12_DESCRIPTOR_RANGE(
@@ -338,18 +374,30 @@ void SceneGraphApp::BuildRootSignature()
 			1, 0,
 			0, 0U
 		));
+		std::vector<D3D12_DESCRIPTOR_RANGE> texSRVranges;
+		texSRVranges.push_back(CD3DX12_DESCRIPTOR_RANGE(
+			D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
+			(UINT)mTextures.size(), 1,
+			0, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND
+		));
 
 		// Describe root parameters
 		std::vector<CD3DX12_ROOT_PARAMETER> rootParams;
-		rootParams.push_back(GetCBVParam(0));
-		rootParams.push_back(GetCBVParam(1));
-		rootParams.push_back(GetCBVParam(2));
-		rootParams.push_back(GetTableParam(nCountUAVranges));
-		rootParams.push_back(GetTableParam(zbufferSRVranges));
+		rootParams.push_back(GetCBVParam(0)); // 0
+		rootParams.push_back(GetCBVParam(1)); // 1
+		rootParams.push_back(GetCBVParam(2)); // 2
+		rootParams.push_back(GetTableParam(nCountUAVranges)); // 3
+		rootParams.push_back(GetTableParam(zbufferSRVranges)); // 4
+		rootParams.push_back(GetTableParam(texSRVranges)); // 5
 
 		// Create desc for root signature
 		CD3DX12_ROOT_SIGNATURE_DESC rootSignDesc;
-		rootSignDesc.Init(static_cast<UINT>(rootParams.size()), rootParams.data());
+		rootSignDesc.Init(
+			static_cast<UINT>(rootParams.size()), 
+			rootParams.data(),
+			static_cast<UINT>(staticSamplers.size()),
+			staticSamplers.data()
+		);
 		rootSignDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
 		// Serialize And Create RootSignature
@@ -438,7 +486,9 @@ void SceneGraphApp::BuildShaders()
 	if(m4xMsaaState)
 		defines.push_back({ "MULTIPLE_SAMPLE", "4" });
 	std::string maxLightNumStr = std::to_string(MAX_LIGHT_NUM);
+	std::string textureNumStr = std::to_string(mTextures.size());
 	defines.push_back({ "MAX_LIGHT_NUM", maxLightNumStr.c_str() });
+	defines.push_back({ "TEXTURE_NUM",  textureNumStr.c_str()});
 	defines.push_back({ NULL, NULL });
 
 	// compile
@@ -548,30 +598,38 @@ void SceneGraphApp::BuildPSOs()
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&fxaaPsoDesc, IID_PPV_ARGS(&mPSOs["fxaa"])));
 }
 
-void SceneGraphApp::BuildLights()
+void SceneGraphApp::LoadTextures()
 {
-	mDirLights.push_back({
-		{1.0f, 1.0f, 1.0f},
-		{1.0f, 0.0f, 1.0f}
-	});
+	UINT32 id = 0;
+	CD3DX12_CPU_DESCRIPTOR_HANDLE handle(mTexCPUHandleStart);
+	for (const auto& pair : mTextures) {
+		const auto& tex = pair.second;
+		ThrowIfFailed(CreateDDSTextureFromFile12(
+			md3dDevice.Get(), mCommandList.Get(),
+			tex->Filename.data(),
+			tex->Resource, tex->UploadHeap
+		));
+		tex->ID = id;
 
-	mPointLights.push_back({
-		{0.8f, 0.2f, 0.0f},
-		{0.0f, 1.0f, 0.0f}
-	});
+		D3D12_RESOURCE_DESC resourceDesc = tex->Resource->GetDesc();
+		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+		srvDesc.Format = resourceDesc.Format;
+		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+		srvDesc.Texture2D.MipLevels = -1;
+		srvDesc.Texture2D.MostDetailedMip = 0;
+		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		md3dDevice->CreateShaderResourceView(
+			tex->Resource.Get(),
+			&srvDesc, handle
+		);
 
-	mSpotLights.push_back({
-		{0.1f, 0.7f, 0.2f},
-		{1.0f, 0.0f, 0.0f},
-		{-1.0f, 0.0f, 0.0f}
-	});
+		id++;
+		handle.Offset(mCbvSrvUavDescriptorSize);
+	}
 }
 
-void SceneGraphApp::BuildScene()
+void SceneGraphApp::BuildPassConstants()
 {
-	// If we have a scene defination, we should load here.
-	// Now we just hard-encode the scene.
-	// So only initing mPassConstants is needed
 	mPassConstants = std::make_unique<PassConstants>();
 }
 
@@ -677,6 +735,7 @@ void SceneGraphApp::BuildGeos()
 		struct Vertex {
 			XMFLOAT3 pos;
 			XMFLOAT3 normal;
+			XMFLOAT2 tex;
 		};
 
 		// Create Geo
@@ -691,7 +750,7 @@ void SceneGraphApp::BuildGeos()
 			// Box
 			GeometryGenerator::MeshData boxMesh = geoGenerator.CreateBox(1.0, 1.0, 1.0, 1);
 			for (const auto& vert : boxMesh.Vertices) {
-				verts.push_back({ vert.Position, vert.Normal });
+				verts.push_back({ vert.Position, vert.Normal, vert.TexC });
 			}
 			indices = boxMesh.Indices32;
 
@@ -709,6 +768,12 @@ void SceneGraphApp::BuildGeos()
 				{+0.8f, -0.8f, 0.0f},
 				{+0.8f, +0.8f, 0.0f},
 			};
+			std::vector<XMFLOAT2> boardUVs = {
+				{0.0f, 1.0f},
+				{0.0f, 0.0f},
+				{1.0f, 1.0f},
+				{1.0f, 0.0f}
+			};
 			std::vector<UINT32> boardIndices = {
 				0, 1, 2,
 				1, 3, 2,
@@ -720,8 +785,8 @@ void SceneGraphApp::BuildGeos()
 			submesh.IndexCount = static_cast<UINT>(boardIndices.size());
 			geo->DrawArgs["board"] = submesh;
 
-			for (const auto& vert : boardVerts) {
-				verts.push_back({ vert, {0.0f, 0.0f, -1.0f} });
+			for (UINT i = 0; i < boardVerts.size(); i++) {
+				verts.push_back({ boardVerts[i], {0.0f, 0.0f, -1.0f}, boardUVs[i] });
 			}
 			indices.insert(indices.end(), boardIndices.begin(), boardIndices.end());
 		}
@@ -779,10 +844,11 @@ void SceneGraphApp::BuildGeos()
 	}
 }
 
-void SceneGraphApp::BuildMaterials()
+void SceneGraphApp::BuildMaterialConstants()
 {
 	auto whiteMtl = std::make_shared<MaterialConstants>();
 	whiteMtl->content.Diffuse = { 1.0f, 1.0f, 1.0f, 1.0f };
+	whiteMtl->content.DiffuseTexID = mTextures["bricks"]->ID + 1;
 	mMtlConsts["white"] = whiteMtl;
 
 	auto blueMtl = std::make_shared<MaterialConstants>();
@@ -904,6 +970,7 @@ void SceneGraphApp::BuildRenderItems()
 	}
 
 	// Transparent
+	/*
 	{
 		// transBlue
 		{
@@ -953,6 +1020,7 @@ void SceneGraphApp::BuildRenderItems()
 			mTransRenderItemQueue.push_back(std::move(renderItem));
 		}
 	}
+	*/
 
 	// Post
 	{
@@ -1292,7 +1360,7 @@ void SceneGraphApp::Update(const GameTimer& gt)
 	{
 	}
 
-	// Update Pass Constant Buffers
+	// Upload Pass Constant
 	{
 		mPassConstantsBuffers->CopyData(
 			mPassConstants->getID(),
@@ -1300,7 +1368,7 @@ void SceneGraphApp::Update(const GameTimer& gt)
 		);
 	}
 
-	// Update Object Constant Buffers
+	// Upload Object Constant
 	{
 		for (auto renderItem : mRenderItemQueue) {
 			mObjectConstantsBuffers->CopyData(
@@ -1320,7 +1388,7 @@ void SceneGraphApp::Update(const GameTimer& gt)
 		);
 	}
 
-	// Update Fxaa Constant Buffers
+	// Upload Fxaa Constant
 	{
 		mFxaaConstantsBuffers->CopyData(
 			mFxaaConstants->getID(),
@@ -1415,6 +1483,11 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 	{
 		// Set Root Signature
 		mCommandList->SetGraphicsRootSignature(mRootSigns["standard"].Get());
+
+		// Assign Textures
+		mCommandList->SetGraphicsRootDescriptorTable(
+			5, mTexGPUHandleStart
+		);
 
 		// Assign Pass Constants Buffer
 		auto passCBGPUAddr = mPassConstantsBuffers->Resource()->GetGPUVirtualAddress();

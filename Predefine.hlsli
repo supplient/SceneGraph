@@ -8,7 +8,11 @@
 
 #ifndef MAX_LIGHT_NUM
     #define MAX_LIGHT_NUM 16
-#endif// MAX_LIGHT_NUM
+#endif
+
+#ifndef TEXTURE_NUM
+    #define TEXTURE_NUM 3
+#endif
 
 // #define MULTIPLE_SAMPLE 4
 

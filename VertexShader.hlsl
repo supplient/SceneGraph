@@ -10,6 +10,7 @@ VertexOut main( VertexIn vin )
     vout.posW = mul(posL, gModelMat);
     vout.posH = mul(mul(vout.posW, gViewMat), gProjMat);
     vout.normalW = normalize(mul(float4(vin.normalL, 0.0), gNormalModelMat));
+    vout.tex = vin.tex;
     
 	return vout;
 }

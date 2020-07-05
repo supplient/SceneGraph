@@ -169,6 +169,7 @@
     <ClInclude Include="RenderTarget.h" />
     <ClInclude Include="SceneGraphApp.h" />
     <ClInclude Include="StaticDescriptorHeap.h" />
+    <ClInclude Include="Texture.h" />
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="fxaaPixel.hlsl">
@@ -229,6 +230,12 @@
     <None Include="Light.hlsli" />
     <None Include="MultiSampleLoader.hlsli" />
     <None Include="Predefine.hlsli" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="Resources\Textures\bricks.dds" />
+    <Image Include="Resources\Textures\bricks2.dds" />
+    <Image Include="Resources\Textures\bricks2_nmap.dds" />
+    <Image Include="Resources\Textures\bricks_nmap.dds" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

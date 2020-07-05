@@ -25,6 +25,9 @@
     <Filter Include="Shaders">
       <UniqueIdentifier>{ee799c42-71d6-44c5-9778-a24b72338fc5}</UniqueIdentifier>
     </Filter>
+    <Filter Include="资源文件\Textures">
+      <UniqueIdentifier>{9906001f-447f-4a17-97cf-3f3c15c19568}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="SceneGraphApp.cpp">
@@ -107,6 +110,9 @@
     <ClInclude Include="Common\UploadBuffer.h">
       <Filter>Common\Header</Filter>
     </ClInclude>
+    <ClInclude Include="Texture.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="VertexShader.hlsl">
@@ -144,5 +150,19 @@
     <None Include="Fxaa3_11.hlsli">
       <Filter>Shaders</Filter>
     </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="Resources\Textures\bricks.dds">
+      <Filter>资源文件\Textures</Filter>
+    </Image>
+    <Image Include="Resources\Textures\bricks_nmap.dds">
+      <Filter>资源文件\Textures</Filter>
+    </Image>
+    <Image Include="Resources\Textures\bricks2.dds">
+      <Filter>资源文件\Textures</Filter>
+    </Image>
+    <Image Include="Resources\Textures\bricks2_nmap.dds">
+      <Filter>资源文件\Textures</Filter>
+    </Image>
   </ItemGroup>
 </Project>

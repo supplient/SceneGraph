@@ -8,6 +8,7 @@
 #include "Camera.h"
 #include "StaticDescriptorHeap.h"
 #include "RenderTarget.h"
+#include "Texture.h"
 
 class SceneGraphApp : public D3DApp
 {
@@ -18,6 +19,11 @@ public:
 	virtual bool Initialize()override;
 
 	// Initialize
+
+	// Init Scene
+	void BuildLights();
+	void BuildTextures();
+
 	// Init DirectX
 	/// <summary>
 	/// 仅仅初始化RenderTarget，不建立资源，也不建立描述符
@@ -31,15 +37,13 @@ public:
 	void BuildShaders();
 	void BuildPSOs();
 
-	// Init Scene
-	void BuildLights();
-	void BuildScene();
-
 	// Init Scene Resources
+	void LoadTextures();
+	void BuildPassConstants();
 	void BuildPassConstantBuffers();
 	void UpdateLightsInPassConstantBuffers();
 	void BuildGeos();
-	void BuildMaterials();
+	void BuildMaterialConstants();
 	void BuildAndUpdateMaterialConstantBuffers();
 
 	// Init Render Items
@@ -127,6 +131,11 @@ private:
 	std::vector<DirectionLight> mDirLights;
 	std::vector<PointLight> mPointLights;
 	std::vector<SpotLight> mSpotLights;
+
+	// Textures
+	std::unordered_map<std::string, std::unique_ptr<Texture>> mTextures;
+	D3D12_GPU_DESCRIPTOR_HANDLE mTexGPUHandleStart;
+	D3D12_CPU_DESCRIPTOR_HANDLE mTexCPUHandleStart;
 
 	// Scene Constants
 	std::unique_ptr<PassConstants> mPassConstants;
