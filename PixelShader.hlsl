@@ -10,7 +10,7 @@ float4 main(VertexOut pin) : SV_TARGET
     float4 diffuseColor;
     if (gDiffuseTexID > 0)
     {
-        diffuseColor = srbTexs[gDiffuseTexID - 1].Sample(bilinearWrap, pin.tex);
+        diffuseColor = gTexs[gDiffuseTexID - 1].Sample(bilinearWrap, pin.tex);
     }
     else
     {

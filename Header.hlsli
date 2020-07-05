@@ -54,8 +54,8 @@ RWTexture2D<uint> uabNCount : register(u0);
     Texture2D srbZBuffer : register(t0);
 #endif
 
-// Textures
-Texture2D srbTexs[TEXTURE_NUM] : register(t1);
+// Textures // This does not follow the name convention, for convenience
+Texture2D gTexs[TEXTURE_NUM] : register(t1);
 
 // Samplers
 SamplerState bilinearWrap : register(s0);

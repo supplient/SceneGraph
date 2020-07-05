@@ -97,7 +97,8 @@ void SceneGraphApp::BuildLights()
 
 void SceneGraphApp::BuildTextures()
 {
-	mTextures["bricks"] = std::make_unique<Texture>(TEXTURE_PATH_HEAD + L"bricks.dds");
+	mTextures["color"] = std::make_unique<Texture>(TEXTURE_PATH_HEAD + L"w_color.dds");
+	mTextures["height"] = std::make_unique<Texture>(TEXTURE_PATH_HEAD + L"w_height.dds");
 }
 
 void SceneGraphApp::BuildRenderTargets()
@@ -848,7 +849,8 @@ void SceneGraphApp::BuildMaterialConstants()
 {
 	auto whiteMtl = std::make_shared<MaterialConstants>();
 	whiteMtl->content.Diffuse = { 1.0f, 1.0f, 1.0f, 1.0f };
-	whiteMtl->content.DiffuseTexID = mTextures["bricks"]->ID + 1;
+	whiteMtl->content.DiffuseTexID = mTextures["color"]->ID + 1;
+	whiteMtl->content.HeightTexID = mTextures["height"]->ID + 1;
 	mMtlConsts["white"] = whiteMtl;
 
 	auto blueMtl = std::make_shared<MaterialConstants>();
