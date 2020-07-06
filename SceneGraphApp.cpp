@@ -100,6 +100,7 @@ void SceneGraphApp::BuildTextures()
 	mTextures["color"] = std::make_unique<Texture>(TEXTURE_PATH_HEAD + L"w_color.dds");
 	mTextures["height"] = std::make_unique<Texture>(TEXTURE_PATH_HEAD + L"w_height.dds");
 	mTextures["normal"] = std::make_unique<Texture>(TEXTURE_PATH_HEAD + L"w_normal.dds");
+	mTextures["tree"] = std::make_unique<Texture>(TEXTURE_PATH_HEAD + L"tree.dds");
 }
 
 void SceneGraphApp::BuildRenderTargets()
@@ -551,6 +552,7 @@ void SceneGraphApp::BuildPSOs()
 		mShaders["ps"]->GetBufferSize()
 	};
 	opaquePsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+	opaquePsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 	opaquePsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 	opaquePsoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
 	opaquePsoDesc.SampleMask = UINT_MAX;
@@ -905,6 +907,11 @@ void SceneGraphApp::BuildMaterialConstants()
 	auto transRedMtl = std::make_shared<MaterialConstants>();
 	transRedMtl->content.Diffuse = { 0.8f, 0.0f, 0.0f, 0.7f };
 	mMtlConsts["transRed"] = transRedMtl;
+
+	auto cutoutTreeMtl = std::make_shared<MaterialConstants>();
+	cutoutTreeMtl->content.DiffuseTexID = mTextures["tree"]->ID + 1;
+	cutoutTreeMtl->content.AlphaTestTheta = 0.2f;
+	mMtlConsts["cutoutTree"] = cutoutTreeMtl;
 }
 
 void SceneGraphApp::BuildAndUpdateMaterialConstantBuffers()
@@ -990,6 +997,52 @@ void SceneGraphApp::BuildRenderItems()
 
 	// Opaque
 	{
+		// Tree
+		{
+			// Hor
+			{
+				auto horConsts = std::make_shared<ObjectConstants>();
+				horConsts->content.ModelMat = MathHelper::Identity4x4();
+				mObjConsts["horTree"] = horConsts;
+
+				// Create render items
+				auto horItem = std::make_shared<RenderItem>();
+				horItem->Geo = mGeos["triangle"];
+				horItem->Submesh = mGeos["triangle"]->DrawArgs["board"];
+				horItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+				horItem->MtlConsts = mMtlConsts["cutoutTree"];
+				horItem->PSO = "opaque";
+				horItem->ObjConsts = mObjConsts["horTree"];
+
+				// Save render items
+				mRenderItemQueue.push_back(std::move(horItem));
+			}
+
+			// Ver
+			{
+				auto verConsts = std::make_shared<ObjectConstants>();
+				auto modelMat = XMMatrixRotationY(MathHelper::AngleToRadius(90));
+				XMStoreFloat4x4(
+					&verConsts->content.ModelMat, 
+					XMMatrixTranspose(modelMat)
+				);
+				mObjConsts["verTree"] = verConsts;
+
+				// Create render items
+				auto verItem = std::make_shared<RenderItem>();
+				verItem->Geo = mGeos["triangle"];
+				verItem->Submesh = mGeos["triangle"]->DrawArgs["board"];
+				verItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+				verItem->MtlConsts = mMtlConsts["cutoutTree"];
+				verItem->PSO = "opaque";
+				verItem->ObjConsts = mObjConsts["verTree"];
+
+				// Save render items
+				mRenderItemQueue.push_back(std::move(verItem));
+			}
+
+		}
+
 		// Cube
 		/*
 		{
@@ -1013,6 +1066,7 @@ void SceneGraphApp::BuildRenderItems()
 		*/
 
 		// Displacement Cube
+		/*
 		{
 			// Create Object constants
 			auto triConsts = std::make_shared<ObjectConstants>();
@@ -1031,10 +1085,10 @@ void SceneGraphApp::BuildRenderItems()
 			// Save render items
 			mRenderItemQueue.push_back(std::move(renderItem));
 		}
+		*/
 	}
 
 	// Transparent
-	/*
 	{
 		// transBlue
 		{
@@ -1084,7 +1138,6 @@ void SceneGraphApp::BuildRenderItems()
 			mTransRenderItemQueue.push_back(std::move(renderItem));
 		}
 	}
-	*/
 
 	// Post
 	{
@@ -1425,6 +1478,13 @@ void SceneGraphApp::Update(const GameTimer& gt)
 
 	// Update Object Constants
 	{
+		// Cal All NormalModelMat
+		for (auto& pair : mObjConsts) {
+			auto consts = pair.second;
+			XMMATRIX normalModelMat = XMLoadFloat4x4(&consts->content.ModelMat);
+			normalModelMat = MathHelper::InverseTranspose(normalModelMat);
+			XMStoreFloat4x4(&consts->content.NormalModelMat, normalModelMat);
+		}
 	}
 
 	// Upload Pass Constant

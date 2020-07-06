@@ -48,6 +48,7 @@ cbuffer cbPerMaterial : register(b1)
     uint gDispTexID;
     float gDispHeightScale;
     uint gNormalTexID;
+    float gAlphaTestTheta;
 };
 
 cbuffer cbPerPass : register(b2)

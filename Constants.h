@@ -36,6 +36,7 @@ public:
 		UINT32 DispTexID = 0;
 		FLOAT DispHeightScale = 1.0f; // grey value in DispTex(0.0f, 1.0f) * DispHeightScale = height in world space
 		UINT32 NormalTexID = 0;
+		FLOAT AlphaTestTheta = 1.0f; // if 1.0, means do not use alpha test
 	} content;
 
 private:

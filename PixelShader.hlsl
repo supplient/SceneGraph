@@ -24,8 +24,6 @@ float4 main(VertexOut pin) : SV_TARGET
         normalW = normalize(mul(float4(texNormal, 0.0f), TBNTransMat));
     }
 
-    float4 lightFactor = float4(calLights(pin.posW, normalW), 1.0f);
-
     float4 diffuseColor;
     if (gDiffuseTexID > 0)
     {
@@ -35,6 +33,13 @@ float4 main(VertexOut pin) : SV_TARGET
     {
         diffuseColor = gDiffuse;
     }
+
+    if (gAlphaTestTheta < 0.999)
+    {
+        clip(diffuseColor.a - gAlphaTestTheta);
+    }
+
+    float4 lightFactor = float4(calLights(pin.posW, normalW), 1.0f);
 
     float3 unlightColor = { 0.2f, 0.2f, 0.2f };
     float4 color = float4(unlightColor, 0.0f) + lightFactor*diffuseColor;
