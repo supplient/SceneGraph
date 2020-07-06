@@ -885,8 +885,8 @@ void SceneGraphApp::BuildMaterialConstants()
 	auto whiteMtl = std::make_shared<MaterialConstants>();
 	whiteMtl->content.Diffuse = { 1.0f, 1.0f, 1.0f, 1.0f };
 	whiteMtl->content.DiffuseTexID = mTextures["color"]->ID + 1;
-	whiteMtl->content.HeightTexID = mTextures["height"]->ID + 1;
-	whiteMtl->content.HeightScale = 0.7f;
+	whiteMtl->content.DispTexID = mTextures["height"]->ID + 1;
+	whiteMtl->content.DispHeightScale = 0.7f;
 	whiteMtl->content.NormalTexID = mTextures["normal"]->ID + 1;
 	mMtlConsts["white"] = whiteMtl;
 

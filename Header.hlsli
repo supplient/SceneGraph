@@ -45,8 +45,8 @@ cbuffer cbPerMaterial : register(b1)
 {
     float4 gDiffuse;
     uint gDiffuseTexID;
-    uint gHeightTexID;
-    float gHeightScale;
+    uint gDispTexID;
+    float gDispHeightScale;
     uint gNormalTexID;
 };
 
