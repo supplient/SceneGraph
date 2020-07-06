@@ -97,7 +97,9 @@ void SceneGraphApp::BuildLights()
 
 void SceneGraphApp::BuildTextures()
 {
-	mTextures["bricks"] = std::make_unique<Texture>(TEXTURE_PATH_HEAD + L"bricks.dds");
+	mTextures["color"] = std::make_unique<Texture>(TEXTURE_PATH_HEAD + L"w_color.dds");
+	mTextures["height"] = std::make_unique<Texture>(TEXTURE_PATH_HEAD + L"w_height.dds");
+	mTextures["normal"] = std::make_unique<Texture>(TEXTURE_PATH_HEAD + L"w_normal.dds");
 }
 
 void SceneGraphApp::BuildRenderTargets()
@@ -260,6 +262,7 @@ void SceneGraphApp::BuildInputLayout() {
 		Vertex {
 			float3 pos;
 			float3 normal;
+			float3 tangent;
 			float2 tex;
 		}
 	*/
@@ -275,13 +278,17 @@ void SceneGraphApp::BuildInputLayout() {
 
 		auto normal = pos;
 		normal.SemanticName = "NORMAL";
-		normal.AlignedByteOffset = sizeof(XMFLOAT3);
+		normal.AlignedByteOffset += sizeof(XMFLOAT3);
 
-		auto tex = pos;
+		auto tangent = normal;
+		tangent.SemanticName = "TANGENT";
+		tangent.AlignedByteOffset += sizeof(XMFLOAT3);
+
+		auto tex = tangent;
 		tex.SemanticName = "TEXTURE";
-		tex.AlignedByteOffset = 2 * sizeof(XMFLOAT3);
+		tex.AlignedByteOffset += sizeof(XMFLOAT3);
 
-		mInputLayouts["standard"] = { pos, normal, tex };
+		mInputLayouts["standard"] = { pos, normal, tangent, tex };
 	}
 	{
 	/*
@@ -735,7 +742,9 @@ void SceneGraphApp::BuildGeos()
 		struct Vertex {
 			XMFLOAT3 pos;
 			XMFLOAT3 normal;
+			XMFLOAT3 tangent;
 			XMFLOAT2 tex;
+			XMFLOAT2 uvScale;
 		};
 
 		// Create Geo
@@ -750,7 +759,7 @@ void SceneGraphApp::BuildGeos()
 			// Box
 			GeometryGenerator::MeshData boxMesh = geoGenerator.CreateBox(1.0, 1.0, 1.0, 1);
 			for (const auto& vert : boxMesh.Vertices) {
-				verts.push_back({ vert.Position, vert.Normal, vert.TexC });
+				verts.push_back({ vert.Position, vert.Normal, vert.TangentU, vert.TexC });
 			}
 			indices = boxMesh.Indices32;
 
@@ -786,7 +795,12 @@ void SceneGraphApp::BuildGeos()
 			geo->DrawArgs["board"] = submesh;
 
 			for (UINT i = 0; i < boardVerts.size(); i++) {
-				verts.push_back({ boardVerts[i], {0.0f, 0.0f, -1.0f}, boardUVs[i] });
+				verts.push_back({ 
+					boardVerts[i], 
+					{0.0f, 0.0f, -1.0f}, 
+					{1.0f, 0.0f, 0.0f},
+					boardUVs[i] 
+				});
 			}
 			indices.insert(indices.end(), boardIndices.begin(), boardIndices.end());
 		}
@@ -848,7 +862,10 @@ void SceneGraphApp::BuildMaterialConstants()
 {
 	auto whiteMtl = std::make_shared<MaterialConstants>();
 	whiteMtl->content.Diffuse = { 1.0f, 1.0f, 1.0f, 1.0f };
-	whiteMtl->content.DiffuseTexID = mTextures["bricks"]->ID + 1;
+	whiteMtl->content.DiffuseTexID = mTextures["color"]->ID + 1;
+	whiteMtl->content.HeightTexID = mTextures["height"]->ID + 1;
+	whiteMtl->content.HeightScale = 0.1f;
+	whiteMtl->content.NormalTexID = mTextures["normal"]->ID + 1;
 	mMtlConsts["white"] = whiteMtl;
 
 	auto blueMtl = std::make_shared<MaterialConstants>();
@@ -1343,6 +1360,9 @@ void SceneGraphApp::Update(const GameTimer& gt)
 	// Update Pass Constants
 	{
 		auto& content = mPassConstants->content;
+
+		XMVECTOR eyePos = mCamera.CalEyePos();
+		XMStoreFloat4(&content.EyePos, eyePos);
 
 		XMMATRIX viewMat = mCamera.GetViewMatrix();
 		viewMat = XMMatrixTranspose(viewMat);

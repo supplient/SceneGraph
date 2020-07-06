@@ -13,6 +13,7 @@ struct VertexIn
 {
     float3 posL : POSITION;
     float3 normalL : NORMAL;
+    float3 tangentL : TANGENT;
     float2 tex : TEXTURE;
 };
 
@@ -20,6 +21,7 @@ struct VertexOut
 {
     float4 posW : POSITION;
     float4 normalW : NORMAL;
+    float4 tangentW : TANGENT;
     float2 tex : TEXTURE;
     float4 posH : SV_POSITION;
 };
@@ -33,11 +35,15 @@ cbuffer cbPerObject: register(b0)
 cbuffer cbPerMaterial : register(b1)
 {
     float4 gDiffuse;
-    int gDiffuseTexID;
+    uint gDiffuseTexID;
+    uint gHeightTexID;
+    float gHeightScale;
+    uint gNormalTexID;
 };
 
 cbuffer cbPerPass : register(b2)
 {
+    float4 gEyePosW;
     float4x4 gViewMat;
     float4x4 gProjMat;
     uint4 gLightPerTypeNum; // direction, point, spot, padding
@@ -54,8 +60,8 @@ RWTexture2D<uint> uabNCount : register(u0);
     Texture2D srbZBuffer : register(t0);
 #endif
 
-// Textures
-Texture2D srbTexs[TEXTURE_NUM] : register(t1);
+// Textures // This does not follow the name convention, for convenience
+Texture2D gTexs[TEXTURE_NUM] : register(t1);
 
 // Samplers
 SamplerState bilinearWrap : register(s0);

@@ -9,8 +9,7 @@ public:
 	static constexpr float ANGLE_PER_Y = 0.5f;
 	static constexpr float DIST_PER_WHEEL = 0.5f;
 
-	DirectX::XMMATRIX GetViewMatrix() {
-		// Cal actual horAngle & verAngle
+	std::array<float, 2> CalActualRadius() {
 		float horAngle = mHorAngle;
 		float verAngle = mVerAngle;
 		if (IsViewDragging()) {
@@ -22,6 +21,15 @@ public:
 		}
 		float horRadius = MathHelper::AngleToRadius(horAngle);
 		float verRadius = MathHelper::AngleToRadius(verAngle);
+		return { horRadius, verRadius };
+	}
+
+	DirectX::XMVECTOR CalEyePos() {
+		// Cal actual horAngle & verAngle
+		float horRadius, verRadius;
+		auto radius = CalActualRadius();
+		horRadius = radius[0];
+		verRadius = radius[1];
 
 		// Cal eyePos
 		DirectX::XMVECTOR eyePos = { 0.0f, 0.0f, -mDist };
@@ -31,6 +39,12 @@ public:
 		DirectX::XMMATRIX verRotate = DirectX::XMMatrixRotationAxis(verAxis, verRadius);
 		eyePos = DirectX::XMVector3Transform(eyePos, horRotate);
 		eyePos = DirectX::XMVector3Transform(eyePos, verRotate);
+
+		return eyePos;
+	}
+
+	DirectX::XMMATRIX GetViewMatrix() {
+		DirectX::XMVECTOR eyePos = CalEyePos();
 
 		// Cal focusPos
 		DirectX::XMVECTOR focusPos = { 0.0f, 0.0f, 0.0f };
