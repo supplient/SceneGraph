@@ -26,6 +26,15 @@ struct VertexOut
     float4 posH : SV_POSITION;
 };
 
+struct HullConstant
+{
+	float EdgeTessFactor[3]			: SV_TessFactor; // 例如，对于四象限域，将为 [4]
+	float InsideTessFactor			: SV_InsideTessFactor; // 例如，对于四象限域，将为 Inside[2]
+	// TODO:  更改/添加其他资料
+};
+
+#define NUM_CONTROL_POINTS 3
+
 cbuffer cbPerObject: register(b0)
 {
     float4x4 gModelMat;

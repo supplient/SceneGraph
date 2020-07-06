@@ -486,6 +486,8 @@ void SceneGraphApp::BuildRootSignature()
 void SceneGraphApp::BuildShaders()
 {
 	static const std::string VS_TARGET = "vs_5_1";
+	static const std::string HS_TARGET = "hs_5_1";
+	static const std::string DS_TARGET = "ds_5_1";
 	static const std::string PS_TARGET = "ps_5_1";
 
 	// defines
@@ -516,6 +518,12 @@ void SceneGraphApp::BuildShaders()
 	);
 	mShaders["fxaaPS"] = d3dUtil::CompileShader(
 		L"fxaaPixel.hlsl", defines.data(), "main", PS_TARGET
+	);
+	mShaders["dispHS"] = d3dUtil::CompileShader(
+		L"displacementHull.hlsl", defines.data(), "main", HS_TARGET
+	);
+	mShaders["dispDS"] = d3dUtil::CompileShader(
+		L"displacementDomain.hlsl", defines.data(), "main", DS_TARGET
 	);
 }
 
@@ -553,6 +561,20 @@ void SceneGraphApp::BuildPSOs()
 	opaquePsoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
 	opaquePsoDesc.DSVFormat = mRenderTargets["opaque"]->GetDepthStencilViewFormat();
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC dispOpaquePsoDesc = opaquePsoDesc;
+	dispOpaquePsoDesc.HS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["dispHS"]->GetBufferPointer()),
+		mShaders["dispHS"]->GetBufferSize()
+	};
+	dispOpaquePsoDesc.DS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["dispDS"]->GetBufferPointer()),
+		mShaders["dispDS"]->GetBufferSize()
+	};
+	dispOpaquePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_PATCH;
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&dispOpaquePsoDesc, IID_PPV_ARGS(&mPSOs["dispOpaque"])));
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC transPsoDesc = opaquePsoDesc;
 	transPsoDesc.PS =
@@ -864,7 +886,7 @@ void SceneGraphApp::BuildMaterialConstants()
 	whiteMtl->content.Diffuse = { 1.0f, 1.0f, 1.0f, 1.0f };
 	whiteMtl->content.DiffuseTexID = mTextures["color"]->ID + 1;
 	whiteMtl->content.HeightTexID = mTextures["height"]->ID + 1;
-	whiteMtl->content.HeightScale = 0.1f;
+	whiteMtl->content.HeightScale = 0.7f;
 	whiteMtl->content.NormalTexID = mTextures["normal"]->ID + 1;
 	mMtlConsts["white"] = whiteMtl;
 
@@ -968,22 +990,47 @@ void SceneGraphApp::BuildRenderItems()
 
 	// Opaque
 	{
-		// Create Object constants
-		auto triConsts = std::make_shared<ObjectConstants>();
-		triConsts->content.ModelMat = MathHelper::Identity4x4();
-		mObjConsts["triangle"] = triConsts;
+		// Cube
+		/*
+		{
+			// Create Object constants
+			auto triConsts = std::make_shared<ObjectConstants>();
+			triConsts->content.ModelMat = MathHelper::Identity4x4();
+			mObjConsts["triangle"] = triConsts;
 
-		// Create render items
-		auto renderItem = std::make_shared<RenderItem>();
-		renderItem->Geo = mGeos["triangle"];
-		renderItem->Submesh = mGeos["triangle"]->DrawArgs["triangle"];
-		renderItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-		renderItem->MtlConsts = mMtlConsts["white"];
-		renderItem->PSO = "opaque";
-		renderItem->ObjConsts = mObjConsts["triangle"];
+			// Create render items
+			auto renderItem = std::make_shared<RenderItem>();
+			renderItem->Geo = mGeos["triangle"];
+			renderItem->Submesh = mGeos["triangle"]->DrawArgs["triangle"];
+			renderItem->PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+			renderItem->MtlConsts = mMtlConsts["white"];
+			renderItem->PSO = "opaque";
+			renderItem->ObjConsts = mObjConsts["triangle"];
 
-		// Save render items
-		mRenderItemQueue.push_back(std::move(renderItem));
+			// Save render items
+			mRenderItemQueue.push_back(std::move(renderItem));
+		}
+		*/
+
+		// Displacement Cube
+		{
+			// Create Object constants
+			auto triConsts = std::make_shared<ObjectConstants>();
+			triConsts->content.ModelMat = MathHelper::Identity4x4();
+			mObjConsts["triangle"] = triConsts;
+
+			// Create render items
+			auto renderItem = std::make_shared<RenderItem>();
+			renderItem->Geo = mGeos["triangle"];
+			renderItem->Submesh = mGeos["triangle"]->DrawArgs["triangle"];
+			renderItem->PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_3_CONTROL_POINT_PATCHLIST;
+			renderItem->MtlConsts = mMtlConsts["white"];
+			renderItem->PSO = "dispOpaque";
+			renderItem->ObjConsts = mObjConsts["triangle"];
+
+			// Save render items
+			mRenderItemQueue.push_back(std::move(renderItem));
+		}
 	}
 
 	// Transparent
