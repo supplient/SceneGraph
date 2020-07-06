@@ -13,6 +13,7 @@ struct VertexIn
 {
     float3 posL : POSITION;
     float3 normalL : NORMAL;
+    float3 tangentL : TANGENT;
     float2 tex : TEXTURE;
 };
 
@@ -20,6 +21,7 @@ struct VertexOut
 {
     float4 posW : POSITION;
     float4 normalW : NORMAL;
+    float4 tangentW : TANGENT;
     float2 tex : TEXTURE;
     float4 posH : SV_POSITION;
 };
@@ -33,7 +35,9 @@ cbuffer cbPerObject: register(b0)
 cbuffer cbPerMaterial : register(b1)
 {
     float4 gDiffuse;
-    int gDiffuseTexID;
+    uint gDiffuseTexID;
+    uint gHeightTexID;
+    uint gNormalTexID;
 };
 
 cbuffer cbPerPass : register(b2)

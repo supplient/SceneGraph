@@ -34,6 +34,7 @@ public:
 		DirectX::XMFLOAT4 Diffuse = { 1.0, 1.0, 1.0, 1.0 };
 		UINT32 DiffuseTexID = 0; // TexID 0 means not using this texture
 		UINT32 HeightTexID = 0;
+		UINT32 NormalTexID = 0;
 	} content;
 
 private:
