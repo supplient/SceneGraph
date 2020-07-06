@@ -34,6 +34,7 @@ public:
 		DirectX::XMFLOAT4 Diffuse = { 1.0, 1.0, 1.0, 1.0 };
 		UINT32 DiffuseTexID = 0; // TexID 0 means not using this texture
 		UINT32 HeightTexID = 0;
+		FLOAT HeightScale = 1.0f; // grey value in HeightTex(0.0f, 1.0f) * HeightScale = height in world space
 		UINT32 NormalTexID = 0;
 	} content;
 
@@ -72,6 +73,7 @@ public:
 	static UINT getTotalNum() { return sIDCount; }
 
 	struct Content {
+		DirectX::XMFLOAT4 EyePos = { 0, 0, 0, 0 };
 		DirectX::XMFLOAT4X4 ViewMat = MathHelper::Identity4x4();
 		DirectX::XMFLOAT4X4 ProjMat = MathHelper::Identity4x4();
 		DirectX::XMUINT4 LightPerTypeNum = { 0, 0, 0, 0 };

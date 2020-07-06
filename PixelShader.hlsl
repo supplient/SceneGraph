@@ -15,9 +15,11 @@ float4 main(VertexOut pin) : SV_TARGET
     TBNTransMat[3] = float4(0.0f, 0.0f, 0.0f, 1.0f);
     float4x4 TBNMat = transpose(TBNTransMat);
 
+    float2 uv = pin.tex;
+
     if (gNormalTexID > 0)
     {
-        float3 texNormal = gTexs[gNormalTexID - 1].Sample(bilinearWrap, pin.tex).xyz;
+        float3 texNormal = gTexs[gNormalTexID - 1].Sample(bilinearWrap, uv).xyz;
         texNormal.xyz = texNormal.xyz * 2 - 1.0f;
         normalW = normalize(mul(float4(texNormal, 0.0f), TBNTransMat));
     }
@@ -27,7 +29,7 @@ float4 main(VertexOut pin) : SV_TARGET
     float4 diffuseColor;
     if (gDiffuseTexID > 0)
     {
-        diffuseColor = gTexs[gDiffuseTexID - 1].Sample(bilinearWrap, pin.tex);
+        diffuseColor = gTexs[gDiffuseTexID - 1].Sample(bilinearWrap, uv);
     }
     else
     {

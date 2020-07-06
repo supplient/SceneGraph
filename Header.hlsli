@@ -37,11 +37,13 @@ cbuffer cbPerMaterial : register(b1)
     float4 gDiffuse;
     uint gDiffuseTexID;
     uint gHeightTexID;
+    float gHeightScale;
     uint gNormalTexID;
 };
 
 cbuffer cbPerPass : register(b2)
 {
+    float4 gEyePosW;
     float4x4 gViewMat;
     float4x4 gProjMat;
     uint4 gLightPerTypeNum; // direction, point, spot, padding

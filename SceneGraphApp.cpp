@@ -744,6 +744,7 @@ void SceneGraphApp::BuildGeos()
 			XMFLOAT3 normal;
 			XMFLOAT3 tangent;
 			XMFLOAT2 tex;
+			XMFLOAT2 uvScale;
 		};
 
 		// Create Geo
@@ -863,6 +864,7 @@ void SceneGraphApp::BuildMaterialConstants()
 	whiteMtl->content.Diffuse = { 1.0f, 1.0f, 1.0f, 1.0f };
 	whiteMtl->content.DiffuseTexID = mTextures["color"]->ID + 1;
 	whiteMtl->content.HeightTexID = mTextures["height"]->ID + 1;
+	whiteMtl->content.HeightScale = 0.1f;
 	whiteMtl->content.NormalTexID = mTextures["normal"]->ID + 1;
 	mMtlConsts["white"] = whiteMtl;
 
@@ -1358,6 +1360,9 @@ void SceneGraphApp::Update(const GameTimer& gt)
 	// Update Pass Constants
 	{
 		auto& content = mPassConstants->content;
+
+		XMVECTOR eyePos = mCamera.CalEyePos();
+		XMStoreFloat4(&content.EyePos, eyePos);
 
 		XMMATRIX viewMat = mCamera.GetViewMatrix();
 		viewMat = XMMatrixTranspose(viewMat);
