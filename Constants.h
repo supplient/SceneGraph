@@ -1,6 +1,7 @@
 #pragma once
 #include "Common/d3dUtil.h"
 #include "Predefine.h"
+#include "Light.h"
 
 class ObjectConstants {
 public:
@@ -44,26 +45,6 @@ private:
 	static UINT sIDCount;
 };
 
-class LightConstants {
-public:
-	LightConstants() {
-		mID = sIDCount;
-		sIDCount++;
-	}
-	UINT getID()const { return mID; }
-	static UINT getTotalNum() { return sIDCount; }
-
-	struct Content {
-		DirectX::XMFLOAT4 Color = { 1.0f, 1.0f, 1.0f, 1.0f };
-		DirectX::XMFLOAT4 Pos = { 0.0f, 0.0f, 0.0f, 1.0f };
-		DirectX::XMFLOAT4 Direction = { 0.0f, 0.0f, 1.0f, 0.0f };
-	} content;
-
-private:
-	UINT mID;
-	static UINT sIDCount;
-};
-
 class PassConstants {
 public:
 	PassConstants() {
@@ -78,7 +59,9 @@ public:
 		DirectX::XMFLOAT4X4 ViewMat = MathHelper::Identity4x4();
 		DirectX::XMFLOAT4X4 ProjMat = MathHelper::Identity4x4();
 		DirectX::XMUINT4 LightPerTypeNum = { 0, 0, 0, 0 };
-		LightConstants::Content Lights[MAX_LIGHT_NUM];
+		DirectionLight::Content DirLights[MAX_DIR_LIGHT_NUM];
+		PointLight::Content PointLights[MAX_POINT_LIGHT_NUM];
+		SpotLight::Content SpotLights[MAX_SPOT_LIGHT_NUM];
 	} content;
 
 private:

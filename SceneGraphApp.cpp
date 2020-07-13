@@ -97,10 +97,10 @@ void SceneGraphApp::BuildLights()
 
 void SceneGraphApp::BuildTextures()
 {
-	mTextures["color"] = std::make_unique<Texture>(TEXTURE_PATH_HEAD + L"w_color.dds");
-	mTextures["height"] = std::make_unique<Texture>(TEXTURE_PATH_HEAD + L"w_height.dds");
-	mTextures["normal"] = std::make_unique<Texture>(TEXTURE_PATH_HEAD + L"w_normal.dds");
-	mTextures["tree"] = std::make_unique<Texture>(TEXTURE_PATH_HEAD + L"tree.dds");
+	mResourceTextures["color"] = std::make_unique<ResourceTexture>(TEXTURE_PATH_HEAD + L"w_color.dds");
+	mResourceTextures["height"] = std::make_unique<ResourceTexture>(TEXTURE_PATH_HEAD + L"w_height.dds");
+	mResourceTextures["normal"] = std::make_unique<ResourceTexture>(TEXTURE_PATH_HEAD + L"w_normal.dds");
+	mResourceTextures["tree"] = std::make_unique<ResourceTexture>(TEXTURE_PATH_HEAD + L"tree.dds");
 }
 
 void SceneGraphApp::BuildRenderTargets()
@@ -200,7 +200,7 @@ void SceneGraphApp::BuildDescriptorHeaps()
 	// CBV, SRV, UAV // GPU heap
 	{
 		D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-		heapDesc.NumDescriptors = 2 + (UINT)mRenderTargets.size() + mSwapChain->GetSwapChainBufferCount() + (UINT)mTextures.size();
+		heapDesc.NumDescriptors = 2 + (UINT)mRenderTargets.size() + mSwapChain->GetSwapChainBufferCount() + (UINT)mResourceTextures.size();
 		heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 		heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 		heapDesc.NodeMask = 0;
@@ -235,7 +235,7 @@ void SceneGraphApp::BuildDescriptorHeaps()
 		mNCountUAVCPUHandle = mCBVSRVUAVHeap->GetCPUHandle(index);
 		mNCountUAVGPUHandle = mCBVSRVUAVHeap->GetGPUHandle(index);
 
-		index = mCBVSRVUAVHeap->Alloc((UINT)mTextures.size());
+		index = mCBVSRVUAVHeap->Alloc((UINT)mResourceTextures.size());
 		mTexGPUHandleStart = mCBVSRVUAVHeap->GetGPUHandle(index);
 		mTexCPUHandleStart = mCBVSRVUAVHeap->GetCPUHandle(index);
 	}
@@ -385,7 +385,7 @@ void SceneGraphApp::BuildRootSignature()
 		std::vector<D3D12_DESCRIPTOR_RANGE> texSRVranges;
 		texSRVranges.push_back(CD3DX12_DESCRIPTOR_RANGE(
 			D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
-			(UINT)mTextures.size(), 1,
+			(UINT)mResourceTextures.size(), 1,
 			0, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND
 		));
 
@@ -495,9 +495,13 @@ void SceneGraphApp::BuildShaders()
 	std::vector<D3D_SHADER_MACRO> defines;
 	if(m4xMsaaState)
 		defines.push_back({ "MULTIPLE_SAMPLE", "4" });
-	std::string maxLightNumStr = std::to_string(MAX_LIGHT_NUM);
-	std::string textureNumStr = std::to_string(mTextures.size());
-	defines.push_back({ "MAX_LIGHT_NUM", maxLightNumStr.c_str() });
+	std::string maxDirLightNumStr = std::to_string(MAX_DIR_LIGHT_NUM);
+	std::string maxPointLightNumStr = std::to_string(MAX_POINT_LIGHT_NUM);
+	std::string maxSpotLightNumStr = std::to_string(MAX_SPOT_LIGHT_NUM);
+	std::string textureNumStr = std::to_string(mResourceTextures.size());
+	defines.push_back({ "MAX_DIR_LIGHT_NUM", maxDirLightNumStr.c_str() });
+	defines.push_back({ "MAX_POINT_LIGHT_NUM", maxPointLightNumStr.c_str() });
+	defines.push_back({ "MAX_SPOT_LIGHT_NUM", maxSpotLightNumStr.c_str() });
 	defines.push_back({ "TEXTURE_NUM",  textureNumStr.c_str()});
 	defines.push_back({ NULL, NULL });
 
@@ -633,7 +637,7 @@ void SceneGraphApp::LoadTextures()
 {
 	UINT32 id = 0;
 	CD3DX12_CPU_DESCRIPTOR_HANDLE handle(mTexCPUHandleStart);
-	for (const auto& pair : mTextures) {
+	for (const auto& pair : mResourceTextures) {
 		const auto& tex = pair.second;
 		ThrowIfFailed(CreateDDSTextureFromFile12(
 			md3dDevice.Get(), mCommandList.Get(),
@@ -675,61 +679,28 @@ void SceneGraphApp::BuildPassConstantBuffers()
 void SceneGraphApp::UpdateLightsInPassConstantBuffers()
 {
 	// Check light num
-	size_t totalLightNum = 0;
-	totalLightNum += mDirLights.size();
-	totalLightNum += mPointLights.size();
-	totalLightNum += mSpotLights.size();
-	if (totalLightNum > MAX_LIGHT_NUM)
-		throw "Lights too many with " + std::to_string(totalLightNum);
+	if(mDirLights.size() > MAX_DIR_LIGHT_NUM)
+		throw "DirLights too many with " + std::to_string(mDirLights.size());
+	if(mPointLights.size() > MAX_POINT_LIGHT_NUM)
+		throw "PointLights too many with " + std::to_string(mPointLights.size());
+	if(mSpotLights.size() > MAX_SPOT_LIGHT_NUM)
+		throw "SpotLights too many with " + std::to_string(mSpotLights.size());
 
 	auto& content = mPassConstants->content;
-	unsigned int li = 0;
 
 	// direction lights
-	for (const auto& dirLight : mDirLights) {
-		LightConstants consts;
-
-		// Reverse & Normalize direction for convenience
-		XMVECTOR direction = XMLoadFloat3(&dirLight.Direction);
-		direction = XMVectorScale(direction, -1.0f);
-		direction = XMVector4Normalize(direction);
-		XMStoreFloat4(&consts.content.Direction, direction);
-
-		consts.content.Color = MathHelper::XMFLOAT3TO4(dirLight.Color, 1.0f);
-
-		content.Lights[li] = consts.content;
-		li++;
-	}
+	for (unsigned int i = 0; i < mDirLights.size(); i++)
+		content.DirLights[i] = mDirLights[i].ToContent();
 	content.LightPerTypeNum.x = static_cast<UINT32>(mDirLights.size());
 
 	// point lights
-	for (const auto& pointLight : mPointLights) {
-		LightConstants consts;
-
-		consts.content.Pos = MathHelper::XMFLOAT3TO4(pointLight.Position, 1.0f);
-		consts.content.Color = MathHelper::XMFLOAT3TO4(pointLight.Color, 1.0f);
-
-		content.Lights[li] = consts.content;
-		li++;
-	}
+	for (unsigned int i = 0; i < mPointLights.size(); i++)
+		content.PointLights[i] = mPointLights[i].ToContent();
 	content.LightPerTypeNum.y = static_cast<UINT32>(mPointLights.size());
 
 	// spot lights
-	for (const auto& spotLight : mSpotLights) {
-		LightConstants consts;
-
-		// Reverse & Normalize direction for convenience
-		XMVECTOR direction = XMLoadFloat3(&spotLight.Direction);
-		direction = XMVectorScale(direction, -1.0f);
-		direction = XMVector4Normalize(direction);
-		XMStoreFloat4(&consts.content.Direction, direction);
-
-		consts.content.Pos = MathHelper::XMFLOAT3TO4(spotLight.Position, 1.0f);
-		consts.content.Color = MathHelper::XMFLOAT3TO4(spotLight.Color, 1.0f);
-
-		content.Lights[li] = consts.content;
-		li++;
-	}
+	for (unsigned int i = 0; i < mSpotLights.size(); i++)
+		content.SpotLights[i] = mSpotLights[i].ToContent();
 	content.LightPerTypeNum.z = static_cast<UINT32>(mSpotLights.size());
 }
 
@@ -886,10 +857,10 @@ void SceneGraphApp::BuildMaterialConstants()
 {
 	auto whiteMtl = std::make_shared<MaterialConstants>();
 	whiteMtl->content.Diffuse = { 1.0f, 1.0f, 1.0f, 1.0f };
-	whiteMtl->content.DiffuseTexID = mTextures["color"]->ID + 1;
-	whiteMtl->content.DispTexID = mTextures["height"]->ID + 1;
+	whiteMtl->content.DiffuseTexID = mResourceTextures["color"]->ID + 1;
+	whiteMtl->content.DispTexID = mResourceTextures["height"]->ID + 1;
 	whiteMtl->content.DispHeightScale = 0.7f;
-	whiteMtl->content.NormalTexID = mTextures["normal"]->ID + 1;
+	whiteMtl->content.NormalTexID = mResourceTextures["normal"]->ID + 1;
 	mMtlConsts["white"] = whiteMtl;
 
 	auto blueMtl = std::make_shared<MaterialConstants>();
@@ -909,7 +880,7 @@ void SceneGraphApp::BuildMaterialConstants()
 	mMtlConsts["transRed"] = transRedMtl;
 
 	auto cutoutTreeMtl = std::make_shared<MaterialConstants>();
-	cutoutTreeMtl->content.DiffuseTexID = mTextures["tree"]->ID + 1;
+	cutoutTreeMtl->content.DiffuseTexID = mResourceTextures["tree"]->ID + 1;
 	cutoutTreeMtl->content.AlphaTestTheta = 0.2f;
 	mMtlConsts["cutoutTree"] = cutoutTreeMtl;
 }

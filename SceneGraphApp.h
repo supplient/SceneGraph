@@ -133,7 +133,7 @@ private:
 	std::vector<SpotLight> mSpotLights;
 
 	// Textures
-	std::unordered_map<std::string, std::unique_ptr<Texture>> mTextures;
+	std::unordered_map<std::string, std::unique_ptr<ResourceTexture>> mResourceTextures;
 	D3D12_GPU_DESCRIPTOR_HANDLE mTexGPUHandleStart;
 	D3D12_CPU_DESCRIPTOR_HANDLE mTexCPUHandleStart;
 

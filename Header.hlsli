@@ -2,7 +2,19 @@
 #define HEADER_H
 #include "Predefine.hlsli"
 
-struct Light
+struct DirLight
+{
+    float4 color;
+    float4 direction;
+};
+
+struct PointLight
+{
+    float4 color;
+    float4 pos;
+};
+
+struct SpotLight
 {
     float4 color;
     float4 pos;
@@ -57,7 +69,9 @@ cbuffer cbPerPass : register(b2)
     float4x4 gViewMat;
     float4x4 gProjMat;
     uint4 gLightPerTypeNum; // direction, point, spot, padding
-    Light gLights[MAX_LIGHT_NUM];
+    DirLight gDirLights[MAX_DIR_LIGHT_NUM];
+    PointLight gPointLights[MAX_POINT_LIGHT_NUM];
+    SpotLight gSpotLights[MAX_SPOT_LIGHT_NUM];
 };
 
 // NCount for weighted-average

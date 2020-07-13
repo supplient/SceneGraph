@@ -32,42 +32,38 @@ float calDirAttenuation(float4 defDir, float4 dir)
 float3 calLights(float4 posW, float4 normalW)
 {
     float3 sum = { 0.0f, 0.0f, 0.0f };
-    uint li = 0;
     uint i = 0;
 
     // direction lights
     for (i = 0; i < gLightPerTypeNum.x; i++)
     {
-        float lambCos = calLambCos(gLights[li].direction, normalW);
-        sum += lambCos * gLights[li].color.xyz;
-        li++;
+        float lambCos = calLambCos(gDirLights[i].direction, normalW);
+        sum += lambCos * gDirLights[i].color.xyz;
     }
 
     // point lights
     for (i = 0; i < gLightPerTypeNum.y; i++)
     {
-        float4 dir = gLights[li].pos - posW;
+        float4 dir = gPointLights[i].pos - posW;
         float dist = length(dir);
         dir = normalize(dir);
 
         float lambCos = calLambCos(dir, normalW);
         float distAtte = calDistAttenuation(dist);
-        sum += distAtte * lambCos * gLights[li].color.xyz;
-        li++;
+        sum += distAtte * lambCos * gPointLights[i].color.xyz;
     }
 
     // spot lights
     for (i = 0; i < gLightPerTypeNum.z; i++)
     {
-        float4 dir = gLights[li].pos - posW;
+        float4 dir = gSpotLights[i].pos - posW;
         float dist = length(dir);
         dir = normalize(dir);
 
         float lambCos = calLambCos(dir, normalW);
         float distAtte = calDistAttenuation(dist);
-        float dirAtte = calDirAttenuation(gLights[li].direction, dir);
-        sum += dirAtte * distAtte * lambCos * gLights[li].color.xyz;
-        li++;
+        float dirAtte = calDirAttenuation(gSpotLights[i].direction, dir);
+        sum += dirAtte * distAtte * lambCos * gSpotLights[i].color.xyz;
     }
     
     return sum;
