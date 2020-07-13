@@ -80,17 +80,17 @@ void SceneGraphApp::BuildLights()
 {
 	mDirLights.push_back({
 		{1.0f, 1.0f, 1.0f},
-		{1.0f, 0.0f, 1.0f}
+		{-1.0f, -0.3f, 1.0f}
 	});
 
 	mPointLights.push_back({
-		{0.8f, 0.2f, 0.0f},
-		{0.0f, 1.0f, 0.0f}
+		{1.0f, 0.4f, 0.2f},
+		{0.0f, 0.7f, 0.0f}
 	});
 
 	mSpotLights.push_back({
-		{0.1f, 0.7f, 0.2f},
-		{1.0f, 0.0f, 0.0f},
+		{0.2f, 1.0f, 0.4f},
+		{0.7f, 0.0f, 0.0f},
 		{-1.0f, 0.0f, 0.0f}
 	});
 }
@@ -857,10 +857,10 @@ void SceneGraphApp::BuildMaterialConstants()
 {
 	auto whiteMtl = std::make_shared<MaterialConstants>();
 	whiteMtl->content.Diffuse = { 1.0f, 1.0f, 1.0f, 1.0f };
-	whiteMtl->content.DiffuseTexID = mResourceTextures["color"]->ID + 1;
-	whiteMtl->content.DispTexID = mResourceTextures["height"]->ID + 1;
-	whiteMtl->content.DispHeightScale = 0.7f;
-	whiteMtl->content.NormalTexID = mResourceTextures["normal"]->ID + 1;
+	// whiteMtl->content.DiffuseTexID = mResourceTextures["color"]->ID + 1;
+	// whiteMtl->content.DispTexID = mResourceTextures["height"]->ID + 1;
+	// whiteMtl->content.DispHeightScale = 0.7f;
+	// whiteMtl->content.NormalTexID = mResourceTextures["normal"]->ID + 1;
 	mMtlConsts["white"] = whiteMtl;
 
 	auto blueMtl = std::make_shared<MaterialConstants>();
@@ -969,6 +969,7 @@ void SceneGraphApp::BuildRenderItems()
 	// Opaque
 	{
 		// Tree
+		/*
 		{
 			// Hor
 			{
@@ -986,7 +987,7 @@ void SceneGraphApp::BuildRenderItems()
 				horItem->ObjConsts = mObjConsts["horTree"];
 
 				// Save render items
-				mRenderItemQueue.push_back(std::move(horItem));
+				mOpaqueRenderItemQueue.push_back(std::move(horItem));
 			}
 
 			// Ver
@@ -1009,32 +1010,114 @@ void SceneGraphApp::BuildRenderItems()
 				verItem->ObjConsts = mObjConsts["verTree"];
 
 				// Save render items
-				mRenderItemQueue.push_back(std::move(verItem));
+				mOpaqueRenderItemQueue.push_back(std::move(verItem));
 			}
 
 		}
+		*/
 
 		// Cube
-		/*
 		{
-			// Create Object constants
-			auto triConsts = std::make_shared<ObjectConstants>();
-			triConsts->content.ModelMat = MathHelper::Identity4x4();
-			mObjConsts["triangle"] = triConsts;
+			// mid
+			{
+				// Create Object constants
+				auto consts = std::make_shared<ObjectConstants>();
+				auto modelMat = XMMatrixScaling(0.3f, 0.3f, 0.3f);
+				modelMat = XMMatrixMultiply(modelMat, XMMatrixTranslation(0.0f, 0.0f, 0.0f));
+				XMStoreFloat4x4(
+					&consts->content.ModelMat, 
+					XMMatrixTranspose(modelMat)
+				);
+				mObjConsts["midCube"] = consts;
 
-			// Create render items
-			auto renderItem = std::make_shared<RenderItem>();
-			renderItem->Geo = mGeos["triangle"];
-			renderItem->Submesh = mGeos["triangle"]->DrawArgs["triangle"];
-			renderItem->PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-			renderItem->MtlConsts = mMtlConsts["white"];
-			renderItem->PSO = "opaque";
-			renderItem->ObjConsts = mObjConsts["triangle"];
+				// Create render items
+				auto renderItem = std::make_shared<RenderItem>();
+				renderItem->Geo = mGeos["triangle"];
+				renderItem->Submesh = mGeos["triangle"]->DrawArgs["triangle"];
+				renderItem->PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+				renderItem->MtlConsts = mMtlConsts["white"];
+				renderItem->PSO = "opaque";
+				renderItem->ObjConsts = mObjConsts["midCube"];
 
-			// Save render items
-			mRenderItemQueue.push_back(std::move(renderItem));
+				// Save render items
+				mOpaqueRenderItemQueue.push_back(std::move(renderItem));
+			}
+
+			// bottom
+			{
+				// Create Object constants
+				auto consts = std::make_shared<ObjectConstants>();
+				auto modelMat = XMMatrixScaling(1.6f, 0.2f, 1.6f);
+				modelMat = XMMatrixMultiply(modelMat, XMMatrixTranslation(0.0f, -0.8f, 0.0f));
+				XMStoreFloat4x4(
+					&consts->content.ModelMat, 
+					XMMatrixTranspose(modelMat)
+				);
+				mObjConsts["bottomCube"] = consts;
+
+				// Create render items
+				auto renderItem = std::make_shared<RenderItem>();
+				renderItem->Geo = mGeos["triangle"];
+				renderItem->Submesh = mGeos["triangle"]->DrawArgs["triangle"];
+				renderItem->PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+				renderItem->MtlConsts = mMtlConsts["white"];
+				renderItem->PSO = "opaque";
+				renderItem->ObjConsts = mObjConsts["bottomCube"];
+
+				// Save render items
+				mOpaqueRenderItemQueue.push_back(std::move(renderItem));
+			}
+
+			// left
+			{
+				// Create Object constants
+				auto consts = std::make_shared<ObjectConstants>();
+				auto modelMat = XMMatrixScaling(0.2f, 1.6f, 1.6f);
+				modelMat = XMMatrixMultiply(modelMat, XMMatrixTranslation(-0.8f, 0.0f, 0.0f));
+				XMStoreFloat4x4(
+					&consts->content.ModelMat, 
+					XMMatrixTranspose(modelMat)
+				);
+				mObjConsts["leftCube"] = consts;
+
+				// Create render items
+				auto renderItem = std::make_shared<RenderItem>();
+				renderItem->Geo = mGeos["triangle"];
+				renderItem->Submesh = mGeos["triangle"]->DrawArgs["triangle"];
+				renderItem->PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+				renderItem->MtlConsts = mMtlConsts["white"];
+				renderItem->PSO = "opaque";
+				renderItem->ObjConsts = mObjConsts["leftCube"];
+
+				// Save render items
+				mOpaqueRenderItemQueue.push_back(std::move(renderItem));
+			}
+
+			// back
+			{
+				// Create Object constants
+				auto consts = std::make_shared<ObjectConstants>();
+				auto modelMat = XMMatrixScaling(1.6f, 1.6f, 0.2f);
+				modelMat = XMMatrixMultiply(modelMat, XMMatrixTranslation(0.0f, 0.0f, 0.8f));
+				XMStoreFloat4x4(
+					&consts->content.ModelMat, 
+					XMMatrixTranspose(modelMat)
+				);
+				mObjConsts["backCube"] = consts;
+
+				// Create render items
+				auto renderItem = std::make_shared<RenderItem>();
+				renderItem->Geo = mGeos["triangle"];
+				renderItem->Submesh = mGeos["triangle"]->DrawArgs["triangle"];
+				renderItem->PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+				renderItem->MtlConsts = mMtlConsts["white"];
+				renderItem->PSO = "opaque";
+				renderItem->ObjConsts = mObjConsts["backCube"];
+
+				// Save render items
+				mOpaqueRenderItemQueue.push_back(std::move(renderItem));
+			}
 		}
-		*/
 
 		// Displacement Cube
 		/*
@@ -1060,6 +1143,7 @@ void SceneGraphApp::BuildRenderItems()
 	}
 
 	// Transparent
+	/*
 	{
 		// transBlue
 		{
@@ -1109,6 +1193,7 @@ void SceneGraphApp::BuildRenderItems()
 			mTransRenderItemQueue.push_back(std::move(renderItem));
 		}
 	}
+	*/
 
 	// Post
 	{
@@ -1468,7 +1553,7 @@ void SceneGraphApp::Update(const GameTimer& gt)
 
 	// Upload Object Constant
 	{
-		for (auto renderItem : mRenderItemQueue) {
+		for (auto renderItem : mOpaqueRenderItemQueue) {
 			mObjectConstantsBuffers->CopyData(
 				renderItem->ObjConsts->getID(),
 				renderItem->ObjConsts->content
@@ -1629,7 +1714,7 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 			);
 
 			// Draw Render Items
-			DrawRenderItems(mRenderItemQueue);
+			DrawRenderItems(mOpaqueRenderItemQueue);
 		}
 
 		// Copy ZBuffer for reference

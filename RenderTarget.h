@@ -6,9 +6,7 @@ public:
 	virtual D3D12_CPU_DESCRIPTOR_HANDLE GetSRVCPUHandle() = 0;
 	virtual D3D12_GPU_DESCRIPTOR_HANDLE GetSRVGPUHandle() = 0;
 	virtual D3D12_CPU_DESCRIPTOR_HANDLE GetRTVCPUHandle() = 0;
-
 	virtual D3D12_CPU_DESCRIPTOR_HANDLE GetDSVCPUHandle() = 0;
-	virtual void SetDSVCPUHandle(D3D12_CPU_DESCRIPTOR_HANDLE handle) = 0;
 
 	virtual DXGI_FORMAT GetColorViewFormat() = 0;
 	virtual DXGI_FORMAT GetDepthStencilResourceFormat() = 0;
@@ -47,13 +45,14 @@ public:
 	void SetSRVGPUHandle(D3D12_GPU_DESCRIPTOR_HANDLE handle) {
 		srvGPUHandle = handle;
 	}
-
 	void SetSRVCPUHandle(D3D12_CPU_DESCRIPTOR_HANDLE handle) {
 		srvCPUHandle = handle;
 	}
-
 	void SetRTVCPUHandle(D3D12_CPU_DESCRIPTOR_HANDLE handle) {
 		rtvCPUHandle = handle;
+	}
+	void SetDSVCPUHandle(D3D12_CPU_DESCRIPTOR_HANDLE handle) {
+		dsvCPUHandle = handle;
 	}
 
 	void Resize(
@@ -140,33 +139,24 @@ public:
 	virtual D3D12_CPU_DESCRIPTOR_HANDLE GetSRVCPUHandle() override {
 		return srvCPUHandle;
 	}
-
 	virtual D3D12_GPU_DESCRIPTOR_HANDLE GetSRVGPUHandle() override {
 		return srvGPUHandle;
 	}
-
 	virtual D3D12_CPU_DESCRIPTOR_HANDLE GetRTVCPUHandle() override {
 		return rtvCPUHandle;
 	}
-
 	virtual D3D12_CPU_DESCRIPTOR_HANDLE GetDSVCPUHandle() override {
 		return dsvCPUHandle;
-	}
-
-	virtual void SetDSVCPUHandle(D3D12_CPU_DESCRIPTOR_HANDLE handle) override {
-		dsvCPUHandle = handle;
 	}
 
 	virtual DXGI_FORMAT GetColorViewFormat() override {
 		return viewFormat;
 	}
-
 	virtual DXGI_FORMAT GetDepthStencilResourceFormat() override {
 		if (!hasDepthStencil)
 			throw "Does not have depth stencil buffer.";
 		return dsResourceFormat;
 	}
-
 	virtual DXGI_FORMAT GetDepthStencilViewFormat() override {
 		if (!hasDepthStencil)
 			throw "Does not have depth stencil buffer.";
@@ -178,7 +168,6 @@ public:
 			return nullptr;
 		return resource.Get();
 	}
-
 	virtual ID3D12Resource* GetDepthStencilResource() override {
 		if (!hasDepthStencil)
 			throw "Does not have depth stencil buffer.";
@@ -191,11 +180,9 @@ public:
 		// TODO not safe
 		return clearValue;
 	}
-
 	virtual float GetDepthClearValue() override {
 		return depthClearValue;
 	}
-
 	virtual UINT8 GetStencilClearValue() override {
 		return stencilClearValue;
 	}
@@ -268,6 +255,9 @@ public:
 	}
 	void SetRTVCPUHandleStart(D3D12_CPU_DESCRIPTOR_HANDLE handle) {
 		rtvCPUHandleStart = handle;
+	}
+	void SetDSVCPUHandle(D3D12_CPU_DESCRIPTOR_HANDLE handle){
+		dsvCPUHandle = handle;
 	}
 
 	UINT GetSwapChainBufferCount() {
@@ -359,7 +349,6 @@ public:
 		}
 	}
 
-
 	virtual D3D12_CPU_DESCRIPTOR_HANDLE GetSRVCPUHandle() override{
 		return CD3DX12_CPU_DESCRIPTOR_HANDLE(
 			srvCPUHandleStart,
@@ -378,12 +367,8 @@ public:
 			nowBufferIndex, rtvDescriptorSize
 		);
 	}
-
 	virtual D3D12_CPU_DESCRIPTOR_HANDLE GetDSVCPUHandle() override{
 		return dsvCPUHandle;
-	}
-	virtual void SetDSVCPUHandle(D3D12_CPU_DESCRIPTOR_HANDLE handle) override{
-		dsvCPUHandle = handle;
 	}
 
 	virtual DXGI_FORMAT GetColorViewFormat() override {
@@ -447,6 +432,5 @@ private:
 	float depthClearValue;
 	UINT8 stencilClearValue;
 	Microsoft::WRL::ComPtr<ID3D12Resource> dsResource = nullptr;
-
 	D3D12_CPU_DESCRIPTOR_HANDLE dsvCPUHandle;
 };

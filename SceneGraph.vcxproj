@@ -164,6 +164,7 @@
     <ClInclude Include="Common\UploadBuffer.h" />
     <ClInclude Include="Constants.h" />
     <ClInclude Include="Light.h" />
+    <ClInclude Include="Object.h" />
     <ClInclude Include="Predefine.h" />
     <ClInclude Include="RenderItem.h" />
     <ClInclude Include="RenderTarget.h" />

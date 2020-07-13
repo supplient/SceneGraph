@@ -153,7 +153,7 @@ private:
 	std::unique_ptr<FxaaConstants> mFxaaConstants;
 
 	// Render Items
-	std::vector<std::shared_ptr<RenderItem>> mRenderItemQueue;
+	std::vector<std::shared_ptr<RenderItem>> mOpaqueRenderItemQueue;
 	std::vector<std::shared_ptr<RenderItem>> mTransRenderItemQueue;
 	std::shared_ptr<RenderItem> mBackgroundRenderItem = nullptr;
 

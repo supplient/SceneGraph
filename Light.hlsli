@@ -11,10 +11,10 @@ float calLambCos(float4 dir, float4 normal)
 
 float calDistAttenuation(float dist)
 {
-    // r0 = 0.5f
+    // r0 = 1.0f
     // rmin = 0.01f
     // TODO these two params may should assign by light itself
-    return pow(0.5f/max(dist, 0.01f), 2);
+    return pow(1.0f/max(dist, 0.01f), 2);
 }
 
 float calDirAttenuation(float4 defDir, float4 dir)
