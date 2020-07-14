@@ -20,6 +20,10 @@
     #define TEXTURE_NUM 3
 #endif
 
+#ifndef SPOT_SHADOW_TEX_NUM
+    #define SPOT_SHADOW_TEX_NUM 1
+#endif
+
 // #define MULTIPLE_SAMPLE 4
 
 #endif// PREDEFINE_H

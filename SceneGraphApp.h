@@ -22,6 +22,7 @@ public:
 
 	// Init Scene
 	void BuildLights();
+	void BuildLightShadowConstantBuffers();
 	void BuildTextures();
 
 	// Init DirectX
@@ -85,7 +86,7 @@ private:
 	virtual void OnKeyDown(WPARAM vKey)override;
 
 	// Settings
-	bool mUseFXAA = true;
+	bool mUseFXAA = false;
 	void UpdateFXAAState(bool newState);
 
 	// Camera
@@ -132,6 +133,10 @@ private:
 	std::vector<PointLight> mPointLights;
 	std::vector<SpotLight> mSpotLights;
 
+	// Light Shadows
+	D3D12_GPU_DESCRIPTOR_HANDLE mSpotShadowTexGPUHandleStart;
+	D3D12_CPU_DESCRIPTOR_HANDLE mSpotShadowTexCPUHandleStart;
+
 	// Textures
 	std::unordered_map<std::string, std::unique_ptr<ResourceTexture>> mResourceTextures;
 	D3D12_GPU_DESCRIPTOR_HANDLE mTexGPUHandleStart;
@@ -162,4 +167,5 @@ private:
 	std::unique_ptr<UploadBuffer<ObjectConstants::Content>> mObjectConstantsBuffers;
 	std::unique_ptr<UploadBuffer<PassConstants::Content>> mPassConstantsBuffers;
 	std::unique_ptr<UploadBuffer<FxaaConstants::Content>> mFxaaConstantsBuffers;
+	std::unique_ptr<UploadBuffer<ShadowPassConstants::Content>> mShadowPassConstantsBuffers;
 };

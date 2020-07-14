@@ -60,10 +60,26 @@ float3 calLights(float4 posW, float4 normalW)
         float dist = length(dir);
         dir = normalize(dir);
 
+        // Shadow Test
+        float shadowFactor = 1.0f;
+        bool TEST_FLAG = true;
+        if (TEST_FLAG && gSpotLights[i].id > 0)
+        {
+            float4 posLi = mul(mul(posW, gSpotLights[i].viewMat), gSpotLights[i].projMat);
+            posLi.xyz = posLi.xyz / posLi.w;
+            posLi.w = 1.0f;
+            float2 shadowUV = (posLi.xy + 1.0f) / 2.0f;
+            shadowUV.y = 1.0f - shadowUV.y;
+            float occluderDepth = gSpotShadowTexs[gSpotLights[i].id - 1].Sample(nearestBorder, shadowUV).r;
+            float receiverDepth = posLi.z;
+            if(receiverDepth > occluderDepth)
+                shadowFactor = 0.0f;
+        }
+
         float lambCos = calLambCos(dir, normalW);
         float distAtte = calDistAttenuation(dist);
         float dirAtte = calDirAttenuation(gSpotLights[i].direction, dir);
-        sum += dirAtte * distAtte * lambCos * gSpotLights[i].color.xyz;
+        sum += shadowFactor * dirAtte * distAtte * lambCos * gSpotLights[i].color.xyz;
     }
     
     return sum;

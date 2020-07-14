@@ -19,6 +19,9 @@ struct SpotLight
     float4 color;
     float4 pos;
     float4 direction;
+    float4x4 viewMat;
+    float4x4 projMat;
+    uint id;
 };
 
 struct VertexIn
@@ -85,9 +88,11 @@ RWTexture2D<uint> uabNCount : register(u0);
 #endif
 
 // Textures // This does not follow the name convention, for convenience
-Texture2D gTexs[TEXTURE_NUM] : register(t1);
+Texture2D gTexs[TEXTURE_NUM] : register(t1, space0);
+Texture2D gSpotShadowTexs[SPOT_SHADOW_TEX_NUM] : register(t0, space1);
 
 // Samplers
 SamplerState bilinearWrap : register(s0);
+SamplerState nearestBorder : register(s1);
 
 #endif//HEADER_H

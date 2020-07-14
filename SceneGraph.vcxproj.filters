@@ -28,6 +28,21 @@
     <Filter Include="资源文件\Textures">
       <UniqueIdentifier>{9906001f-447f-4a17-97cf-3f3c15c19568}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Shaders\Headers">
+      <UniqueIdentifier>{78230aa5-1505-4fa6-931b-c1e66992e69e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders\Vertex">
+      <UniqueIdentifier>{74f1cd22-14aa-4618-bfea-3b490a0b4261}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders\Pixel">
+      <UniqueIdentifier>{118c2e4a-1c8c-44f1-8ca1-60454e284fd7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders\Domain">
+      <UniqueIdentifier>{1dbe1663-7f15-4dc0-9755-44e1bf8162e6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders\Hull">
+      <UniqueIdentifier>{6b0e36f2-5010-4195-934a-fefe8befce61}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="SceneGraphApp.cpp">
@@ -118,46 +133,52 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="VertexShader.hlsl">
-      <Filter>Shaders</Filter>
-    </FxCompile>
-    <FxCompile Include="PixelShader.hlsl">
-      <Filter>Shaders</Filter>
-    </FxCompile>
-    <FxCompile Include="transBlendPixel.hlsl">
-      <Filter>Shaders</Filter>
-    </FxCompile>
-    <FxCompile Include="transPixel.hlsl">
-      <Filter>Shaders</Filter>
-    </FxCompile>
     <FxCompile Include="simpleVertex.hlsl">
-      <Filter>Shaders</Filter>
+      <Filter>Shaders\Vertex</Filter>
+    </FxCompile>
+    <FxCompile Include="VertexShader.hlsl">
+      <Filter>Shaders\Vertex</Filter>
     </FxCompile>
     <FxCompile Include="fxaaPixel.hlsl">
-      <Filter>Shaders</Filter>
+      <Filter>Shaders\Pixel</Filter>
     </FxCompile>
-    <FxCompile Include="displacementHull.hlsl">
-      <Filter>Shaders</Filter>
+    <FxCompile Include="PixelShader.hlsl">
+      <Filter>Shaders\Pixel</Filter>
+    </FxCompile>
+    <FxCompile Include="transBlendPixel.hlsl">
+      <Filter>Shaders\Pixel</Filter>
+    </FxCompile>
+    <FxCompile Include="transPixel.hlsl">
+      <Filter>Shaders\Pixel</Filter>
     </FxCompile>
     <FxCompile Include="displacementDomain.hlsl">
-      <Filter>Shaders</Filter>
+      <Filter>Shaders\Domain</Filter>
+    </FxCompile>
+    <FxCompile Include="displacementHull.hlsl">
+      <Filter>Shaders\Hull</Filter>
+    </FxCompile>
+    <FxCompile Include="shadowVertex.hlsl">
+      <Filter>Shaders\Vertex</Filter>
+    </FxCompile>
+    <FxCompile Include="shadowPixel.hlsl">
+      <Filter>Shaders\Pixel</Filter>
     </FxCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="Light.hlsli">
-      <Filter>Shaders</Filter>
+    <None Include="Fxaa3_11.hlsli">
+      <Filter>Shaders\Headers</Filter>
     </None>
     <None Include="Header.hlsli">
-      <Filter>Shaders</Filter>
+      <Filter>Shaders\Headers</Filter>
+    </None>
+    <None Include="Light.hlsli">
+      <Filter>Shaders\Headers</Filter>
     </None>
     <None Include="MultiSampleLoader.hlsli">
-      <Filter>Shaders</Filter>
+      <Filter>Shaders\Headers</Filter>
     </None>
     <None Include="Predefine.hlsli">
-      <Filter>Shaders</Filter>
-    </None>
-    <None Include="Fxaa3_11.hlsli">
-      <Filter>Shaders</Filter>
+      <Filter>Shaders\Headers</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

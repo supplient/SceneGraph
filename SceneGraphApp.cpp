@@ -32,6 +32,7 @@ bool SceneGraphApp::Initialize()
 
 	// Init Scene
 	BuildLights();
+	BuildLightShadowConstantBuffers();
 	BuildTextures();
 
 	// Init DirectX
@@ -78,6 +79,7 @@ bool SceneGraphApp::Initialize()
 
 void SceneGraphApp::BuildLights()
 {
+	/*
 	mDirLights.push_back({
 		{0.3f, 0.3f, 0.3f},
 		{-1.0f, -0.4f, 1.0f}
@@ -87,12 +89,36 @@ void SceneGraphApp::BuildLights()
 		{1.0f, 0.4f, 0.2f},
 		{0.0f, 0.7f, 0.0f}
 	});
+	*/
 
 	mSpotLights.push_back({
 		{0.2f, 1.0f, 0.4f},
 		{0.7f, 0.0f, 0.0f},
 		{-1.0f, 0.0f, 0.0f}
 	});
+
+	// Cal shadow pass constants
+	for (auto& spotLight : mSpotLights) {
+		spotLight.PassConstants = std::make_unique<ShadowPassConstants>();
+		auto& content = spotLight.PassConstants->content;
+
+		XMStoreFloat4x4(
+			&content.ViewMat, 
+			XMMatrixTranspose(spotLight.CalLightViewMat())
+		);
+		XMStoreFloat4x4(
+			&content.ProjMat, 
+			XMMatrixTranspose(spotLight.CalLightProjMat())
+		);
+	}
+}
+
+void SceneGraphApp::BuildLightShadowConstantBuffers()
+{
+	mShadowPassConstantsBuffers = std::make_unique<UploadBuffer<ShadowPassConstants::Content>>(
+		md3dDevice.Get(), 
+		ShadowPassConstants::getTotalNum(), true
+	);
 }
 
 void SceneGraphApp::BuildTextures()
@@ -154,6 +180,20 @@ void SceneGraphApp::BuildRenderTargets()
 		&sd, clearValue,
 		rtvDescriptorSize, srvDescriptorSize
 		);
+
+	// Build Shadow Render Targets
+	unsigned int index = 0;
+	for (auto& spotLight : mSpotLights) {
+		spotLight.ShadowRT = std::make_unique<SingleRenderTarget>(
+			L"Shadow Spot " + std::to_wstring(index),
+			DXGI_FORMAT_R32_FLOAT, clearValue,
+			true,
+			L"Shadow Spot Depth" + std::to_wstring(index),
+			DXGI_FORMAT_R32_TYPELESS,
+			DXGI_FORMAT_D32_FLOAT,
+			1.0f, 0
+			);
+	}
 }
 
 void SceneGraphApp::BuildDescriptorHeaps()
@@ -162,7 +202,7 @@ void SceneGraphApp::BuildDescriptorHeaps()
 	{
 		// Build Descriptor Heap
 		D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-		heapDesc.NumDescriptors = 2;
+		heapDesc.NumDescriptors = 2 + (UINT)mSpotLights.size();
 		heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
 		heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 		heapDesc.NodeMask = 0;
@@ -173,13 +213,17 @@ void SceneGraphApp::BuildDescriptorHeaps()
 		// Build Handle
 		mRenderTargets["opaque"]->SetDSVCPUHandle(mDSVHeap->GetCPUHandle(mDSVHeap->Alloc()));
 		mRenderTargets["fxaa"]->SetDSVCPUHandle(mDSVHeap->GetCPUHandle(mDSVHeap->Alloc()));
+
+		for (auto& spotLight : mSpotLights) {
+			spotLight.ShadowRT->SetDSVCPUHandle(mDSVHeap->GetCPUHandle(mDSVHeap->Alloc()));
+		}
 	}
 
 	// RTV
 	{
 		// Build Descriptor Heap
 		D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-		heapDesc.NumDescriptors = (UINT)mRenderTargets.size() + mSwapChain->GetSwapChainBufferCount();
+		heapDesc.NumDescriptors = (UINT)mRenderTargets.size() + mSwapChain->GetSwapChainBufferCount() + (UINT)mSpotLights.size();
 		heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
 		heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 		heapDesc.NodeMask = 0;
@@ -195,12 +239,19 @@ void SceneGraphApp::BuildDescriptorHeaps()
 		mRenderTargets["fxaa"]->SetRTVCPUHandle(mRTVHeap->GetCPUHandle(mRTVHeap->Alloc()));
 		UINT index = mRTVHeap->Alloc(mSwapChain->GetSwapChainBufferCount());
 		mSwapChain->SetRTVCPUHandleStart(mRTVHeap->GetCPUHandle(index));
+
+		for (auto& spotLight : mSpotLights)
+			spotLight.ShadowRT->SetRTVCPUHandle(mRTVHeap->GetCPUHandle(mRTVHeap->Alloc()));
 	}
 
 	// CBV, SRV, UAV // GPU heap
 	{
 		D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-		heapDesc.NumDescriptors = 2 + (UINT)mRenderTargets.size() + mSwapChain->GetSwapChainBufferCount() + (UINT)mResourceTextures.size();
+		heapDesc.NumDescriptors = 
+			2 + (UINT)mRenderTargets.size() 
+			+ mSwapChain->GetSwapChainBufferCount() 
+			+ (UINT)mResourceTextures.size() 
+			+ (UINT)mSpotLights.size();
 		heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 		heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 		heapDesc.NodeMask = 0;
@@ -238,6 +289,10 @@ void SceneGraphApp::BuildDescriptorHeaps()
 		index = mCBVSRVUAVHeap->Alloc((UINT)mResourceTextures.size());
 		mTexGPUHandleStart = mCBVSRVUAVHeap->GetGPUHandle(index);
 		mTexCPUHandleStart = mCBVSRVUAVHeap->GetCPUHandle(index);
+
+		index = mCBVSRVUAVHeap->Alloc((UINT)mSpotLights.size());
+		mSpotShadowTexCPUHandleStart = mCBVSRVUAVHeap->GetCPUHandle(index);
+		mSpotShadowTexGPUHandleStart = mCBVSRVUAVHeap->GetGPUHandle(index);
 	}
 
 	// CBV, SRV, UAV // CPU heap
@@ -254,6 +309,20 @@ void SceneGraphApp::BuildDescriptorHeaps()
 
 		UINT index = mCBVSRVUAVCPUHeap->Alloc();
 		mNCountUAVCPUHeapCPUHandle = mCBVSRVUAVCPUHeap->GetCPUHandle(index);
+	}
+
+	// Light Shadow RenderTarget's SRV Handle Set
+	{
+		CD3DX12_CPU_DESCRIPTOR_HANDLE cpuHandle(mSpotShadowTexCPUHandleStart);
+		CD3DX12_GPU_DESCRIPTOR_HANDLE gpuHandle(mSpotShadowTexGPUHandleStart);
+		for (UINT i = 0; i < mSpotLights.size(); i++) {
+			auto& spotLight = mSpotLights[i];
+			spotLight.ShadowSRVID = i+1;
+			spotLight.ShadowRT->SetSRVCPUHandle(cpuHandle);
+			spotLight.ShadowRT->SetSRVGPUHandle(gpuHandle);
+			cpuHandle.Offset(1, mCbvSrvUavDescriptorSize);
+			gpuHandle.Offset(1, mCbvSrvUavDescriptorSize);
+		}
 	}
 }
 
@@ -353,18 +422,37 @@ void SceneGraphApp::BuildRootSignature()
 
 	auto staticSamplers = GetStaticSamplers();
 
-	{ // Standard
+	// Shadow
+	{
 	/*
-		cb perObject{
-			float4x4 modelMat;
-		}
-		cb perMaterial{
-			float4 diffuse;
-		}
-		cb perPass{
-			float4x4 viewMat;
-			float4x4 projMat;
-		}
+		cb perObject;
+		cb perPass;
+	*/
+		// Describe root parameters
+		std::vector<CD3DX12_ROOT_PARAMETER> rootParams;
+		rootParams.push_back(GetCBVParam(0)); // 0
+		rootParams.push_back(GetCBVParam(1)); // 0
+
+		// Create desc for root signature
+		CD3DX12_ROOT_SIGNATURE_DESC rootSignDesc;
+		rootSignDesc.Init(
+			static_cast<UINT>(rootParams.size()), 
+			rootParams.data(),
+			static_cast<UINT>(staticSamplers.size()),
+			staticSamplers.data()
+		);
+		rootSignDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+
+		// Serialize And Create RootSignature
+		mRootSigns["shadow"] = SerializeAndCreateRootSignature(md3dDevice, &rootSignDesc);
+	}
+
+	// Standard
+	{
+	/*
+		cb perObject;
+		cb perMaterial;
+		cb perPass;
 
 		uab<uint32> ncount;
 		srb zbuffer;
@@ -388,6 +476,12 @@ void SceneGraphApp::BuildRootSignature()
 			(UINT)mResourceTextures.size(), 1,
 			0, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND
 		));
+		std::vector<D3D12_DESCRIPTOR_RANGE> shadowSRVranges;
+		shadowSRVranges.push_back(CD3DX12_DESCRIPTOR_RANGE(
+			D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
+			(UINT)mSpotLights.size(), 0,
+			1, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND
+		));
 
 		// Describe root parameters
 		std::vector<CD3DX12_ROOT_PARAMETER> rootParams;
@@ -397,6 +491,7 @@ void SceneGraphApp::BuildRootSignature()
 		rootParams.push_back(GetTableParam(nCountUAVranges)); // 3
 		rootParams.push_back(GetTableParam(zbufferSRVranges)); // 4
 		rootParams.push_back(GetTableParam(texSRVranges)); // 5
+		rootParams.push_back(GetTableParam(shadowSRVranges)); // 6
 
 		// Create desc for root signature
 		CD3DX12_ROOT_SIGNATURE_DESC rootSignDesc;
@@ -412,7 +507,8 @@ void SceneGraphApp::BuildRootSignature()
 		mRootSigns["standard"] = SerializeAndCreateRootSignature(md3dDevice, &rootSignDesc);
 	}
 
-	{ // transBlend
+	// transBlend
+	{ 
 	/*
 		uab<uint8> testUA;
 	*/
@@ -451,7 +547,8 @@ void SceneGraphApp::BuildRootSignature()
 		mRootSigns["transBlend"] = SerializeAndCreateRootSignature(md3dDevice, &rootSignDesc);
 	}
 
-	{ // FXAA
+	// FXAA
+	{ 
 	/*
 		cb fxaa;
 		tex tex;
@@ -499,10 +596,12 @@ void SceneGraphApp::BuildShaders()
 	std::string maxPointLightNumStr = std::to_string(MAX_POINT_LIGHT_NUM);
 	std::string maxSpotLightNumStr = std::to_string(MAX_SPOT_LIGHT_NUM);
 	std::string textureNumStr = std::to_string(mResourceTextures.size());
+	std::string spotShadowTexNumStr = std::to_string(mSpotLights.size());
 	defines.push_back({ "MAX_DIR_LIGHT_NUM", maxDirLightNumStr.c_str() });
 	defines.push_back({ "MAX_POINT_LIGHT_NUM", maxPointLightNumStr.c_str() });
 	defines.push_back({ "MAX_SPOT_LIGHT_NUM", maxSpotLightNumStr.c_str() });
 	defines.push_back({ "TEXTURE_NUM",  textureNumStr.c_str()});
+	defines.push_back({ "SPOT_SHADOW_TEX_NUM",  spotShadowTexNumStr.c_str()});
 	defines.push_back({ NULL, NULL });
 
 	// compile
@@ -529,6 +628,12 @@ void SceneGraphApp::BuildShaders()
 	);
 	mShaders["dispDS"] = d3dUtil::CompileShader(
 		L"displacementDomain.hlsl", defines.data(), "main", DS_TARGET
+	);
+	mShaders["shadowVS"] = d3dUtil::CompileShader(
+		L"shadowVertex.hlsl", defines.data(), "main", VS_TARGET
+	);
+	mShaders["shadowPS"] = d3dUtil::CompileShader(
+		L"shadowPixel.hlsl", defines.data(), "main", PS_TARGET
 	);
 }
 
@@ -631,6 +736,27 @@ void SceneGraphApp::BuildPSOs()
 	fxaaPsoDesc.SampleDesc.Count = 1;
 	fxaaPsoDesc.SampleDesc.Quality = 0;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&fxaaPsoDesc, IID_PPV_ARGS(&mPSOs["fxaa"])));
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC shadowPsoDesc = opaquePsoDesc;
+	shadowPsoDesc.InputLayout = {
+		mInputLayouts["onlyPos"].data(),
+		(UINT)mInputLayouts["onlyPos"].size()
+	};
+	shadowPsoDesc.pRootSignature = mRootSigns["shadow"].Get();
+	shadowPsoDesc.VS = {
+		reinterpret_cast<BYTE*>(mShaders["shadowVS"]->GetBufferPointer()),
+		mShaders["shadowVS"]->GetBufferSize()
+	};
+	shadowPsoDesc.PS = {
+		reinterpret_cast<BYTE*>(mShaders["shadowPS"]->GetBufferPointer()),
+		mShaders["shadowPS"]->GetBufferSize()
+	};
+	shadowPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_FRONT;
+	shadowPsoDesc.RTVFormats[0] = DXGI_FORMAT_R32_FLOAT; // TODO ref, instead of directly assign
+	shadowPsoDesc.SampleDesc.Count = 1;
+	shadowPsoDesc.SampleDesc.Quality = 0;
+	shadowPsoDesc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&shadowPsoDesc, IID_PPV_ARGS(&mPSOs["shadow"])));
 }
 
 void SceneGraphApp::LoadTextures()
@@ -1023,7 +1149,9 @@ void SceneGraphApp::BuildRenderItems()
 				// Create Object constants
 				auto consts = std::make_shared<ObjectConstants>();
 				auto modelMat = XMMatrixScaling(0.3f, 0.3f, 0.3f);
-				modelMat = XMMatrixMultiply(modelMat, XMMatrixTranslation(0.0f, 0.0f, 0.0f));
+				modelMat = XMMatrixMultiply(modelMat, XMMatrixRotationY(MathHelper::AngleToRadius(45)));
+				//modelMat = XMMatrixMultiply(modelMat, XMMatrixRotationX(MathHelper::AngleToRadius(45)));
+				modelMat = XMMatrixMultiply(modelMat, XMMatrixTranslation(-0.3f, 0.0f, 0.0f));
 				XMStoreFloat4x4(
 					&consts->content.ModelMat, 
 					XMMatrixTranspose(modelMat)
@@ -1406,6 +1534,35 @@ void SceneGraphApp::ResizeRenderTargets()
 		md3dDevice,
 		mClientWidth, mClientHeight
 	);
+
+	// Light Shadows Render Target
+	{
+		D3D12_RESOURCE_DESC colorDesc;
+		colorDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+		colorDesc.Alignment = 0;
+		colorDesc.Width = mClientWidth;
+		colorDesc.Height = mClientHeight;
+		colorDesc.DepthOrArraySize = 1;
+		colorDesc.MipLevels = 1;
+		colorDesc.SampleDesc.Count = 1;
+		colorDesc.SampleDesc.Quality = 0;
+		colorDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+		colorDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+
+		D3D12_RESOURCE_DESC depthDesc = colorDesc;
+		depthDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+
+		for (auto& spotLight : mSpotLights) {
+			colorDesc.Format = spotLight.ShadowRT->GetColorViewFormat();
+			depthDesc.Format = spotLight.ShadowRT->GetDepthStencilResourceFormat();
+
+			spotLight.ShadowRT->Resize(
+				md3dDevice,
+				&colorDesc,
+				&depthDesc
+			);
+		}
+	}
 }
 
 void SceneGraphApp::ResizeFxaa()
@@ -1551,6 +1708,16 @@ void SceneGraphApp::Update(const GameTimer& gt)
 		);
 	}
 
+	// Upload Shadow Pass Constant
+	{
+		for (auto& spotLight : mSpotLights) {
+			mShadowPassConstantsBuffers->CopyData(
+				spotLight.PassConstants->getID(),
+				spotLight.PassConstants->content
+			);
+		}
+	}
+
 	// Upload Object Constant
 	{
 		for (auto renderItem : mOpaqueRenderItemQueue) {
@@ -1658,7 +1825,77 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 		);
 	}
 
-	// Vars for convenience. Note, do not alloc or free for these vars, only assign.
+	// Draw Shadows
+	{
+		// Set Root Signature
+		mCommandList->SetGraphicsRootSignature(mRootSigns["shadow"].Get());
+
+		// Set PSOs
+		mCommandList->SetPipelineState(mPSOs["shadow"].Get());
+
+		auto objCBGPUAddr = mObjectConstantsBuffers->Resource()->GetGPUVirtualAddress();
+		UINT64 objCBElementByteSize = mObjectConstantsBuffers->getElementByteSize();
+		auto passCBGPUAddr = mShadowPassConstantsBuffers->Resource()->GetGPUVirtualAddress();
+		UINT64 passCBElementByteSize = mShadowPassConstantsBuffers->getElementByteSize();
+
+
+		for (auto& spotLight : mSpotLights) {
+			// Assign Pass Constants
+			mCommandList->SetGraphicsRootConstantBufferView(
+				1, passCBGPUAddr + spotLight.PassConstants->getID() * passCBElementByteSize
+			);
+
+			// Set RenderTarget
+			mCommandList->OMSetRenderTargets(
+				1, &spotLight.ShadowRT->GetRTVCPUHandle(),
+				true, &spotLight.ShadowRT->GetDSVCPUHandle()
+			);
+
+			// Clear RenderTarget
+			mCommandList->ClearRenderTargetView(
+				spotLight.ShadowRT->GetRTVCPUHandle(),
+				spotLight.ShadowRT->GetColorClearValue(),
+				0, nullptr
+			);
+			mCommandList->ClearDepthStencilView(
+				spotLight.ShadowRT->GetDSVCPUHandle(),
+				D3D12_CLEAR_FLAG_DEPTH,
+				spotLight.ShadowRT->GetDepthClearValue(),
+				spotLight.ShadowRT->GetStencilClearValue(),
+				0, nullptr
+			);
+
+
+			// Draw Render Items
+			// TODO Note, now we only draw opaque items' shadow
+			for(auto renderItem: mOpaqueRenderItemQueue)
+			{
+				// Set IA
+				D3D12_VERTEX_BUFFER_VIEW VBVs[1] = {
+					renderItem->Geo->VertexBufferView()
+				};
+				mCommandList->IASetVertexBuffers(0, 1, VBVs);
+				mCommandList->IASetIndexBuffer(&renderItem->Geo->IndexBufferView());
+				mCommandList->IASetPrimitiveTopology(renderItem->PrimitiveTopology);
+
+				// Assign Object Constants Buffer
+				mCommandList->SetGraphicsRootConstantBufferView(
+					0, objCBGPUAddr + renderItem->ObjConsts->getID()*objCBElementByteSize
+				);
+
+				// Draw Call
+				mCommandList->DrawIndexedInstanced(
+					renderItem->Submesh.IndexCount, 
+					1,
+					renderItem->Submesh.StartIndexLocation,
+					renderItem->Submesh.BaseVertexLocation,
+					0
+				);
+			}
+		}
+	}
+
+	// Vars for convenience. Note, do not alloc or free for these vars, only referece.
 	RenderTarget* nowColorRenderTarget = nullptr;
 	RenderTarget* nowDSRenderTarget = nullptr;
 
@@ -1670,6 +1907,11 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 		// Assign Textures
 		mCommandList->SetGraphicsRootDescriptorTable(
 			5, mTexGPUHandleStart
+		);
+
+		// Assign Light Shadow Textures
+		mCommandList->SetGraphicsRootDescriptorTable(
+			6, mSpotShadowTexGPUHandleStart
 		);
 
 		// Assign Pass Constants Buffer
@@ -1988,8 +2230,17 @@ std::vector<CD3DX12_STATIC_SAMPLER_DESC> SceneGraphApp::GetStaticSamplers()
 		D3D12_TEXTURE_ADDRESS_MODE_WRAP
 	);
 
+	const CD3DX12_STATIC_SAMPLER_DESC nearestBorder(
+		1,
+		D3D12_FILTER_MIN_MAG_MIP_POINT,
+		D3D12_TEXTURE_ADDRESS_MODE_BORDER,
+		D3D12_TEXTURE_ADDRESS_MODE_BORDER,
+		D3D12_TEXTURE_ADDRESS_MODE_BORDER
+	);
+
 	return {
-		bilinearWrap
+		bilinearWrap,
+		nearestBorder
 	};
 }
 
