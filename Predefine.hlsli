@@ -24,6 +24,10 @@
     #define SPOT_SHADOW_TEX_NUM 1
 #endif
 
+#ifndef DIR_SHADOW_TEX_NUM
+    #define DIR_SHADOW_TEX_NUM 1
+#endif
+
 // #define MULTIPLE_SAMPLE 4
 
 #endif// PREDEFINE_H

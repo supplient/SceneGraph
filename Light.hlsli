@@ -38,7 +38,23 @@ float3 calLights(float4 posW, float4 normalW)
     for (i = 0; i < gLightPerTypeNum.x; i++)
     {
         float lambCos = calLambCos(gDirLights[i].direction, normalW);
-        sum += lambCos * gDirLights[i].color.xyz;
+
+        // Shadow Test
+        float shadowFactor = 1.0f;
+        if (gDirLights[i].id > 0)
+        {
+            float4 posLi = mul(mul(posW, gDirLights[i].viewMat), gDirLights[i].projMat);
+            posLi.xyz = posLi.xyz / posLi.w;
+            posLi.w = 1.0f;
+            float2 shadowUV = (posLi.xy + 1.0f) / 2.0f;
+            shadowUV.y = 1.0f - shadowUV.y;
+            float occluderDepth = gDirShadowTexs[gDirLights[i].id - 1].Sample(nearestBorder, shadowUV).r;
+            float receiverDepth = posLi.z;
+            if(receiverDepth > occluderDepth)
+                shadowFactor = 0.0f;
+        }
+
+        sum += shadowFactor * lambCos * gDirLights[i].color.xyz;
     }
 
     // point lights
@@ -62,8 +78,7 @@ float3 calLights(float4 posW, float4 normalW)
 
         // Shadow Test
         float shadowFactor = 1.0f;
-        bool TEST_FLAG = true;
-        if (TEST_FLAG && gSpotLights[i].id > 0)
+        if (gSpotLights[i].id > 0)
         {
             float4 posLi = mul(mul(posW, gSpotLights[i].viewMat), gSpotLights[i].projMat);
             posLi.xyz = posLi.xyz / posLi.w;

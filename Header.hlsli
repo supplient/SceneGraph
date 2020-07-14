@@ -6,6 +6,10 @@ struct DirLight
 {
     float4 color;
     float4 direction;
+    float4x4 viewMat;
+    float4x4 projMat;
+    uint id;
+    float3 padding1;
 };
 
 struct PointLight
@@ -22,6 +26,7 @@ struct SpotLight
     float4x4 viewMat;
     float4x4 projMat;
     uint id;
+    float3 padding1;
 };
 
 struct VertexIn
@@ -90,6 +95,7 @@ RWTexture2D<uint> uabNCount : register(u0);
 // Textures // This does not follow the name convention, for convenience
 Texture2D gTexs[TEXTURE_NUM] : register(t1, space0);
 Texture2D gSpotShadowTexs[SPOT_SHADOW_TEX_NUM] : register(t0, space1);
+Texture2D gDirShadowTexs[DIR_SHADOW_TEX_NUM] : register(t0, space2);
 
 // Samplers
 SamplerState bilinearWrap : register(s0);

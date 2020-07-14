@@ -134,6 +134,8 @@ private:
 	std::vector<SpotLight> mSpotLights;
 
 	// Light Shadows
+	D3D12_GPU_DESCRIPTOR_HANDLE mDirShadowTexGPUHandleStart;
+	D3D12_CPU_DESCRIPTOR_HANDLE mDirShadowTexCPUHandleStart;
 	D3D12_GPU_DESCRIPTOR_HANDLE mSpotShadowTexGPUHandleStart;
 	D3D12_CPU_DESCRIPTOR_HANDLE mSpotShadowTexCPUHandleStart;
 

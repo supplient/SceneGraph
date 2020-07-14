@@ -21,6 +21,10 @@ public:
 	struct Content {
 		DirectX::XMFLOAT4 Color = { 1.0f, 1.0f, 1.0f, 1.0f };
 		DirectX::XMFLOAT4 Direction = { 0.0f, 0.0f, 1.0f, 0.0f };
+		DirectX::XMFLOAT4X4 ViewMat = MathHelper::Identity4x4();
+		DirectX::XMFLOAT4X4 ProjMat = MathHelper::Identity4x4();
+		UINT ShadowSRVID = 0;
+		DirectX::XMFLOAT3  padding1;
 	};
 	Content ToContent()const {
 		Content content;
@@ -32,10 +36,42 @@ public:
 		DirectX::XMStoreFloat4(&content.Direction, direction);
 
 		content.Color = MathHelper::XMFLOAT3TO4(Color, 1.0f);
+		content.ShadowSRVID = ShadowSRVID;
+
+		DirectX::XMStoreFloat4x4(
+			&content.ViewMat,
+			DirectX::XMMatrixTranspose(CalLightViewMat())
+		);
+		DirectX::XMStoreFloat4x4(
+			&content.ProjMat,
+			DirectX::XMMatrixTranspose(CalLightProjMat())
+		);
 		return content;
 	}
 
+	DirectX::XMMATRIX CalLightViewMat()const {
+		DirectX::XMVECTOR upDir = { 0.0f, 1.0f, 0.0f, 0.0f };
+		DirectX::XMVECTOR eyeDir = DirectX::XMLoadFloat3(&Direction);
+		// TODO 10.0f is just set for test
+		// It should be acuqired from light's settings
+		DirectX::XMVECTOR eyePos = DirectX::XMVectorScale(eyeDir, -5.0f);
+		return DirectX::XMMatrixLookToLH(eyePos, eyeDir, upDir);
+	}
+
+	DirectX::XMMATRIX CalLightProjMat()const {
+		// TODO These nums are just set for test
+		// They should be acquired from light's settings
+		return DirectX::XMMatrixOrthographicLH(
+			10.0f, 10.0f,
+			0.01f, 20.0f
+		);
+	}
+
 	DirectX::XMFLOAT3 Direction = { 0.0f, 0.0f, 1.0f };
+
+	std::unique_ptr<SingleRenderTarget> ShadowRT = nullptr;
+	UINT ShadowSRVID = 0;
+	std::unique_ptr<ShadowPassConstants> PassConstants = nullptr;
 };
 
 class PointLight : public Light {
@@ -72,6 +108,7 @@ public:
 		DirectX::XMFLOAT4X4 ViewMat = MathHelper::Identity4x4();
 		DirectX::XMFLOAT4X4 ProjMat = MathHelper::Identity4x4();
 		UINT ShadowSRVID = 0;
+		DirectX::XMFLOAT3  padding1;
 	};
 	Content ToContent()const {
 		Content content;
