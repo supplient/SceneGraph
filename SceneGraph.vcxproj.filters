@@ -163,6 +163,12 @@
     <FxCompile Include="shadowPixel.hlsl">
       <Filter>Shaders\Pixel</Filter>
     </FxCompile>
+    <FxCompile Include="pointShadowVertex.hlsl">
+      <Filter>Shaders\Vertex</Filter>
+    </FxCompile>
+    <FxCompile Include="pointShadowPixel.hlsl">
+      <Filter>Shaders\Pixel</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="Fxaa3_11.hlsli">
@@ -178,6 +184,9 @@
       <Filter>Shaders\Headers</Filter>
     </None>
     <None Include="Predefine.hlsli">
+      <Filter>Shaders\Headers</Filter>
+    </None>
+    <None Include="pointShadowHeader.hlsli">
       <Filter>Shaders\Headers</Filter>
     </None>
   </ItemGroup>
