@@ -91,7 +91,7 @@ void SceneGraphApp::BuildLights()
 
 	mSpotLights.push_back({
 		{0.2f, 1.0f, 0.4f},
-		{0.7f, 0.0f, 0.0f},
+		{1.0f, 0.0f, 0.0f},
 		{-1.0f, 0.0f, 0.0f}
 	});
 
