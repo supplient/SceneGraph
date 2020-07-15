@@ -64,9 +64,20 @@ float3 calLights(float4 posW, float4 normalW)
         float dist = length(dir);
         dir = normalize(dir);
 
+        // Shadow Test
+        float shadowFactor = 1.0f;
+        if (gPointLights[i].id > 0)
+        {
+            float3 shadowUVW = (posW - gPointLights[i].pos).xyz;
+            float occluderDepth = gPointShadowTexs[gPointLights[i].id - 1].Sample(nearestBorder, shadowUVW).r;
+            float receiverDepth = length(shadowUVW);
+            if(receiverDepth > occluderDepth)
+                shadowFactor = 0.0f;
+        }
+
         float lambCos = calLambCos(dir, normalW);
         float distAtte = calDistAttenuation(dist);
-        sum += distAtte * lambCos * gPointLights[i].color.xyz;
+        sum += shadowFactor * distAtte * lambCos * gPointLights[i].color.xyz;
     }
 
     // spot lights

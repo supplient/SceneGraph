@@ -59,6 +59,7 @@ public:
 	// ScreenSize Concerned Resources' Init
 	void ResizeScreenUAVSRV();
 	void ResizeRenderTargets();
+	void ResizeShadowRenderTargets();
 	void ResizeFxaa();
 
 	/// <summary>
@@ -88,6 +89,14 @@ private:
 	// Settings
 	bool mUseFXAA = false;
 	void UpdateFXAAState(bool newState);
+	// TODO The solutions of shadow mapping should be dynamic
+	//		Here we hard-encoding them for convenience
+	static const UINT SHADOW_MAPPING_WIDTH = 1024;
+	static const UINT SHADOW_MAPPING_HEIGHT = 1024;
+
+	// Viewports & ScissorRects
+	D3D12_VIEWPORT mShadowScreenViewport;
+    D3D12_RECT mShadowScissorRect;
 
 	// Camera
 	Camera mCamera;
@@ -138,6 +147,8 @@ private:
 	D3D12_CPU_DESCRIPTOR_HANDLE mDirShadowTexCPUHandleStart;
 	D3D12_GPU_DESCRIPTOR_HANDLE mSpotShadowTexGPUHandleStart;
 	D3D12_CPU_DESCRIPTOR_HANDLE mSpotShadowTexCPUHandleStart;
+	D3D12_GPU_DESCRIPTOR_HANDLE mPointShadowTexGPUHandleStart;
+	D3D12_CPU_DESCRIPTOR_HANDLE mPointShadowTexCPUHandleStart;
 
 	// Textures
 	std::unordered_map<std::string, std::unique_ptr<ResourceTexture>> mResourceTextures;

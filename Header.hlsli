@@ -16,6 +16,8 @@ struct PointLight
 {
     float4 color;
     float4 pos;
+    uint id;
+    float3 padding1;
 };
 
 struct SpotLight
@@ -31,17 +33,17 @@ struct SpotLight
 
 struct VertexIn
 {
-    float3 posL : POSITION;
-    float3 normalL : NORMAL;
-    float3 tangentL : TANGENT;
+    float3 posL : POSITION_LOCAL;
+    float3 normalL : NORMAL_LOCAL;
+    float3 tangentL : TANGENT_LOCAL;
     float2 tex : TEXTURE;
 };
 
 struct VertexOut
 {
-    float4 posW : POSITION;
-    float4 normalW : NORMAL;
-    float4 tangentW : TANGENT;
+    float4 posW : POSITION_WORLD;
+    float4 normalW : NORMAL_WORLD;
+    float4 tangentW : TANGENT_WORLD;
     float2 tex : TEXTURE;
     float4 posH : SV_POSITION;
 };
@@ -96,6 +98,7 @@ RWTexture2D<uint> uabNCount : register(u0);
 Texture2D gTexs[TEXTURE_NUM] : register(t1, space0);
 Texture2D gSpotShadowTexs[SPOT_SHADOW_TEX_NUM] : register(t0, space1);
 Texture2D gDirShadowTexs[DIR_SHADOW_TEX_NUM] : register(t0, space2);
+TextureCube gPointShadowTexs[POINT_SHADOW_TEX_NUM] : register(t0, space3);
 
 // Samplers
 SamplerState bilinearWrap : register(s0);

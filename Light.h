@@ -76,6 +76,8 @@ public:
 
 class PointLight : public Light {
 public:
+	static const UINT RTVNum = 6;
+
 	PointLight(DirectX::XMFLOAT3 color, DirectX::XMFLOAT3 pos)
 		:Light(color), Position(pos) {
 	}
@@ -83,16 +85,57 @@ public:
 	struct Content {
 		DirectX::XMFLOAT4 Color = { 1.0f, 1.0f, 1.0f, 1.0f };
 		DirectX::XMFLOAT4 Pos = { 0.0f, 0.0f, 0.0f, 1.0f };
+		UINT ShadowSRVID = 0;
+		DirectX::XMFLOAT3  padding1;
 	};
 	Content ToContent()const {
 		Content content;
 
 		content.Pos = MathHelper::XMFLOAT3TO4(Position, 1.0f);
 		content.Color = MathHelper::XMFLOAT3TO4(Color, 1.0f);
+		content.ShadowSRVID = ShadowSRVID;
 		return content;
 	}
 
+	std::array<DirectX::XMMATRIX, 6> CalLightViewMats()const {
+		DirectX::XMVECTOR eyePos = DirectX::XMLoadFloat3(&Position);
+		static const std::array<DirectX::XMVECTOR, 6> eyeDirs = {
+			DirectX::XMVECTOR{1.0f, 0.0f, 0.0f, 0.0f}, // +x
+			DirectX::XMVECTOR{-1.0f, 0.0f, 0.0f, 0.0f}, // -x
+			DirectX::XMVECTOR{0.0f, 1.0f, 0.0f, 0.0f}, // +y
+			DirectX::XMVECTOR{0.0f, -1.0f, 0.0f, 0.0f}, // -y
+			DirectX::XMVECTOR{0.0f, 0.0f, 1.0f, 0.0f}, // +z
+			DirectX::XMVECTOR{0.0f, 0.0f, -1.0f, 0.0f} // -z
+		};
+		static const std::array<DirectX::XMVECTOR, 6> upDirs = {
+			DirectX::XMVECTOR{0.0f, 1.0f, 0.0f, 0.0f}, // +x
+			DirectX::XMVECTOR{0.0f, 1.0f, 0.0f, 0.0f}, // -x
+			DirectX::XMVECTOR{0.0f, 0.0f, -1.0f, 0.0f}, // +y
+			DirectX::XMVECTOR{0.0f, 0.0f, 1.0f, 0.0f}, // -y
+			DirectX::XMVECTOR{0.0f, 1.0f, 0.0f, 0.0f}, // +z
+			DirectX::XMVECTOR{0.0f, 1.0f, 0.0f, 0.0f} // -z
+		};
+
+		std::array<DirectX::XMMATRIX, 6> res;
+		for (int i = 0; i < 6; i++)
+			res[i] = DirectX::XMMatrixLookToLH(eyePos, eyeDirs[i], upDirs[i]);
+		return res;
+	}
+	DirectX::XMMATRIX CalLightProjMat()const {
+		// TODO These nums are just set for test
+		// They should be acquired from light's settings
+		return DirectX::XMMatrixPerspectiveFovLH(
+			MathHelper::AngleToRadius(90.0f),
+			1.0f,
+			0.01f, 10.0f
+		);
+	}
+	
 	DirectX::XMFLOAT3 Position = { 0.0f, 0.0f, 0.0f };
+
+	std::unique_ptr<CubeRenderTarget> ShadowRT = nullptr;
+	UINT ShadowSRVID = 0;
+	std::array<std::unique_ptr<ShadowPassConstants>, 6> PassConstantsArray;
 };
 
 class SpotLight : public Light {

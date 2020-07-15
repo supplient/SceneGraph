@@ -11,6 +11,7 @@ VertexOut main( VertexIn vin )
     vout.posH = mul(mul(vout.posW, gViewMat), gProjMat);
     vout.tangentW = mul(float4(vin.tangentL, 0.0f), gModelMat);
     vout.normalW = normalize(mul(float4(vin.normalL, 0.0), gNormalModelMat));
+    // TODO some bug with normalW
     vout.tex = vin.tex;
     
 	return vout;
