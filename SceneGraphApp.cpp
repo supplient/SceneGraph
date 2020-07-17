@@ -85,13 +85,15 @@ void SceneGraphApp::BuildLights()
 	});
 
 	mPointLights.push_back({
-		{1.0f, 0.4f, 0.2f},
-		{0.0f, 0.3f, 0.0f}
+		// {1.0f, 0.4f, 0.2f},
+		{0.0f, 0.0f, 0.0f},
+		{0.0f, 2.0f, 0.0f}
 	});
 
 	mSpotLights.push_back({
-		{0.2f, 1.0f, 0.4f},
-		{1.0f, 0.0f, 0.0f},
+		// {0.2f, 1.0f, 0.4f},
+		{0.0f, 0.0f, 0.0f},
+		{2.0f, 0.0f, 0.0f},
 		{-1.0f, 0.0f, 0.0f}
 	});
 
@@ -799,7 +801,7 @@ void SceneGraphApp::BuildPSOs()
 		mShaders["ps"]->GetBufferSize()
 	};
 	opaquePsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-	opaquePsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+	opaquePsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
 	opaquePsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 	opaquePsoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
 	opaquePsoDesc.SampleMask = UINT_MAX;
@@ -1014,7 +1016,6 @@ void SceneGraphApp::BuildGeos()
 			XMFLOAT3 normal;
 			XMFLOAT3 tangent;
 			XMFLOAT2 tex;
-			XMFLOAT2 uvScale;
 		};
 
 		// Create Geo
@@ -1073,6 +1074,58 @@ void SceneGraphApp::BuildGeos()
 				});
 			}
 			indices.insert(indices.end(), boardIndices.begin(), boardIndices.end());
+		}
+		{
+			// ViewVolume
+			std::vector<XMFLOAT3> subVerts = {
+				{-0.5f, -0.5f, -0.5f}, // left down back // 0
+				{0.5f, -0.5f, -0.5f}, // right down back // 1
+				{0.5f, 0.5f, -0.5f}, // right up back // 2
+				{-0.5f, 0.5f, -0.5f}, // left up back // 3
+				{-1.0f, -1.0f, 0.5f}, // left down front // 4
+				{1.0f, -1.0f, 0.5f}, // right down front // 5
+				{1.0f, 1.0f, 0.5f}, // right up front // 6
+				{-1.0f, 1.0f, 0.5f} // left up front // 7
+			};
+			std::vector<XMFLOAT3> subNormals = subVerts;
+			for (auto& n : subNormals) {
+				XMVECTOR k = XMLoadFloat3(&n);
+				k = XMVector3Normalize(k);
+				XMStoreFloat3(&n, k);
+			}
+			std::vector<UINT32> subIndices = {
+				0, 3, 1, // down in back
+				2, 1, 3, // up in back
+
+				4, 5, 7, // down in front
+				6, 7, 5, // up in front
+
+				3, 0, 7, // up in left
+				7, 0, 4, // down in left
+
+				2, 6, 1, // up in right
+				1, 6, 5, // down in right
+
+				7, 6, 3, // left in up
+				3, 6, 2, // right in up
+
+				5, 4, 0, // left in down
+				0, 1, 5 // right in down
+			};
+
+			SubmeshGeometry submesh;
+			submesh.BaseVertexLocation = static_cast<UINT>(verts.size());
+			submesh.StartIndexLocation = static_cast<UINT>(indices.size());
+			submesh.IndexCount = static_cast<UINT>(subIndices.size());
+			geo->DrawArgs["viewVolume"] = submesh;
+
+			for (UINT i = 0; i < subVerts.size(); i++) {
+				verts.push_back({ 
+					subVerts[i], 
+					subNormals[i]
+				});
+			}
+			indices.insert(indices.end(), subIndices.begin(), subIndices.end());
 		}
 
 		// Fill buffer info & Upload
@@ -1292,6 +1345,7 @@ void SceneGraphApp::BuildRenderItems()
 		*/
 
 		// Cube
+		/*
 		{
 			// mid
 			{
@@ -1395,6 +1449,7 @@ void SceneGraphApp::BuildRenderItems()
 				mOpaqueRenderItemQueue.push_back(std::move(renderItem));
 			}
 		}
+		*/
 
 		// Displacement Cube
 		/*
@@ -1417,6 +1472,26 @@ void SceneGraphApp::BuildRenderItems()
 			mRenderItemQueue.push_back(std::move(renderItem));
 		}
 		*/
+
+		// ViewVolume
+		{
+			// Create Object constants
+			auto consts = std::make_shared<ObjectConstants>();
+			consts->content.ModelMat = MathHelper::Identity4x4();
+			mObjConsts["viewVolume"] = consts;
+
+			// Create render items
+			auto renderItem = std::make_shared<RenderItem>();
+			renderItem->Geo = mGeos["triangle"];
+			renderItem->Submesh = mGeos["triangle"]->DrawArgs["viewVolume"];
+			renderItem->PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+			renderItem->MtlConsts = mMtlConsts["white"];
+			renderItem->PSO = "opaque";
+			renderItem->ObjConsts = mObjConsts["viewVolume"];
+
+			// Save render items
+			mOpaqueRenderItemQueue.push_back(std::move(renderItem));
+		}
 	}
 
 	// Transparent
