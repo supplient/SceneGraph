@@ -100,16 +100,6 @@ void SceneGraphApp::BuildLights()
 	// Cal shadow pass constants
 	for (auto& dirLight : mDirLights) {
 		dirLight.PassConstants = std::make_unique<ShadowPassConstants>();
-		auto& content = dirLight.PassConstants->content;
-
-		XMStoreFloat4x4(
-			&content.ViewMat, 
-			XMMatrixTranspose(dirLight.CalLightViewMat())
-		);
-		XMStoreFloat4x4(
-			&content.ProjMat, 
-			XMMatrixTranspose(dirLight.CalLightProjMat())
-		);
 	}
 	for (auto& pointLight : mPointLights) {
 		auto viewMats = pointLight.CalLightViewMats();
@@ -966,8 +956,6 @@ void SceneGraphApp::UpdateLightsInPassConstantBuffers()
 	auto& content = mPassConstants->content;
 
 	// direction lights
-	for (unsigned int i = 0; i < mDirLights.size(); i++)
-		content.DirLights[i] = mDirLights[i].ToContent();
 	content.LightPerTypeNum.x = static_cast<UINT32>(mDirLights.size());
 
 	// point lights
@@ -1345,7 +1333,6 @@ void SceneGraphApp::BuildRenderItems()
 		*/
 
 		// Cube
-		/*
 		{
 			// mid
 			{
@@ -1449,7 +1436,6 @@ void SceneGraphApp::BuildRenderItems()
 				mOpaqueRenderItemQueue.push_back(std::move(renderItem));
 			}
 		}
-		*/
 
 		// Displacement Cube
 		/*
@@ -1474,6 +1460,7 @@ void SceneGraphApp::BuildRenderItems()
 		*/
 
 		// ViewVolume
+		/*
 		{
 			// Create Object constants
 			auto consts = std::make_shared<ObjectConstants>();
@@ -1492,6 +1479,7 @@ void SceneGraphApp::BuildRenderItems()
 			// Save render items
 			mOpaqueRenderItemQueue.push_back(std::move(renderItem));
 		}
+		*/
 	}
 
 	// Transparent
@@ -1921,6 +1909,27 @@ void SceneGraphApp::Update(const GameTimer& gt)
 {
 	// Notice: Be careful, matrix need transpose.
 
+	float screenWidthHeightAspect = static_cast<float>(mClientWidth) / static_cast<float>(mClientHeight);
+
+	// Update Dir Lights' Box
+	for (auto& dirLight : mDirLights) {
+		dirLight.SetViewVolumes(mCamera.GetViewVolumeVerts(screenWidthHeightAspect));
+	}
+
+	// Update Dir Lights' ShadowPassConstants
+	for (auto& dirLight : mDirLights) {
+		auto& content = dirLight.PassConstants->content;
+
+		XMStoreFloat4x4(
+			&content.ViewMat,
+			XMMatrixTranspose(dirLight.CalLightViewMat())
+		);
+		XMStoreFloat4x4(
+			&content.ProjMat,
+			XMMatrixTranspose(dirLight.CalLightProjMat())
+		);
+	}
+
 	// Update Pass Constants
 	{
 		auto& content = mPassConstants->content;
@@ -1933,11 +1942,13 @@ void SceneGraphApp::Update(const GameTimer& gt)
 		XMStoreFloat4x4(&content.ViewMat, viewMat);
 
 
-		XMMATRIX projMat = mCamera.GetOrthoProjMatrix(
-			static_cast<float>(mClientWidth)/static_cast<float>(mClientHeight)
-		);
+		XMMATRIX projMat = mCamera.GetOrthoProjMatrix(screenWidthHeightAspect);
 		projMat = XMMatrixTranspose(projMat);
 		XMStoreFloat4x4(&content.ProjMat, projMat);
+
+		// direction lights
+		for (unsigned int i = 0; i < mDirLights.size(); i++)
+			content.DirLights[i] = mDirLights[i].ToContent();
 	}
 
 	// Update Object Constants

@@ -61,6 +61,35 @@ public:
 		);
 	}
 
+	std::array<DirectX::XMFLOAT4, 8> GetViewVolumeVerts(float widthHeightAspect) {
+		std::array<DirectX::XMFLOAT4, 8> verts = {
+			DirectX::XMFLOAT4{-1, -1, 0, 1},
+			{-1, 1, 0, 1},
+			{1, 1, 0, 1},
+			{1, -1, 0, 1},
+			{-1, -1, 1, 1},
+			{-1, 1, 1, 1},
+			{1, 1, 1, 1},
+			{1, -1, 1, 1}
+		};
+
+		auto viewMat = GetViewMatrix();
+		auto viewDet = DirectX::XMMatrixDeterminant(viewMat);
+		viewMat = DirectX::XMMatrixInverse(&viewDet, viewMat);
+		auto projMat = GetOrthoProjMatrix(widthHeightAspect);
+		auto projDet = DirectX::XMMatrixDeterminant(projMat);
+		projMat = DirectX::XMMatrixInverse(&projDet, projMat);
+
+		for (int i = 0; i < 8; i++) {
+			DirectX::XMVECTOR vert = DirectX::XMLoadFloat4(&verts[i]);
+			vert = DirectX::XMVector4Transform(vert, projMat);
+			vert = DirectX::XMVector4Transform(vert, viewMat);
+			DirectX::XMStoreFloat4(&verts[i], vert);
+		}
+
+		return verts;
+	}
+
 	void DeltaDist(float delta) {
 		mDist += delta;
 		if (mDist < 0.5)
