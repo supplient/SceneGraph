@@ -120,14 +120,8 @@ public:
 		};
 	}
 
-	static bool XMFLOAT3Equal(const DirectX::XMFLOAT3& a, const DirectX::XMFLOAT3& b) {
-		if (a.x != b.x)
-			return false;
-		if (a.y != b.y)
-			return false;
-		if (a.z != b.z)
-			return false;
-		return true;
+	static bool XMFLOAT3Parallel(const DirectX::XMFLOAT3& a, const DirectX::XMFLOAT3& b) {
+		return a.x * b.y == b.x * a.y && a.x * b.z == b.x * a.z;
 	}
 
 	static DirectX::XMVECTOR RandUnitVec3();

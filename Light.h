@@ -268,7 +268,7 @@ public:
 
 	DirectX::XMMATRIX CalLightViewMat()const {
 		DirectX::XMVECTOR upDir = { 0.0f, 1.0f, 0.0f, 0.0f };
-		if (MathHelper::XMFLOAT3Equal(Direction, DirectX::XMFLOAT3(0.0f, 1.0f, 0.0f)))
+		if (MathHelper::XMFLOAT3Parallel(Direction, DirectX::XMFLOAT3(0.0f, 1.0f, 0.0f)))
 			upDir = { 0.0f, 0.0f, 1.0f, 0.0f };
 		DirectX::XMVECTOR eyePos = DirectX::XMLoadFloat3(&Position);
 		DirectX::XMVECTOR eyeDir = DirectX::XMLoadFloat3(&Direction);
