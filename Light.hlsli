@@ -33,6 +33,7 @@ float3 calLights(float4 posW, float4 normalW)
 
         // Shadow Test
         float shadowFactor = 1.0f;
+#if DIR_SHADOW_TEX_NUM > 0
         if (gDirLights[i].id > 0)
         {
             float4 posLi = mul(mul(posW, gDirLights[i].viewMat), gDirLights[i].projMat);
@@ -45,6 +46,7 @@ float3 calLights(float4 posW, float4 normalW)
             if(receiverDepth > occluderDepth)
                 shadowFactor = 0.0f;
         }
+#endif
 
         sum += shadowFactor * lambCos * gDirLights[i].color.xyz;
     }
@@ -58,6 +60,7 @@ float3 calLights(float4 posW, float4 normalW)
 
         // Shadow Test
         float shadowFactor = 1.0f;
+#if POINT_SHADOW_TEX_NUM > 0
         if (gPointLights[i].id > 0)
         {
             float3 shadowUVW = (posW - gPointLights[i].pos).xyz;
@@ -66,6 +69,7 @@ float3 calLights(float4 posW, float4 normalW)
             if(receiverDepth > occluderDepth)
                 shadowFactor = 0.0f;
         }
+#endif
 
         float lambCos = calLambCos(dir, normalW);
         float distAtte = calDistAttenuation(dist, gPointLights[i].r0, gPointLights[i].rmin);
@@ -81,6 +85,7 @@ float3 calLights(float4 posW, float4 normalW)
 
         // Shadow Test
         float shadowFactor = 1.0f;
+#if SPOT_SHADOW_TEX_NUM > 0
         if (gSpotLights[i].id > 0)
         {
             float4 posLi = mul(mul(posW, gSpotLights[i].viewMat), gSpotLights[i].projMat);
@@ -93,6 +98,7 @@ float3 calLights(float4 posW, float4 normalW)
             if(receiverDepth > occluderDepth)
                 shadowFactor = 0.0f;
         }
+#endif
 
         float lambCos = calLambCos(dir, normalW);
         float distAtte = calDistAttenuation(dist, gSpotLights[i].r0, gSpotLights[i].rmin);

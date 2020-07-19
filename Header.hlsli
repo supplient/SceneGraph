@@ -101,10 +101,18 @@ RWTexture2D<uint> uabNCount : register(u0);
 #endif
 
 // Textures // This does not follow the name convention, for convenience
-Texture2D gTexs[TEXTURE_NUM] : register(t1, space0);
-Texture2D gSpotShadowTexs[SPOT_SHADOW_TEX_NUM] : register(t0, space1);
-Texture2D gDirShadowTexs[DIR_SHADOW_TEX_NUM] : register(t0, space2);
-TextureCube gPointShadowTexs[POINT_SHADOW_TEX_NUM] : register(t0, space3);
+#if TEXTURE_NUM > 0
+    Texture2D gTexs[TEXTURE_NUM] : register(t1, space0);
+#endif
+#if SPOT_SHADOW_TEX_NUM > 0
+    Texture2D gSpotShadowTexs[SPOT_SHADOW_TEX_NUM] : register(t0, space1);
+#endif
+#if DIR_SHADOW_TEX_NUM > 0
+    Texture2D gDirShadowTexs[DIR_SHADOW_TEX_NUM] : register(t0, space2);
+#endif
+#if POINT_SHADOW_TEX_NUM > 0
+    TextureCube gPointShadowTexs[POINT_SHADOW_TEX_NUM] : register(t0, space3);
+#endif
 
 // Samplers
 SamplerState bilinearWrap : register(s0);

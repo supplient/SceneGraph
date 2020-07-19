@@ -66,7 +66,11 @@ public:
 	/// 把renderItemQueue中的RenderItem逐个绘制。不设置RenderTarget、RootSignature。会自动设置PSO。
 	/// </summary>
 	/// <param name="renderItemQueue">RenderItem队列</param>
-	void DrawRenderItems(const std::vector<std::shared_ptr<RenderItem>>& renderItemQueue);
+	/// <param name="rootSignParamIndices">用于标识各个根参数的序号</param>
+	void DrawRenderItems(
+		const std::vector<std::shared_ptr<RenderItem>>& renderItemQueue,
+		std::unordered_map<std::string, UINT>& rootSignParamIndices
+	);
 
 private:
 
@@ -130,6 +134,7 @@ private:
 
 	// Root Signature
 	std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3D12RootSignature>> mRootSigns;
+	std::unordered_map<std::string, std::unordered_map<std::string, UINT>> mRootSignParamIndices;
 
 	// Shaders
 	std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3DBlob>> mShaders;

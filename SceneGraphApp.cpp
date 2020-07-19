@@ -84,12 +84,15 @@ void SceneGraphApp::BuildLights()
 		{0.0f, 0.0f, 1.0f}
 	});
 
+	/*
 	mPointLights.push_back({
 		{1.0f, 0.4f, 0.2f},
 		{0.0f, 2.0f, 0.0f},
 		0.01f, 10.0f
 	});
+	*/
 
+	/*
 	mSpotLights.push_back({
 		{0.2f, 1.0f, 0.4f},
 		{2.0f, 0.0f, 0.0f},
@@ -97,6 +100,7 @@ void SceneGraphApp::BuildLights()
 		0.01f, 10.0f,
 		10.0f, 45.0f
 	});
+	*/
 
 	// Cal shadow pass constants
 	for (auto& dirLight : mDirLights) {
@@ -578,41 +582,68 @@ void SceneGraphApp::BuildRootSignature()
 			0, 0U
 		));
 		std::vector<D3D12_DESCRIPTOR_RANGE> texSRVranges;
-		texSRVranges.push_back(CD3DX12_DESCRIPTOR_RANGE(
-			D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
-			(UINT)mResourceTextures.size(), 
-			1, 0, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND
-		));
+		if (mResourceTextures.size()) {
+			texSRVranges.push_back(CD3DX12_DESCRIPTOR_RANGE(
+				D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
+				(UINT)mResourceTextures.size(), 
+				1, 0, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND
+			));
+		}
 		std::vector<D3D12_DESCRIPTOR_RANGE> spotShadowSRVranges;
-		spotShadowSRVranges.push_back(CD3DX12_DESCRIPTOR_RANGE(
-			D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
-			(UINT)mSpotLights.size(), 
-			0, 1, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND
-		));
+		if (mSpotLights.size()) {
+			spotShadowSRVranges.push_back(CD3DX12_DESCRIPTOR_RANGE(
+				D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
+				(UINT)mSpotLights.size(), 
+				0, 1, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND
+			));
+		}
 		std::vector<D3D12_DESCRIPTOR_RANGE> dirShadowSRVranges;
-		dirShadowSRVranges.push_back(CD3DX12_DESCRIPTOR_RANGE(
-			D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
-			(UINT)mDirLights.size(), 
-			0, 2, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND
-		));
+		if (mDirLights.size()) {
+			dirShadowSRVranges.push_back(CD3DX12_DESCRIPTOR_RANGE(
+				D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
+				(UINT)mDirLights.size(), 
+				0, 2, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND
+			));
+		}
 		std::vector<D3D12_DESCRIPTOR_RANGE> pointShadowSRVranges;
-		pointShadowSRVranges.push_back(CD3DX12_DESCRIPTOR_RANGE(
-			D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
-			(UINT)mPointLights.size(), 
-			0, 3, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND
-		));
+		if (mPointLights.size()) {
+			pointShadowSRVranges.push_back(CD3DX12_DESCRIPTOR_RANGE(
+				D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
+				(UINT)mPointLights.size(), 
+				0, 3, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND
+			));
+		}
 
+		UINT index = 0;
+		std::unordered_map<std::string, UINT> paramIndices;
 		// Describe root parameters
 		std::vector<CD3DX12_ROOT_PARAMETER> rootParams;
 		rootParams.push_back(GetCBVParam(0)); // 0
+		paramIndices["objectCB"] = index++;
 		rootParams.push_back(GetCBVParam(1)); // 1
+		paramIndices["materialCB"] = index++;
 		rootParams.push_back(GetCBVParam(2)); // 2
+		paramIndices["passCB"] = index++;
 		rootParams.push_back(GetTableParam(nCountUAVranges)); // 3
+		paramIndices["ncountUA"] = index++;
 		rootParams.push_back(GetTableParam(zbufferSRVranges)); // 4
-		rootParams.push_back(GetTableParam(texSRVranges)); // 5
-		rootParams.push_back(GetTableParam(spotShadowSRVranges)); // 6
-		rootParams.push_back(GetTableParam(dirShadowSRVranges)); // 7
-		rootParams.push_back(GetTableParam(pointShadowSRVranges)); // 8
+		paramIndices["zbufferSR"] = index++;
+		if (texSRVranges.size()) {
+			rootParams.push_back(GetTableParam(texSRVranges)); // 5
+			paramIndices["texSR"] = index++;
+		}
+		if (spotShadowSRVranges.size()) {
+			rootParams.push_back(GetTableParam(spotShadowSRVranges)); // 6
+			paramIndices["spotShadowSR"] = index++;
+		}
+		if (dirShadowSRVranges.size()) {
+			rootParams.push_back(GetTableParam(dirShadowSRVranges)); // 7
+			paramIndices["dirShadowSR"] = index++;
+		}
+		if (pointShadowSRVranges.size()) {
+			rootParams.push_back(GetTableParam(pointShadowSRVranges)); // 8
+			paramIndices["pointShadowSR"] = index++;
+		}
 
 		// Create desc for root signature
 		CD3DX12_ROOT_SIGNATURE_DESC rootSignDesc;
@@ -626,6 +657,7 @@ void SceneGraphApp::BuildRootSignature()
 
 		// Serialize And Create RootSignature
 		mRootSigns["standard"] = SerializeAndCreateRootSignature(md3dDevice, &rootSignDesc);
+		mRootSignParamIndices["standard"] = paramIndices;
 	}
 
 	// transBlend
@@ -718,8 +750,8 @@ void SceneGraphApp::BuildShaders()
 	std::string maxSpotLightNumStr = std::to_string(MAX_SPOT_LIGHT_NUM);
 	std::string textureNumStr = std::to_string(mResourceTextures.size());
 	std::string spotShadowTexNumStr = std::to_string(mSpotLights.size());
-	std::string dirShadowTexNumStr = std::to_string(mSpotLights.size());
-	std::string pointShadowTexNumStr = std::to_string(mSpotLights.size());
+	std::string dirShadowTexNumStr = std::to_string(mDirLights.size());
+	std::string pointShadowTexNumStr = std::to_string(mPointLights.size());
 	defines.push_back({ "MAX_DIR_LIGHT_NUM", maxDirLightNumStr.c_str() });
 	defines.push_back({ "MAX_POINT_LIGHT_NUM", maxPointLightNumStr.c_str() });
 	defines.push_back({ "MAX_SPOT_LIGHT_NUM", maxSpotLightNumStr.c_str() });
@@ -1820,7 +1852,10 @@ void SceneGraphApp::ResizeFxaa()
 	content.Console360RcpFrameOpt2.w = -4.0f / mClientHeight;
 }
 
-void SceneGraphApp::DrawRenderItems(const std::vector<std::shared_ptr<RenderItem>>& renderItemQueue)
+void SceneGraphApp::DrawRenderItems(
+	const std::vector<std::shared_ptr<RenderItem>>& renderItemQueue,
+	std::unordered_map<std::string, UINT>& rootSignParamIndices
+)
 {
 	Microsoft::WRL::ComPtr<ID3D12PipelineState> nowPSO = nullptr;
 
@@ -1846,12 +1881,12 @@ void SceneGraphApp::DrawRenderItems(const std::vector<std::shared_ptr<RenderItem
 
 		// Assign Material Constants Buffer
 		mCommandList->SetGraphicsRootConstantBufferView(
-			1, mtlCBGPUAddr + renderItem->MtlConsts->getID() * mtlCBElementByteSize
+			rootSignParamIndices["materialCB"], mtlCBGPUAddr + renderItem->MtlConsts->getID() * mtlCBElementByteSize
 		);
 
 		// Assign Object Constants Buffer
 		mCommandList->SetGraphicsRootConstantBufferView(
-			0, objCBGPUAddr + renderItem->ObjConsts->getID()*objCBElementByteSize
+			rootSignParamIndices["objectCB"], objCBGPUAddr + renderItem->ObjConsts->getID()*objCBElementByteSize
 		);
 
 		// Draw Call
@@ -2315,38 +2350,47 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 	{
 		// Set Root Signature
 		mCommandList->SetGraphicsRootSignature(mRootSigns["standard"].Get());
+		auto& signPI = mRootSignParamIndices["standard"]; // root sign param indices
 
 		// Assign Textures
-		mCommandList->SetGraphicsRootDescriptorTable(
-			5, mTexGPUHandleStart
-		);
+		if (signPI.find("texSR") != signPI.end()) {
+			mCommandList->SetGraphicsRootDescriptorTable(
+				signPI["texSR"], mTexGPUHandleStart
+			);
+		}
 
 		// Assign Light Shadow Textures
-		mCommandList->SetGraphicsRootDescriptorTable(
-			6, mSpotShadowTexGPUHandleStart
-		);
-		mCommandList->SetGraphicsRootDescriptorTable(
-			7, mDirShadowTexGPUHandleStart
-		);
-		mCommandList->SetGraphicsRootDescriptorTable(
-			8, mPointShadowTexGPUHandleStart
-		);
+		if (signPI.find("spotShadowSR") != signPI.end()) {
+			mCommandList->SetGraphicsRootDescriptorTable(
+				signPI["spotShadowSR"], mSpotShadowTexGPUHandleStart
+			);
+		}
+		if (signPI.find("dirShadowSR") != signPI.end()) {
+			mCommandList->SetGraphicsRootDescriptorTable(
+				signPI["dirShadowSR"], mDirShadowTexGPUHandleStart
+			);
+		}
+		if (signPI.find("pointShadowSR") != signPI.end()) {
+			mCommandList->SetGraphicsRootDescriptorTable(
+				signPI["pointShadowSR"], mPointShadowTexGPUHandleStart
+			);
+		}
 
 		// Assign Pass Constants Buffer
 		auto passCBGPUAddr = mPassConstantsBuffers->Resource()->GetGPUVirtualAddress();
 		UINT64 passCBElementByteSize = mPassConstantsBuffers->getElementByteSize();
 		mCommandList->SetGraphicsRootConstantBufferView(
-			2, passCBGPUAddr + mPassConstants->getID() * passCBElementByteSize
+			signPI["passCB"], passCBGPUAddr + mPassConstants->getID() * passCBElementByteSize
 		);
 
 		// Assign UAV
 		mCommandList->SetGraphicsRootDescriptorTable(
-			3, mNCountUAVGPUHandle
+			signPI["ncountUA"], mNCountUAVGPUHandle
 		);
 
 		// Assign ZBuffer for reference
 		mCommandList->SetGraphicsRootDescriptorTable(
-			4, mZBufferSRVGPUHandle
+			signPI["zbufferSR"], mZBufferSRVGPUHandle
 		);
 
 		// Opaque
@@ -2374,7 +2418,7 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 			);
 
 			// Draw Render Items
-			DrawRenderItems(mOpaqueRenderItemQueue);
+			DrawRenderItems(mOpaqueRenderItemQueue, signPI);
 		}
 
 		// Copy ZBuffer for reference
@@ -2410,7 +2454,7 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 			);
 
 			// Draw Render Items
-			DrawRenderItems(mTransRenderItemQueue);
+			DrawRenderItems(mTransRenderItemQueue, signPI);
 
 			// Trans back to Render Target
 			TransResourceState(
