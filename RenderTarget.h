@@ -1,6 +1,10 @@
 #pragma once
 #include "Common/d3dUtil.h"
 
+constexpr auto SHADOW_RTV_FORMAT = DXGI_FORMAT_R32_FLOAT;
+constexpr auto SHADOW_DSV_RESOURCE_FORMAT = DXGI_FORMAT_R32_TYPELESS;
+constexpr auto SHADOW_DSV_VIEW_FORMAT = DXGI_FORMAT_D32_FLOAT;
+
 class RenderTarget {
 public:
 	virtual D3D12_CPU_DESCRIPTOR_HANDLE GetSRVCPUHandle() = 0;
@@ -19,7 +23,6 @@ public:
 	virtual float GetDepthClearValue() = 0;
 	virtual UINT8 GetStencilClearValue() = 0;
 };
-
 
 class SingleRenderTarget :public RenderTarget
 {
@@ -407,7 +410,6 @@ private:
 
 	D3D12_CPU_DESCRIPTOR_HANDLE dsvCPUHandle;
 };
-
 
 class SwapChainRenderTarget : public RenderTarget 
 {

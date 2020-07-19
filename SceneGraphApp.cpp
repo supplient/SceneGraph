@@ -84,15 +84,12 @@ void SceneGraphApp::BuildLights()
 		{0.0f, 0.0f, 1.0f}
 	});
 
-	/*
 	mPointLights.push_back({
 		{1.0f, 0.4f, 0.2f},
 		{0.0f, 2.0f, 0.0f},
 		0.01f, 10.0f
 	});
-	*/
 
-	/*
 	mSpotLights.push_back({
 		{0.2f, 1.0f, 0.4f},
 		{2.0f, 0.0f, 0.0f},
@@ -100,7 +97,6 @@ void SceneGraphApp::BuildLights()
 		0.01f, 10.0f,
 		10.0f, 45.0f
 	});
-	*/
 
 	// Cal shadow pass constants
 	for (auto& dirLight : mDirLights) {
@@ -217,11 +213,11 @@ void SceneGraphApp::BuildRenderTargets()
 	for (auto& dirLight : mDirLights) {
 		dirLight.ShadowRT = std::make_unique<SingleRenderTarget>(
 			L"Shadow Dir " + std::to_wstring(index),
-			DXGI_FORMAT_R32_FLOAT, whiteClearValue,
+			SHADOW_RTV_FORMAT, whiteClearValue,
 			true,
 			L"Shadow Dir Depth" + std::to_wstring(index),
-			DXGI_FORMAT_R32_TYPELESS,
-			DXGI_FORMAT_D32_FLOAT,
+			SHADOW_DSV_RESOURCE_FORMAT,
+			SHADOW_DSV_VIEW_FORMAT,
 			1.0f, 0
 			);
 	}
@@ -230,12 +226,12 @@ void SceneGraphApp::BuildRenderTargets()
 	for (auto& pointLight : mPointLights) {
 		pointLight.ShadowRT = std::make_unique<CubeRenderTarget>(
 			L"Shadow Point " + std::to_wstring(index),
-			DXGI_FORMAT_R32_FLOAT, maxClearValue,
+			SHADOW_RTV_FORMAT, maxClearValue,
 			mCbvSrvUavDescriptorSize,
 			true,
 			L"Shadow Point Depth" + std::to_wstring(index),
-			DXGI_FORMAT_R32_TYPELESS,
-			DXGI_FORMAT_D32_FLOAT,
+			SHADOW_DSV_RESOURCE_FORMAT,
+			SHADOW_DSV_VIEW_FORMAT,
 			1.0f, 0
 			);
 	}
@@ -244,11 +240,11 @@ void SceneGraphApp::BuildRenderTargets()
 	for (auto& spotLight : mSpotLights) {
 		spotLight.ShadowRT = std::make_unique<SingleRenderTarget>(
 			L"Shadow Spot " + std::to_wstring(index),
-			DXGI_FORMAT_R32_FLOAT, whiteClearValue,
+			SHADOW_RTV_FORMAT, whiteClearValue,
 			true,
 			L"Shadow Spot Depth" + std::to_wstring(index),
-			DXGI_FORMAT_R32_TYPELESS,
-			DXGI_FORMAT_D32_FLOAT,
+			SHADOW_DSV_RESOURCE_FORMAT,
+			SHADOW_DSV_VIEW_FORMAT,
 			1.0f, 0
 			);
 	}
@@ -915,10 +911,10 @@ void SceneGraphApp::BuildPSOs()
 		mShaders["shadowPS"]->GetBufferSize()
 	};
 	shadowPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_FRONT;
-	shadowPsoDesc.RTVFormats[0] = DXGI_FORMAT_R32_FLOAT; // TODO ref, instead of directly assign
+	shadowPsoDesc.RTVFormats[0] = SHADOW_RTV_FORMAT;
 	shadowPsoDesc.SampleDesc.Count = 1;
 	shadowPsoDesc.SampleDesc.Quality = 0;
-	shadowPsoDesc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
+	shadowPsoDesc.DSVFormat = SHADOW_DSV_VIEW_FORMAT;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&shadowPsoDesc, IID_PPV_ARGS(&mPSOs["shadow"])));
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC pointShadowPsoDesc = shadowPsoDesc;
@@ -2150,10 +2146,6 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 		auto passCBGPUAddr = mShadowPassConstantsBuffers->Resource()->GetGPUVirtualAddress();
 		UINT64 passCBElementByteSize = mShadowPassConstantsBuffers->getElementByteSize();
 
-		// TODO It seems these shadow render targets 
-		//		have not switched to PIXEL_SHADER_RESOURCE state...
-		//		Maybe should switch the state manually.
-
 		// Direction Lights
 		// Here, for dir lights, we just copy from spot lights
 		// But further we may use different way to draw shadows for different types of lights
@@ -2346,6 +2338,25 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 	RenderTarget* nowColorRenderTarget = nullptr;
 	RenderTarget* nowDSRenderTarget = nullptr;
 
+	// Switch shadow resources' states to pixel shader resource
+	std::vector<ID3D12Resource*> shadowResources;
+	for (const auto& light : mDirLights)
+		shadowResources.push_back(light.ShadowRT->GetColorResource());
+	for (const auto& light : mPointLights)
+		shadowResources.push_back(light.ShadowRT->GetColorResource());
+	for (const auto& light : mSpotLights)
+		shadowResources.push_back(light.ShadowRT->GetColorResource());
+	std::vector<D3D12_RESOURCE_STATES> shadowRenderTargetStates(shadowResources.size(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+	std::vector<D3D12_RESOURCE_STATES> shadowPixelResourceStates(shadowResources.size(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	{
+		TransResourceState(
+			mCommandList,
+			shadowResources,
+			shadowRenderTargetStates,
+			shadowPixelResourceStates
+		);
+	}
+
 	// Draw Scene
 	{
 		// Set Root Signature
@@ -2367,8 +2378,8 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 		}
 		if (signPI.find("dirShadowSR") != signPI.end()) {
 			mCommandList->SetGraphicsRootDescriptorTable(
-				signPI["dirShadowSR"], mDirShadowTexGPUHandleStart
-			);
+signPI["dirShadowSR"], mDirShadowTexGPUHandleStart
+);
 		}
 		if (signPI.find("pointShadowSR") != signPI.end()) {
 			mCommandList->SetGraphicsRootDescriptorTable(
@@ -2399,20 +2410,20 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 		{
 			// Specify the buffers we are going to render to.
 			mCommandList->OMSetRenderTargets(
-				1, &nowColorRenderTarget->GetRTVCPUHandle(), 
+				1, &nowColorRenderTarget->GetRTVCPUHandle(),
 				true, &nowDSRenderTarget->GetDSVCPUHandle()
 			);
 
 			// Clear the back buffer and depth buffer.
 			mCommandList->ClearRenderTargetView(
-				nowColorRenderTarget->GetRTVCPUHandle(), 
-				nowColorRenderTarget->GetColorClearValue(), 
+				nowColorRenderTarget->GetRTVCPUHandle(),
+				nowColorRenderTarget->GetColorClearValue(),
 				0, nullptr
 			);
 			mCommandList->ClearDepthStencilView(
-				nowDSRenderTarget->GetDSVCPUHandle(), 
-				D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 
-				nowDSRenderTarget->GetDepthClearValue(),  
+				nowDSRenderTarget->GetDSVCPUHandle(),
+				D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL,
+				nowDSRenderTarget->GetDepthClearValue(),
 				nowDSRenderTarget->GetStencilClearValue(),
 				0, nullptr
 			);
@@ -2442,14 +2453,14 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 
 			// Specify the buffers we are going to render to.
 			mCommandList->OMSetRenderTargets(
-				1, &nowColorRenderTarget->GetRTVCPUHandle(), 
+				1, &nowColorRenderTarget->GetRTVCPUHandle(),
 				true, &nowDSRenderTarget->GetDSVCPUHandle()
 			);
 
 			// Clear Render Target
 			mCommandList->ClearRenderTargetView(
-				nowColorRenderTarget->GetRTVCPUHandle(), 
-				nowColorRenderTarget->GetColorClearValue(), 
+				nowColorRenderTarget->GetRTVCPUHandle(),
+				nowColorRenderTarget->GetColorClearValue(),
 				0, nullptr
 			);
 
@@ -2464,6 +2475,16 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 				{ D3D12_RESOURCE_STATE_RENDER_TARGET }
 			);
 		}
+	}
+
+	// Switch shadow resources' states back to render targets
+	{
+		TransResourceState(
+			mCommandList,
+			shadowResources,
+			shadowPixelResourceStates,
+			shadowRenderTargetStates
+		);
 	}
 
 	// Transparent Blend
