@@ -10,6 +10,8 @@ public:
 		:Color(color) {
 	}
 	DirectX::XMFLOAT3 Color = { 1.0f, 1.0f, 1.0f };
+
+	static constexpr float MIN_DIST_FACTOR_SQRT = 0.1f;
 };
 
 class DirectionLight : public Light {
@@ -137,15 +139,23 @@ class PointLight : public Light {
 public:
 	static const UINT RTVNum = 6;
 
-	PointLight(DirectX::XMFLOAT3 color, DirectX::XMFLOAT3 pos)
-		:Light(color), Position(pos) {
+	PointLight(
+		DirectX::XMFLOAT3 color, 
+		DirectX::XMFLOAT3 pos,
+		FLOAT distMin = 0.01f,
+		FLOAT distMax = 10.0f
+	):Light(color), Position(pos), 
+		DistMin(distMin), DistMax(distMax)
+	{
 	}
 
 	struct Content {
 		DirectX::XMFLOAT4 Color = { 1.0f, 1.0f, 1.0f, 1.0f };
 		DirectX::XMFLOAT4 Pos = { 0.0f, 0.0f, 0.0f, 1.0f };
 		UINT ShadowSRVID = 0;
-		DirectX::XMFLOAT3  padding1;
+		FLOAT RMin = 0.01f;
+		FLOAT R0 = 1.0f;
+		FLOAT padding1;
 	};
 	Content ToContent()const {
 		Content content;
@@ -153,6 +163,8 @@ public:
 		content.Pos = MathHelper::XMFLOAT3TO4(Position, 1.0f);
 		content.Color = MathHelper::XMFLOAT3TO4(Color, 1.0f);
 		content.ShadowSRVID = ShadowSRVID;
+		content.RMin = DistMin;
+		content.R0 = DistMax * MIN_DIST_FACTOR_SQRT; // r0 = rmin * sqrt(epsillon)
 		return content;
 	}
 
@@ -181,16 +193,16 @@ public:
 		return res;
 	}
 	DirectX::XMMATRIX CalLightProjMat()const {
-		// TODO These nums are just set for test
-		// They should be acquired from light's settings
 		return DirectX::XMMatrixPerspectiveFovLH(
 			MathHelper::AngleToRadius(90.0f),
 			1.0f,
-			0.01f, 10.0f
+			DistMin, DistMax
 		);
 	}
 	
 	DirectX::XMFLOAT3 Position = { 0.0f, 0.0f, 0.0f };
+	FLOAT DistMin;
+	FLOAT DistMax;
 
 	std::unique_ptr<CubeRenderTarget> ShadowRT = nullptr;
 	UINT ShadowSRVID = 0;
@@ -199,8 +211,15 @@ public:
 
 class SpotLight : public Light {
 public:
-	SpotLight(DirectX::XMFLOAT3 color, DirectX::XMFLOAT3 pos, DirectX::XMFLOAT3 dir)
-		:Light(color), Position(pos), Direction(dir) {
+	SpotLight(
+		DirectX::XMFLOAT3 color,
+		DirectX::XMFLOAT3 pos,
+		DirectX::XMFLOAT3 dir,
+		FLOAT distMin = 0.01f,
+		FLOAT distMax = 10.0f
+	):Light(color), Position(pos), Direction(dir),
+		DistMin(distMin), DistMax(distMax)
+	{
 	}
 
 	struct Content {
@@ -210,7 +229,9 @@ public:
 		DirectX::XMFLOAT4X4 ViewMat = MathHelper::Identity4x4();
 		DirectX::XMFLOAT4X4 ProjMat = MathHelper::Identity4x4();
 		UINT ShadowSRVID = 0;
-		DirectX::XMFLOAT3  padding1;
+		FLOAT RMin = 0.01f;
+		FLOAT R0 = 1.0f;
+		FLOAT padding1;
 	};
 	Content ToContent()const {
 		Content content;
@@ -224,6 +245,8 @@ public:
 		content.Pos = MathHelper::XMFLOAT3TO4(Position, 1.0f);
 		content.Color = MathHelper::XMFLOAT3TO4(Color, 1.0f);
 		content.ShadowSRVID = ShadowSRVID;
+		content.RMin = DistMin;
+		content.R0 = DistMax * MIN_DIST_FACTOR_SQRT; // r0 = rmin * sqrt(epsillon)
 
 		DirectX::XMStoreFloat4x4(
 			&content.ViewMat,
@@ -244,17 +267,17 @@ public:
 	}
 
 	DirectX::XMMATRIX CalLightProjMat()const {
-		// TODO These nums are just set for test
-		// They should be acquired from light's settings
 		return DirectX::XMMatrixPerspectiveFovLH(
 			MathHelper::AngleToRadius(45.0f),
 			1.0f,
-			0.01f, 10.0f
+			DistMin, DistMax
 		);
 	}
 
 	DirectX::XMFLOAT3 Position = { 0.0f, 0.0f, 0.0f };
 	DirectX::XMFLOAT3 Direction = { 0.0f, 0.0f, 1.0f };
+	FLOAT DistMin;
+	FLOAT DistMax;
 
 	std::unique_ptr<SingleRenderTarget> ShadowRT = nullptr;
 	UINT ShadowSRVID = 0;

@@ -86,13 +86,15 @@ void SceneGraphApp::BuildLights()
 
 	mPointLights.push_back({
 		{1.0f, 0.4f, 0.2f},
-		{0.0f, 2.0f, 0.0f}
+		{0.0f, 2.0f, 0.0f},
+		0.01f, 10.0f
 	});
 
 	mSpotLights.push_back({
 		{0.2f, 1.0f, 0.4f},
 		{2.0f, 0.0f, 0.0f},
-		{-1.0f, 0.0f, 0.0f}
+		{-1.0f, 0.0f, 0.0f},
+		0.01f, 10.0f
 	});
 
 	// Cal shadow pass constants

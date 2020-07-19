@@ -9,12 +9,9 @@ float calLambCos(float4 dir, float4 normal)
     return clamp(lambCos, 0.0f, 1.0f);
 }
 
-float calDistAttenuation(float dist)
+float calDistAttenuation(float dist, float r0, float rmin)
 {
-    // r0 = 1.0f
-    // rmin = 0.01f
-    // TODO these two params may should assign by light itself
-    return pow(1.0f/max(dist, 0.01f), 2);
+    return pow(r0/max(dist, rmin), 2);
 }
 
 float calDirAttenuation(float4 defDir, float4 dir)
@@ -76,7 +73,7 @@ float3 calLights(float4 posW, float4 normalW)
         }
 
         float lambCos = calLambCos(dir, normalW);
-        float distAtte = calDistAttenuation(dist);
+        float distAtte = calDistAttenuation(dist, gPointLights[i].r0, gPointLights[i].rmin);
         sum += shadowFactor * distAtte * lambCos * gPointLights[i].color.xyz;
     }
 
@@ -103,7 +100,7 @@ float3 calLights(float4 posW, float4 normalW)
         }
 
         float lambCos = calLambCos(dir, normalW);
-        float distAtte = calDistAttenuation(dist);
+        float distAtte = calDistAttenuation(dist, gSpotLights[i].r0, gSpotLights[i].rmin);
         float dirAtte = calDirAttenuation(gSpotLights[i].direction, dir);
         sum += shadowFactor * dirAtte * distAtte * lambCos * gSpotLights[i].color.xyz;
     }

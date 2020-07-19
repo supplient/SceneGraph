@@ -17,7 +17,9 @@ struct PointLight
     float4 color;
     float4 pos;
     uint id;
-    float3 padding1;
+    float rmin;
+    float r0;
+    float padding1;
 };
 
 struct SpotLight
@@ -28,7 +30,9 @@ struct SpotLight
     float4x4 viewMat;
     float4x4 projMat;
     uint id;
-    float3 padding1;
+    float rmin;
+    float r0;
+    float padding1;
 };
 
 struct VertexIn
