@@ -94,7 +94,8 @@ void SceneGraphApp::BuildLights()
 		{0.2f, 1.0f, 0.4f},
 		{2.0f, 0.0f, 0.0f},
 		{-1.0f, 0.0f, 0.0f},
-		0.01f, 10.0f
+		0.01f, 10.0f,
+		10.0f, 45.0f
 	});
 
 	// Cal shadow pass constants

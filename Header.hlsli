@@ -32,7 +32,9 @@ struct SpotLight
     uint id;
     float rmin;
     float r0;
-    float padding1;
+    float penumbra;
+    float umbra;
+    float3 padding1;
 };
 
 struct VertexIn

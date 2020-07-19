@@ -14,13 +14,8 @@ float calDistAttenuation(float dist, float r0, float rmin)
     return pow(r0/max(dist, rmin), 2);
 }
 
-float calDirAttenuation(float4 defDir, float4 dir)
+float calDirAttenuation(float4 defDir, float4 dir, float penumbra, float umbra)
 {
-    // penumbra = 10 angle
-    // umbra = 45 angle
-    // TODO these two params may should assign by light itself
-    float penumbra = 0.9848;
-    float umbra = 0.707;
     float dirCos = dot(defDir, dir);
     float t = (dirCos - umbra) / (penumbra - umbra);
     return smoothstep(0.0f, 1.0f, t);
@@ -101,7 +96,12 @@ float3 calLights(float4 posW, float4 normalW)
 
         float lambCos = calLambCos(dir, normalW);
         float distAtte = calDistAttenuation(dist, gSpotLights[i].r0, gSpotLights[i].rmin);
-        float dirAtte = calDirAttenuation(gSpotLights[i].direction, dir);
+        float dirAtte = calDirAttenuation(
+            gSpotLights[i].direction, 
+            dir,
+            gSpotLights[i].penumbra,
+            gSpotLights[i].umbra
+        );
         sum += shadowFactor * dirAtte * distAtte * lambCos * gSpotLights[i].color.xyz;
     }
     

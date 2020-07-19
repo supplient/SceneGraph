@@ -120,6 +120,16 @@ public:
 		};
 	}
 
+	static bool XMFLOAT3Equal(const DirectX::XMFLOAT3& a, const DirectX::XMFLOAT3& b) {
+		if (a.x != b.x)
+			return false;
+		if (a.y != b.y)
+			return false;
+		if (a.z != b.z)
+			return false;
+		return true;
+	}
+
 	static DirectX::XMVECTOR RandUnitVec3();
     static DirectX::XMVECTOR RandHemisphereUnitVec3(DirectX::XMVECTOR n);
 

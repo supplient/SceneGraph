@@ -216,9 +216,12 @@ public:
 		DirectX::XMFLOAT3 pos,
 		DirectX::XMFLOAT3 dir,
 		FLOAT distMin = 0.01f,
-		FLOAT distMax = 10.0f
+		FLOAT distMax = 10.0f,
+		float penumbra = 10.0f,
+		float umbra = 45.0f
 	):Light(color), Position(pos), Direction(dir),
-		DistMin(distMin), DistMax(distMax)
+		DistMin(distMin), DistMax(distMax),
+		Penumbra(penumbra), Umbra(umbra)
 	{
 	}
 
@@ -228,10 +231,12 @@ public:
 		DirectX::XMFLOAT4 Direction = { 0.0f, 0.0f, 1.0f, 0.0f };
 		DirectX::XMFLOAT4X4 ViewMat = MathHelper::Identity4x4();
 		DirectX::XMFLOAT4X4 ProjMat = MathHelper::Identity4x4();
-		UINT ShadowSRVID = 0;
-		FLOAT RMin = 0.01f;
-		FLOAT R0 = 1.0f;
-		FLOAT padding1;
+		UINT ShadowSRVID = 0; // 1
+		FLOAT RMin = 0.01f; // 2
+		FLOAT R0 = 1.0f; // 3
+		float Penumbra = 0.9848f; // 4
+		float Umbra = 0.707f; // 1
+		DirectX::XMFLOAT3 padding1; // 4
 	};
 	Content ToContent()const {
 		Content content;
@@ -247,6 +252,8 @@ public:
 		content.ShadowSRVID = ShadowSRVID;
 		content.RMin = DistMin;
 		content.R0 = DistMax * MIN_DIST_FACTOR_SQRT; // r0 = rmin * sqrt(epsillon)
+		content.Penumbra = cos(MathHelper::AngleToRadius(Penumbra));
+		content.Umbra = cos(MathHelper::AngleToRadius(Umbra));
 
 		DirectX::XMStoreFloat4x4(
 			&content.ViewMat,
@@ -261,6 +268,8 @@ public:
 
 	DirectX::XMMATRIX CalLightViewMat()const {
 		DirectX::XMVECTOR upDir = { 0.0f, 1.0f, 0.0f, 0.0f };
+		if (MathHelper::XMFLOAT3Equal(Direction, DirectX::XMFLOAT3(0.0f, 1.0f, 0.0f)))
+			upDir = { 0.0f, 0.0f, 1.0f, 0.0f };
 		DirectX::XMVECTOR eyePos = DirectX::XMLoadFloat3(&Position);
 		DirectX::XMVECTOR eyeDir = DirectX::XMLoadFloat3(&Direction);
 		return DirectX::XMMatrixLookToLH(eyePos, eyeDir, upDir);
@@ -268,7 +277,7 @@ public:
 
 	DirectX::XMMATRIX CalLightProjMat()const {
 		return DirectX::XMMatrixPerspectiveFovLH(
-			MathHelper::AngleToRadius(45.0f),
+			MathHelper::AngleToRadius(Umbra*2),
 			1.0f,
 			DistMin, DistMax
 		);
@@ -278,6 +287,8 @@ public:
 	DirectX::XMFLOAT3 Direction = { 0.0f, 0.0f, 1.0f };
 	FLOAT DistMin;
 	FLOAT DistMax;
+	FLOAT Penumbra;
+	FLOAT Umbra;
 
 	std::unique_ptr<SingleRenderTarget> ShadowRT = nullptr;
 	UINT ShadowSRVID = 0;
