@@ -85,7 +85,7 @@ protected:
     bool      mFullscreenState = false;// fullscreen enabled
 
 	// Set true to use 4X MSAA (?.1.8).  The default is false.
-    bool      m4xMsaaState = true;    // 4X MSAA enabled
+    bool      m4xMsaaState = false;    // 4X MSAA enabled
     UINT      m4xMsaaQuality = 0;      // quality level of 4X MSAA
     UINT CheckMSQuality(DXGI_FORMAT format) {
 		D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS msQualityLevels;

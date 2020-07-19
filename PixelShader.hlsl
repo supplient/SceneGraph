@@ -17,22 +17,22 @@ float4 main(VertexOut pin) : SV_TARGET
 
     float2 uv = pin.tex;
 
+#if TEXTURE_NUM > 0
     if (gNormalTexID > 0)
     {
         float3 texNormal = gTexs[gNormalTexID - 1].Sample(bilinearWrap, uv).xyz;
         texNormal.xyz = texNormal.xyz * 2 - 1.0f;
         normalW = normalize(mul(float4(texNormal, 0.0f), TBNTransMat));
     }
+#endif
 
-    float4 diffuseColor;
+    float4 diffuseColor = gDiffuse;
+#if TEXTURE_NUM > 0
     if (gDiffuseTexID > 0)
     {
         diffuseColor = gTexs[gDiffuseTexID - 1].Sample(bilinearWrap, uv);
     }
-    else
-    {
-        diffuseColor = gDiffuse;
-    }
+#endif
 
     if (gAlphaTestTheta < 0.999)
     {

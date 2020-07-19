@@ -22,6 +22,7 @@ public:
 
 	// Init Scene
 	void BuildLights();
+	void BuildLightShadowConstantBuffers();
 	void BuildTextures();
 
 	// Init DirectX
@@ -58,13 +59,18 @@ public:
 	// ScreenSize Concerned Resources' Init
 	void ResizeScreenUAVSRV();
 	void ResizeRenderTargets();
+	void ResizeShadowRenderTargets();
 	void ResizeFxaa();
 
 	/// <summary>
 	/// 把renderItemQueue中的RenderItem逐个绘制。不设置RenderTarget、RootSignature。会自动设置PSO。
 	/// </summary>
 	/// <param name="renderItemQueue">RenderItem队列</param>
-	void DrawRenderItems(const std::vector<std::shared_ptr<RenderItem>>& renderItemQueue);
+	/// <param name="rootSignParamIndices">用于标识各个根参数的序号</param>
+	void DrawRenderItems(
+		const std::vector<std::shared_ptr<RenderItem>>& renderItemQueue,
+		std::unordered_map<std::string, UINT>& rootSignParamIndices
+	);
 
 private:
 
@@ -85,8 +91,16 @@ private:
 	virtual void OnKeyDown(WPARAM vKey)override;
 
 	// Settings
-	bool mUseFXAA = true;
+	bool mUseFXAA = false;
 	void UpdateFXAAState(bool newState);
+	// TODO The solutions of shadow mapping should be dynamic
+	//		Here we hard-encoding them for convenience
+	static const UINT SHADOW_MAPPING_WIDTH = 1024;
+	static const UINT SHADOW_MAPPING_HEIGHT = 1024;
+
+	// Viewports & ScissorRects
+	D3D12_VIEWPORT mShadowScreenViewport;
+    D3D12_RECT mShadowScissorRect;
 
 	// Camera
 	Camera mCamera;
@@ -120,6 +134,7 @@ private:
 
 	// Root Signature
 	std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3D12RootSignature>> mRootSigns;
+	std::unordered_map<std::string, std::unordered_map<std::string, UINT>> mRootSignParamIndices;
 
 	// Shaders
 	std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3DBlob>> mShaders;
@@ -132,8 +147,16 @@ private:
 	std::vector<PointLight> mPointLights;
 	std::vector<SpotLight> mSpotLights;
 
+	// Light Shadows
+	D3D12_GPU_DESCRIPTOR_HANDLE mDirShadowTexGPUHandleStart;
+	D3D12_CPU_DESCRIPTOR_HANDLE mDirShadowTexCPUHandleStart;
+	D3D12_GPU_DESCRIPTOR_HANDLE mSpotShadowTexGPUHandleStart;
+	D3D12_CPU_DESCRIPTOR_HANDLE mSpotShadowTexCPUHandleStart;
+	D3D12_GPU_DESCRIPTOR_HANDLE mPointShadowTexGPUHandleStart;
+	D3D12_CPU_DESCRIPTOR_HANDLE mPointShadowTexCPUHandleStart;
+
 	// Textures
-	std::unordered_map<std::string, std::unique_ptr<Texture>> mTextures;
+	std::unordered_map<std::string, std::unique_ptr<ResourceTexture>> mResourceTextures;
 	D3D12_GPU_DESCRIPTOR_HANDLE mTexGPUHandleStart;
 	D3D12_CPU_DESCRIPTOR_HANDLE mTexCPUHandleStart;
 
@@ -153,7 +176,7 @@ private:
 	std::unique_ptr<FxaaConstants> mFxaaConstants;
 
 	// Render Items
-	std::vector<std::shared_ptr<RenderItem>> mRenderItemQueue;
+	std::vector<std::shared_ptr<RenderItem>> mOpaqueRenderItemQueue;
 	std::vector<std::shared_ptr<RenderItem>> mTransRenderItemQueue;
 	std::shared_ptr<RenderItem> mBackgroundRenderItem = nullptr;
 
@@ -162,4 +185,5 @@ private:
 	std::unique_ptr<UploadBuffer<ObjectConstants::Content>> mObjectConstantsBuffers;
 	std::unique_ptr<UploadBuffer<PassConstants::Content>> mPassConstantsBuffers;
 	std::unique_ptr<UploadBuffer<FxaaConstants::Content>> mFxaaConstantsBuffers;
+	std::unique_ptr<UploadBuffer<ShadowPassConstants::Content>> mShadowPassConstantsBuffers;
 };

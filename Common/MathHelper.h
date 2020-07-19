@@ -120,6 +120,10 @@ public:
 		};
 	}
 
+	static bool XMFLOAT3Parallel(const DirectX::XMFLOAT3& a, const DirectX::XMFLOAT3& b) {
+		return a.x * b.y == b.x * a.y && a.x * b.z == b.x * a.z;
+	}
+
 	static DirectX::XMVECTOR RandUnitVec3();
     static DirectX::XMVECTOR RandHemisphereUnitVec3(DirectX::XMVECTOR n);
 

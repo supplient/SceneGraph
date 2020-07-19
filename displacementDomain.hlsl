@@ -13,12 +13,14 @@ VertexOut main(
     Output.tex = patch[0].tex * domain.x + patch[1].tex * domain.y + patch[2].tex * domain.z;
     
     Output.posW = patch[0].posW * domain.x + patch[1].posW * domain.y + patch[2].posW * domain.z;
+#if TEXTURE_NUM > 0
     if (gDispTexID > 0)
     {
         float offsetHeight = gTexs[gDispTexID - 1].SampleLevel(bilinearWrap, Output.tex, 0.0f).x * gDispHeightScale;
         float4 offsetVec = offsetHeight * Output.normalW;
         Output.posW -= offsetVec;
     }
+#endif
 
     Output.posH = mul(mul(Output.posW, gViewMat), gProjMat);
 
