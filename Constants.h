@@ -32,8 +32,12 @@ public:
 	static UINT getTotalNum() { return sIDCount; }
 
 	struct Content {
-		DirectX::XMFLOAT4 Diffuse = { 1.0, 1.0, 1.0, 1.0 };
-		UINT32 DiffuseTexID = 0; // TexID 0 means not using this texture
+		DirectX::XMFLOAT4 Diffuse = { 1.0f, 1.0f, 1.0f, 1.0f }; // subsurface albedo
+		DirectX::XMFLOAT4 Specular = { 0.04f, 0.04f, 0.04f, 0.04f }; // normal incidence Fersnel reflectance, F0
+		FLOAT Roughness = 0.5f; 
+		UINT32 LTCMatTexID = 0; // TexID 0 means not using this texture
+		UINT32 LTCAmpTexID = 0;
+		UINT32 DiffuseTexID = 0;
 		UINT32 DispTexID = 0;
 		FLOAT DispHeightScale = 1.0f; // grey value in DispTex(0.0f, 1.0f) * DispHeightScale = height in world space
 		UINT32 NormalTexID = 0;

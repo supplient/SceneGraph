@@ -16,6 +16,7 @@ float4 main(VertexOut pin) : SV_TARGET
     float4x4 TBNMat = transpose(TBNTransMat);
 
     float2 uv = pin.tex;
+    float4 viewW = normalize(gEyePosW - pin.posW);
 
 #if TEXTURE_NUM > 0
     if (gNormalTexID > 0)
@@ -39,9 +40,9 @@ float4 main(VertexOut pin) : SV_TARGET
         clip(diffuseColor.a - gAlphaTestTheta);
     }
 
-    float4 lightFactor = float4(calLights(pin.posW, normalW), 1.0f);
+    float4 lightColor = float4(calLights(pin.posW, normalW, viewW, diffuseColor), 1.0f);
 
     float3 unlightColor = { 0.2f, 0.2f, 0.2f };
-    float4 color = float4(unlightColor, 0.0f) + lightFactor*diffuseColor;
+    float4 color = float4(unlightColor, 0.0f) + lightColor;
     return color;
 }

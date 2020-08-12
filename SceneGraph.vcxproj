@@ -284,6 +284,8 @@
     <Image Include="Resources\Textures\bricks2.dds" />
     <Image Include="Resources\Textures\bricks2_nmap.dds" />
     <Image Include="Resources\Textures\bricks_nmap.dds" />
+    <Image Include="Resources\Textures\ggx_ltc_amp.dds" />
+    <Image Include="Resources\Textures\ggx_ltc_mat.dds" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

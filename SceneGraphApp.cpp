@@ -80,18 +80,18 @@ bool SceneGraphApp::Initialize()
 void SceneGraphApp::BuildLights()
 {
 	mDirLights.push_back({
-		{0.3f, 0.3f, 0.3f},
+		{1.0f, 1.0f, 1.0f},
 		{0.0f, 0.0f, 1.0f}
 	});
 
 	mPointLights.push_back({
-		{1.0f, 0.4f, 0.2f},
+		{4.0f, 0.4f, 0.2f},
 		{0.0f, 2.0f, 0.0f},
 		0.01f, 10.0f
 	});
 
 	mSpotLights.push_back({
-		{0.2f, 1.0f, 0.4f},
+		{0.2f, 4.0f, 0.4f},
 		{2.0f, 0.0f, 0.0f},
 		{-1.0f, 0.0f, 0.0f},
 		0.01f, 10.0f,
@@ -149,6 +149,8 @@ void SceneGraphApp::BuildTextures()
 	mResourceTextures["height"] = std::make_unique<ResourceTexture>(TEXTURE_PATH_HEAD + L"w_height.dds");
 	mResourceTextures["normal"] = std::make_unique<ResourceTexture>(TEXTURE_PATH_HEAD + L"w_normal.dds");
 	mResourceTextures["tree"] = std::make_unique<ResourceTexture>(TEXTURE_PATH_HEAD + L"tree.dds");
+	mResourceTextures["ggx_ltc_mat"] = std::make_unique<ResourceTexture>(TEXTURE_PATH_HEAD + L"ggx_ltc_mat.dds");
+	mResourceTextures["ggx_ltc_amp"] = std::make_unique<ResourceTexture>(TEXTURE_PATH_HEAD + L"ggx_ltc_amp.dds");
 }
 
 void SceneGraphApp::BuildRenderTargets()
@@ -1201,7 +1203,10 @@ void SceneGraphApp::BuildGeos()
 void SceneGraphApp::BuildMaterialConstants()
 {
 	auto whiteMtl = std::make_shared<MaterialConstants>();
-	whiteMtl->content.Diffuse = { 1.0f, 1.0f, 1.0f, 1.0f };
+	whiteMtl->content.Diffuse = { 0.1f, 0.1f, 0.1f, 1.0f };
+	whiteMtl->content.Specular = { 0.972f, 0.960f, 0.915f, 1.0f };
+	whiteMtl->content.LTCMatTexID = mResourceTextures["ggx_ltc_mat"]->ID + 1;
+	whiteMtl->content.LTCAmpTexID = mResourceTextures["ggx_ltc_amp"]->ID + 1;
 	// whiteMtl->content.DiffuseTexID = mResourceTextures["color"]->ID + 1;
 	// whiteMtl->content.DispTexID = mResourceTextures["height"]->ID + 1;
 	// whiteMtl->content.DispHeightScale = 0.7f;
@@ -1990,6 +1995,7 @@ void SceneGraphApp::Update(const GameTimer& gt)
 			auto consts = pair.second;
 			XMMATRIX normalModelMat = XMLoadFloat4x4(&consts->content.ModelMat);
 			normalModelMat = MathHelper::InverseTranspose(normalModelMat);
+			normalModelMat.r[3] = { 0.0f, 0.0f, 0.0f, 1.0f };
 			XMStoreFloat4x4(&consts->content.NormalModelMat, normalModelMat);
 		}
 	}

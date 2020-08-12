@@ -203,5 +203,11 @@
     <Image Include="Resources\Textures\bricks2_nmap.dds">
       <Filter>资源文件\Textures</Filter>
     </Image>
+    <Image Include="Resources\Textures\ggx_ltc_amp.dds">
+      <Filter>资源文件\Textures</Filter>
+    </Image>
+    <Image Include="Resources\Textures\ggx_ltc_mat.dds">
+      <Filter>资源文件\Textures</Filter>
+    </Image>
   </ItemGroup>
 </Project>
