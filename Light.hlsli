@@ -3,13 +3,13 @@
 
 #include "Header.hlsli"
 
-float calLambCos(float4 dir, float4 normal)
+float calLambCos(float3 dir, float3 normal)
 {
     float lambCos = dot(dir, normal);
     return clamp(lambCos, 0.0f, 1.0f);
 }
 
-float3 calBRDFwithLambCosPunctual(
+float3 calSpecularBRDFWithCos(
     float3 viewDir, float3 normal,
     Texture2D ltcMatTex, Texture2D ltcAmpTex,
     float3 lightDir
@@ -58,8 +58,33 @@ float3 calBRDFwithLambCosPunctual(
     // Multiple LTC lobe's magnitude
     cosLobe *= ltcAmp;
 
-    // Multiple Fresnel reflectance, F0
-    return cosLobe * gSpecular.xyz;
+    // Calculate Fresnel reflectance, using Schlick approximation
+    float3 fresnel = gSpecular.xyz;
+    fresnel = fresnel + (1 - fresnel) * pow(1 - max(0, dot(normal, lightDir)), 5);
+
+    // Multiple Fresnel reflectance
+    return cosLobe * fresnel;
+}
+
+void calBRDF(out float3 out_specular, out float3 out_diffuse, 
+    float3 viewDir, float3 normal, float3 lightDir, 
+    float3 ssAlbedo
+    )
+{
+    // specular
+    if (gLTCAmpTexID > 0 && gLTCMatTexID > 0)
+    {
+        out_specular = calSpecularBRDFWithCos(
+            viewDir, normal,
+            gTexs[gLTCMatTexID - 1], gTexs[gLTCAmpTexID - 1],
+            lightDir
+        );
+    }
+    else
+        out_specular = gSpecular.xyz * calLambCos(lightDir, normal);
+    // diffuse
+    // TODO diffuse should be calculated by concerning energy conservation
+    out_diffuse= ssAlbedo * calLambCos(lightDir, normal);
 }
 
 float calDistAttenuation(float dist, float r0, float rmin)
@@ -83,21 +108,11 @@ float3 calLights(float4 posW, float4 normalW, float4 viewW, float4 diffuseColor)
     for (i = 0; i < gLightPerTypeNum.x; i++)
     {
         // BRDF calculation
-        // specular
-        float3 specularBRDF;
-        if (gLTCAmpTexID > 0 && gLTCMatTexID > 0)
-        {
-            specularBRDF = calBRDFwithLambCosPunctual(
-                viewW.xyz, normalW.xyz,
-                gTexs[gLTCMatTexID - 1], gTexs[gLTCAmpTexID - 1],
-                gDirLights[i].direction.xyz
-            );
-        }
-        else
-            specularBRDF = gSpecular.xyz * calLambCos(gDirLights[i].direction, normalW);
-        // diffuse
-        // TODO diffuse should be calculated by concerning energy conservation
-        float3 diffuseBRDF = diffuseColor.xyz * calLambCos(gDirLights[i].direction, normalW);
+        float3 specularBRDF, diffuseBRDF;
+        calBRDF(specularBRDF, diffuseBRDF, 
+            viewW.xyz, normalW.xyz, gDirLights[i].direction.xyz, 
+            diffuseColor.xyz
+        );
 
         // Cal Light Color
         // Shadow Test
@@ -129,20 +144,11 @@ float3 calLights(float4 posW, float4 normalW, float4 viewW, float4 diffuseColor)
         dir = normalize(dir);
 
         // BRDF calculation
-        // specular
-        float3 specularBRDF;
-        if (gLTCAmpTexID > 0 && gLTCMatTexID > 0)
-        {
-            specularBRDF = calBRDFwithLambCosPunctual(
-                viewW.xyz, normalW.xyz,
-                gTexs[gLTCMatTexID - 1], gTexs[gLTCAmpTexID - 1],
-                dir.xyz
-            );
-        }
-        else
-            specularBRDF = gSpecular.xyz * calLambCos(dir, normalW);
-        // diffuse
-        float3 diffuseBRDF = diffuseColor.xyz * calLambCos(dir, normalW);
+        float3 specularBRDF, diffuseBRDF;
+        calBRDF(specularBRDF, diffuseBRDF, 
+            viewW.xyz, normalW.xyz, dir.xyz, 
+            diffuseColor.xyz
+        );
 
         // Cal Light Color
         // Shadow Test
@@ -157,6 +163,7 @@ float3 calLights(float4 posW, float4 normalW, float4 viewW, float4 diffuseColor)
                 shadowFactor = 0.0f;
         }
 #endif
+        // Light Attenuation
         float distAtte = calDistAttenuation(dist, gPointLights[i].r0, gPointLights[i].rmin);
         float3 lightColor = shadowFactor * distAtte * gPointLights[i].color.xyz;
 
@@ -171,20 +178,11 @@ float3 calLights(float4 posW, float4 normalW, float4 viewW, float4 diffuseColor)
         dir = normalize(dir);
 
         // BRDF calculation
-        // specular
-        float3 specularBRDF;
-        if (gLTCAmpTexID > 0 && gLTCMatTexID > 0)
-        {
-            specularBRDF = calBRDFwithLambCosPunctual(
-                viewW.xyz, normalW.xyz,
-                gTexs[gLTCMatTexID - 1], gTexs[gLTCAmpTexID - 1],
-                dir.xyz
-            );
-        }
-        else
-            specularBRDF = gSpecular.xyz * calLambCos(dir, normalW);
-        // diffuse
-        float3 diffuseBRDF = diffuseColor.xyz * calLambCos(dir, normalW);
+        float3 specularBRDF, diffuseBRDF;
+        calBRDF(specularBRDF, diffuseBRDF, 
+            viewW.xyz, normalW.xyz, dir.xyz, 
+            diffuseColor.xyz
+        );
 
         // Cal Light Color
         // Shadow Test
@@ -203,7 +201,7 @@ float3 calLights(float4 posW, float4 normalW, float4 viewW, float4 diffuseColor)
                 shadowFactor = 0.0f;
         }
 #endif
-        float lambCos = calLambCos(dir, normalW);
+        // Light Attenuation
         float distAtte = calDistAttenuation(dist, gSpotLights[i].r0, gSpotLights[i].rmin);
         float dirAtte = calDirAttenuation(
             gSpotLights[i].direction, 
