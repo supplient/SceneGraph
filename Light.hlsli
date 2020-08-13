@@ -9,7 +9,14 @@ float calLambCos(float3 dir, float3 normal)
     return clamp(lambCos, 0.0f, 1.0f);
 }
 
-float3 calSpecularBRDFWithCos(
+float3 calFresnelReflectance(float3 normal, float3 lightDir)
+{
+    float3 fresnel = gSpecular.xyz;
+    fresnel = fresnel + (1 - fresnel) * pow(1 - max(0, dot(normal, lightDir)), 5);
+    return fresnel;
+}
+
+float3 calSpecularBRDFWithCos_punctual(
     float3 viewDir, float3 normal,
     Texture2D ltcMatTex, Texture2D ltcAmpTex,
     float3 lightDir
@@ -59,14 +66,27 @@ float3 calSpecularBRDFWithCos(
     cosLobe *= ltcAmp;
 
     // Calculate Fresnel reflectance, using Schlick approximation
-    float3 fresnel = gSpecular.xyz;
-    fresnel = fresnel + (1 - fresnel) * pow(1 - max(0, dot(normal, lightDir)), 5);
+    float3 fresnel = calFresnelReflectance(normal, lightDir);
 
     // Multiple Fresnel reflectance
     return cosLobe * fresnel;
 }
 
-void calBRDF(out float3 out_specular, out float3 out_diffuse, 
+float3 calDiffuseBRDFWithCos_punctual(
+    float3 viewDir, float3 normal, float3 lightDir, 
+    float3 ssAlbedo
+    )
+{
+    // Using Shirley approximation
+    float3 res = ssAlbedo * (1 - gSpecular.xyz);
+    res *= 1 - pow(1 - max(0, dot(normal, lightDir)), 5);
+    res *= 1 - pow(1 - max(0, dot(normal, viewDir)), 5);
+    res *= 21.0f / 20.0f / 3.14159;
+    res *= calLambCos(lightDir, normal);
+    return res;
+}
+
+void calBRDF_punctual(out float3 out_specular, out float3 out_diffuse, 
     float3 viewDir, float3 normal, float3 lightDir, 
     float3 ssAlbedo
     )
@@ -74,17 +94,16 @@ void calBRDF(out float3 out_specular, out float3 out_diffuse,
     // specular
     if (gLTCAmpTexID > 0 && gLTCMatTexID > 0)
     {
-        out_specular = calSpecularBRDFWithCos(
+        out_specular = calSpecularBRDFWithCos_punctual(
             viewDir, normal,
             gTexs[gLTCMatTexID - 1], gTexs[gLTCAmpTexID - 1],
             lightDir
         );
     }
     else
-        out_specular = gSpecular.xyz * calLambCos(lightDir, normal);
+        out_specular = calFresnelReflectance(normal, lightDir) * calLambCos(lightDir, normal);
     // diffuse
-    // TODO diffuse should be calculated by concerning energy conservation
-    out_diffuse= ssAlbedo * calLambCos(lightDir, normal);
+    out_diffuse = calDiffuseBRDFWithCos_punctual(viewDir, normal, lightDir, ssAlbedo);
 }
 
 float calDistAttenuation(float dist, float r0, float rmin)
@@ -109,7 +128,7 @@ float3 calLights(float4 posW, float4 normalW, float4 viewW, float4 diffuseColor)
     {
         // BRDF calculation
         float3 specularBRDF, diffuseBRDF;
-        calBRDF(specularBRDF, diffuseBRDF, 
+        calBRDF_punctual(specularBRDF, diffuseBRDF, 
             viewW.xyz, normalW.xyz, gDirLights[i].direction.xyz, 
             diffuseColor.xyz
         );
@@ -145,7 +164,7 @@ float3 calLights(float4 posW, float4 normalW, float4 viewW, float4 diffuseColor)
 
         // BRDF calculation
         float3 specularBRDF, diffuseBRDF;
-        calBRDF(specularBRDF, diffuseBRDF, 
+        calBRDF_punctual(specularBRDF, diffuseBRDF, 
             viewW.xyz, normalW.xyz, dir.xyz, 
             diffuseColor.xyz
         );
@@ -179,7 +198,7 @@ float3 calLights(float4 posW, float4 normalW, float4 viewW, float4 diffuseColor)
 
         // BRDF calculation
         float3 specularBRDF, diffuseBRDF;
-        calBRDF(specularBRDF, diffuseBRDF, 
+        calBRDF_punctual(specularBRDF, diffuseBRDF, 
             viewW.xyz, normalW.xyz, dir.xyz, 
             diffuseColor.xyz
         );

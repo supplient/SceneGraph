@@ -80,7 +80,7 @@ bool SceneGraphApp::Initialize()
 void SceneGraphApp::BuildLights()
 {
 	mDirLights.push_back({
-		{1.0f, 1.0f, 1.0f},
+		{1.6f, 1.6f, 1.6f},
 		{0.0f, 0.0f, 1.0f}
 	});
 
@@ -1203,8 +1203,9 @@ void SceneGraphApp::BuildGeos()
 void SceneGraphApp::BuildMaterialConstants()
 {
 	auto whiteMtl = std::make_shared<MaterialConstants>();
-	whiteMtl->content.Diffuse = { 0.1f, 0.1f, 0.1f, 1.0f };
-	whiteMtl->content.Specular = { 0.972f, 0.960f, 0.915f, 1.0f };
+	whiteMtl->content.Diffuse = { 0.9f, 0.8f, 0.2f, 1.0f };
+	whiteMtl->content.Specular = { 0.04f, 0.04f, 0.04f, 0.04f }; // default dielectrics
+	// whiteMtl->content.Specular = { 0.972f, 0.960f, 0.915f, 1.0f }; // silver
 	whiteMtl->content.LTCMatTexID = mResourceTextures["ggx_ltc_mat"]->ID + 1;
 	whiteMtl->content.LTCAmpTexID = mResourceTextures["ggx_ltc_amp"]->ID + 1;
 	// whiteMtl->content.DiffuseTexID = mResourceTextures["color"]->ID + 1;
