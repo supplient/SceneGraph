@@ -66,6 +66,7 @@ public:
 		DirectionLight::Content DirLights[MAX_DIR_LIGHT_NUM];
 		PointLight::Content PointLights[MAX_POINT_LIGHT_NUM];
 		SpotLight::Content SpotLights[MAX_SPOT_LIGHT_NUM];
+		RectLight::Content RectLights[MAX_RECT_LIGHT_NUM];
 	} content;
 
 private:

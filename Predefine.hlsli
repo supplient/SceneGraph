@@ -15,6 +15,9 @@
 #ifndef MAX_SPOT_LIGHT_NUM
     #define MAX_SPOT_LIGHT_NUM 5
 #endif
+#ifndef MAX_RECT_LIGHT_NUM
+    #define MAX_RECT_LIGHT_NUM 10
+#endif
 
 #ifndef TEXTURE_NUM
     #define TEXTURE_NUM 3
