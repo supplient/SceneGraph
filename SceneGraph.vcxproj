@@ -272,9 +272,14 @@
     </FxCompile>
   </ItemGroup>
   <ItemGroup>
+    <None Include="BRDF.hlsli" />
+    <None Include="BRDF_common.hlsli" />
+    <None Include="BRDF_punctual.hlsli" />
+    <None Include="BRDF_rect.hlsli" />
     <None Include="Fxaa3_11.hlsli" />
     <None Include="Header.hlsli" />
     <None Include="Light.hlsli" />
+    <None Include="LTC.hlsli" />
     <None Include="MultiSampleLoader.hlsli" />
     <None Include="pointShadowHeader.hlsli" />
     <None Include="Predefine.hlsli" />

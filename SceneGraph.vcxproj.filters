@@ -43,6 +43,9 @@
     <Filter Include="Shaders\Hull">
       <UniqueIdentifier>{6b0e36f2-5010-4195-934a-fefe8befce61}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Shaders\Headers\BRDF">
+      <UniqueIdentifier>{42f820b0-4271-477b-b0ef-5320d67f98ea}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="SceneGraphApp.cpp">
@@ -188,6 +191,21 @@
     </None>
     <None Include="pointShadowHeader.hlsli">
       <Filter>Shaders\Headers</Filter>
+    </None>
+    <None Include="BRDF.hlsli">
+      <Filter>Shaders\Headers\BRDF</Filter>
+    </None>
+    <None Include="BRDF_common.hlsli">
+      <Filter>Shaders\Headers\BRDF</Filter>
+    </None>
+    <None Include="BRDF_rect.hlsli">
+      <Filter>Shaders\Headers\BRDF</Filter>
+    </None>
+    <None Include="BRDF_punctual.hlsli">
+      <Filter>Shaders\Headers\BRDF</Filter>
+    </None>
+    <None Include="LTC.hlsli">
+      <Filter>Shaders\Headers\BRDF</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
