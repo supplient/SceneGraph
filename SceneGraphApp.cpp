@@ -102,9 +102,9 @@ void SceneGraphApp::BuildLights()
 
 	mRectLights.push_back({
 		{0.2f, 0.2f, 1.0f},
-		{0.5f, 0.5f, 0.5f}, 
-		{0.5f, 0.5f, -0.5f},
-		{0.5f, -0.5f, -0.5f}
+		{-0.2f, 0.5f, 0.5f}, 
+		{-0.2f, 0.5f, -0.5f},
+		{-0.2f, -0.5f, -0.5f}
 	});
 
 	// Cal shadow pass constants

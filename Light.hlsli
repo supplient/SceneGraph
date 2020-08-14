@@ -150,7 +150,14 @@ float3 calLights(float4 posW, float4 normalW, float4 viewW, float4 diffuseColor)
 
         // Cal light color
         // Attenuation TODO
-        float3 lightColor = gRectLights[i].color.xyz;
+        float3 centerPos = gRectLights[i].verts[0].xyz;
+        centerPos += gRectLights[i].verts[1].xyz;
+        centerPos += gRectLights[i].verts[2].xyz;
+        centerPos += gRectLights[i].verts[3].xyz;
+        centerPos /= 4.0f;
+        float dist = length(centerPos - posW.xyz);
+        float distAtte = calDistAttenuation(dist, gRectLights[i].r0, gRectLights[i].rmin);
+        float3 lightColor = distAtte * gRectLights[i].color.xyz;
 
         sum += lightColor * specularBRDF + lightColor * diffuseBRDF;
     }
