@@ -35,6 +35,10 @@
     #define POINT_SHADOW_TEX_NUM 1
 #endif
 
+#ifndef RECT_LIGHT_ON
+    #define RECT_LIGHT_ON 0
+#endif
+
 // #define MULTIPLE_SAMPLE 4
 
 #endif// PREDEFINE_H

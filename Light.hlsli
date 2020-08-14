@@ -1,6 +1,7 @@
 #ifndef LIGHT_H
 #define LIGHT_H
 
+#include "Predefine.hlsli"
 #include "Header.hlsli"
 #include "BRDF.hlsli"
 
@@ -133,6 +134,7 @@ float3 calLights(float4 posW, float4 normalW, float4 viewW, float4 diffuseColor)
     }
     
     // rect lights
+#   if RECT_LIGHT_ON
     for (i = 0; i < gLightPerTypeNum.w; i++)
     {
         // BRDF calculation
@@ -161,6 +163,7 @@ float3 calLights(float4 posW, float4 normalW, float4 viewW, float4 diffuseColor)
 
         sum += lightColor * specularBRDF + lightColor * diffuseBRDF;
     }
+#   endif
    
     return sum;
 }

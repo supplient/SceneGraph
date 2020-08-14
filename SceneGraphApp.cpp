@@ -79,7 +79,6 @@ bool SceneGraphApp::Initialize()
 
 void SceneGraphApp::BuildLights()
 {
-	/*
 	mDirLights.push_back({
 		{1.6f, 1.6f, 1.6f},
 		{0.0f, 0.0f, 1.0f}
@@ -98,7 +97,6 @@ void SceneGraphApp::BuildLights()
 		0.01f, 10.0f,
 		10.0f, 45.0f
 	});
-	*/
 
 	mRectLights.push_back({
 		{0.2f, 0.2f, 1.0f},
