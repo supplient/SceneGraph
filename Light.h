@@ -14,6 +14,7 @@ public:
 	static constexpr float MIN_DIST_FACTOR_SQRT = 0.1f;
 };
 
+
 class DirectionLight : public Light {
 public:
 	DirectionLight(
@@ -293,4 +294,51 @@ public:
 	std::unique_ptr<SingleRenderTarget> ShadowRT = nullptr;
 	UINT ShadowSRVID = 0;
 	std::unique_ptr<ShadowPassConstants> PassConstants = nullptr;
+};
+
+
+class RectLight : public Light {
+public:
+	RectLight(
+		DirectX::XMFLOAT3 color,
+		DirectX::XMFLOAT3 leftUp,
+		DirectX::XMFLOAT3 rightUp,
+		DirectX::XMFLOAT3 rightDown,
+		FLOAT distMin = 0.01f,
+		FLOAT distMax = 10.0f
+	) :Light(color), 
+		leftUp(leftUp), rightUp(rightUp), rightDown(rightDown),
+		DistMin(distMin), DistMax(distMax)
+	{
+		// Assuse clockwise
+		DirectX::XMFLOAT3 upDir = { leftUp.x - rightUp.x, leftUp.y - rightUp.y, leftUp.z - rightUp.z };
+		leftDown = { rightDown.x + upDir.x, rightDown.y + upDir.y, rightDown.z + upDir.z };
+	}
+
+	struct Content {
+		DirectX::XMFLOAT4 Color = { 1.0f, 1.0f, 1.0f, 1.0f };
+		DirectX::XMFLOAT4 Verts[4];
+		FLOAT RMin = 0.01f;
+		FLOAT R0 = 1.0f;
+		DirectX::XMFLOAT2 padding1;
+	};
+	Content ToContent()const {
+		Content content;
+
+		content.Color = MathHelper::XMFLOAT3TO4(Color, 1.0f);
+		content.Verts[0] = MathHelper::XMFLOAT3TO4(leftUp, 1.0f);
+		content.Verts[1] = MathHelper::XMFLOAT3TO4(rightUp, 1.0f);
+		content.Verts[2] = MathHelper::XMFLOAT3TO4(rightDown, 1.0f);
+		content.Verts[3] = MathHelper::XMFLOAT3TO4(leftDown, 1.0f);
+		content.RMin = DistMin;
+		content.R0 = DistMax * MIN_DIST_FACTOR_SQRT; // r0 = rmin * sqrt(epsillon)
+		return content;
+	}
+
+	DirectX::XMFLOAT3 leftUp;
+	DirectX::XMFLOAT3 rightUp;
+	DirectX::XMFLOAT3 rightDown;
+	DirectX::XMFLOAT3 leftDown;
+	FLOAT DistMin;
+	FLOAT DistMax;
 };

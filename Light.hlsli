@@ -1,13 +1,10 @@
 #ifndef LIGHT_H
 #define LIGHT_H
 
+#include "Predefine.hlsli"
 #include "Header.hlsli"
+#include "BRDF.hlsli"
 
-float calLambCos(float4 dir, float4 normal)
-{
-    float lambCos = dot(dir, normal);
-    return clamp(lambCos, 0.0f, 1.0f);
-}
 
 float calDistAttenuation(float dist, float r0, float rmin)
 {
@@ -21,7 +18,7 @@ float calDirAttenuation(float4 defDir, float4 dir, float penumbra, float umbra)
     return smoothstep(0.0f, 1.0f, t);
 }
 
-float3 calLights(float4 posW, float4 normalW)
+float3 calLights(float4 posW, float4 normalW, float4 viewW, float4 diffuseColor)
 {
     float3 sum = { 0.0f, 0.0f, 0.0f };
     uint i = 0;
@@ -29,8 +26,14 @@ float3 calLights(float4 posW, float4 normalW)
     // direction lights
     for (i = 0; i < gLightPerTypeNum.x; i++)
     {
-        float lambCos = calLambCos(gDirLights[i].direction, normalW);
+        // BRDF calculation
+        float3 specularBRDF, diffuseBRDF;
+        calBRDF_punctual(specularBRDF, diffuseBRDF, 
+            viewW.xyz, normalW.xyz, gDirLights[i].direction.xyz, 
+            diffuseColor.xyz
+        );
 
+        // Cal Light Color
         // Shadow Test
         float shadowFactor = 1.0f;
 #if DIR_SHADOW_TEX_NUM > 0
@@ -47,8 +50,9 @@ float3 calLights(float4 posW, float4 normalW)
                 shadowFactor = 0.0f;
         }
 #endif
-
-        sum += shadowFactor * lambCos * gDirLights[i].color.xyz;
+        float3 lightColor = shadowFactor * gDirLights[i].color.xyz;
+        
+        sum += lightColor * specularBRDF + lightColor * diffuseBRDF;
     }
 
     // point lights
@@ -58,6 +62,14 @@ float3 calLights(float4 posW, float4 normalW)
         float dist = length(dir);
         dir = normalize(dir);
 
+        // BRDF calculation
+        float3 specularBRDF, diffuseBRDF;
+        calBRDF_punctual(specularBRDF, diffuseBRDF, 
+            viewW.xyz, normalW.xyz, dir.xyz, 
+            diffuseColor.xyz
+        );
+
+        // Cal Light Color
         // Shadow Test
         float shadowFactor = 1.0f;
 #if POINT_SHADOW_TEX_NUM > 0
@@ -70,10 +82,11 @@ float3 calLights(float4 posW, float4 normalW)
                 shadowFactor = 0.0f;
         }
 #endif
-
-        float lambCos = calLambCos(dir, normalW);
+        // Light Attenuation
         float distAtte = calDistAttenuation(dist, gPointLights[i].r0, gPointLights[i].rmin);
-        sum += shadowFactor * distAtte * lambCos * gPointLights[i].color.xyz;
+        float3 lightColor = shadowFactor * distAtte * gPointLights[i].color.xyz;
+
+        sum += lightColor * specularBRDF + lightColor * diffuseBRDF;
     }
 
     // spot lights
@@ -83,6 +96,14 @@ float3 calLights(float4 posW, float4 normalW)
         float dist = length(dir);
         dir = normalize(dir);
 
+        // BRDF calculation
+        float3 specularBRDF, diffuseBRDF;
+        calBRDF_punctual(specularBRDF, diffuseBRDF, 
+            viewW.xyz, normalW.xyz, dir.xyz, 
+            diffuseColor.xyz
+        );
+
+        // Cal Light Color
         // Shadow Test
         float shadowFactor = 1.0f;
 #if SPOT_SHADOW_TEX_NUM > 0
@@ -99,8 +120,7 @@ float3 calLights(float4 posW, float4 normalW)
                 shadowFactor = 0.0f;
         }
 #endif
-
-        float lambCos = calLambCos(dir, normalW);
+        // Light Attenuation
         float distAtte = calDistAttenuation(dist, gSpotLights[i].r0, gSpotLights[i].rmin);
         float dirAtte = calDirAttenuation(
             gSpotLights[i].direction, 
@@ -108,9 +128,43 @@ float3 calLights(float4 posW, float4 normalW)
             gSpotLights[i].penumbra,
             gSpotLights[i].umbra
         );
-        sum += shadowFactor * dirAtte * distAtte * lambCos * gSpotLights[i].color.xyz;
+        float3 lightColor = shadowFactor * dirAtte * distAtte * gSpotLights[i].color.xyz;
+
+        sum += lightColor * specularBRDF + lightColor * diffuseBRDF;
     }
     
+    // rect lights
+#   if RECT_LIGHT_ON
+    for (i = 0; i < gLightPerTypeNum.w; i++)
+    {
+        // BRDF calculation
+        float3 specularBRDF, diffuseBRDF;
+        float4 vertDirs[4];
+        int j = 0;
+        for (j = 0; j < 4; j++)
+        {
+            vertDirs[j] = gRectLights[i].verts[j] - posW;
+        }
+        calBRDF_rect(specularBRDF, diffuseBRDF,
+            viewW.xyz, normalW.xyz, vertDirs,
+            diffuseColor.xyz
+        );
+
+        // Cal light color
+        // Attenuation TODO
+        float3 centerPos = gRectLights[i].verts[0].xyz;
+        centerPos += gRectLights[i].verts[1].xyz;
+        centerPos += gRectLights[i].verts[2].xyz;
+        centerPos += gRectLights[i].verts[3].xyz;
+        centerPos /= 4.0f;
+        float dist = length(centerPos - posW.xyz);
+        float distAtte = calDistAttenuation(dist, gRectLights[i].r0, gRectLights[i].rmin);
+        float3 lightColor = distAtte * gRectLights[i].color.xyz;
+
+        sum += lightColor * specularBRDF + lightColor * diffuseBRDF;
+    }
+#   endif
+   
     return sum;
 }
 

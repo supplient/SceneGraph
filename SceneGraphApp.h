@@ -146,6 +146,7 @@ private:
 	std::vector<DirectionLight> mDirLights;
 	std::vector<PointLight> mPointLights;
 	std::vector<SpotLight> mSpotLights;
+	std::vector<RectLight> mRectLights;
 
 	// Light Shadows
 	D3D12_GPU_DESCRIPTOR_HANDLE mDirShadowTexGPUHandleStart;

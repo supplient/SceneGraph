@@ -80,22 +80,29 @@ bool SceneGraphApp::Initialize()
 void SceneGraphApp::BuildLights()
 {
 	mDirLights.push_back({
-		{0.3f, 0.3f, 0.3f},
+		{1.6f, 1.6f, 1.6f},
 		{0.0f, 0.0f, 1.0f}
 	});
 
 	mPointLights.push_back({
-		{1.0f, 0.4f, 0.2f},
+		{4.0f, 0.4f, 0.2f},
 		{0.0f, 2.0f, 0.0f},
 		0.01f, 10.0f
 	});
 
 	mSpotLights.push_back({
-		{0.2f, 1.0f, 0.4f},
+		{0.2f, 4.0f, 0.4f},
 		{2.0f, 0.0f, 0.0f},
 		{-1.0f, 0.0f, 0.0f},
 		0.01f, 10.0f,
 		10.0f, 45.0f
+	});
+
+	mRectLights.push_back({
+		{0.2f, 0.2f, 1.0f},
+		{-0.2f, 0.5f, 0.5f}, 
+		{-0.2f, 0.5f, -0.5f},
+		{-0.2f, -0.5f, -0.5f}
 	});
 
 	// Cal shadow pass constants
@@ -139,7 +146,8 @@ void SceneGraphApp::BuildLightShadowConstantBuffers()
 {
 	mShadowPassConstantsBuffers = std::make_unique<UploadBuffer<ShadowPassConstants::Content>>(
 		md3dDevice.Get(), 
-		ShadowPassConstants::getTotalNum(), true
+		max(ShadowPassConstants::getTotalNum(), 1), 
+		true
 	);
 }
 
@@ -149,6 +157,8 @@ void SceneGraphApp::BuildTextures()
 	mResourceTextures["height"] = std::make_unique<ResourceTexture>(TEXTURE_PATH_HEAD + L"w_height.dds");
 	mResourceTextures["normal"] = std::make_unique<ResourceTexture>(TEXTURE_PATH_HEAD + L"w_normal.dds");
 	mResourceTextures["tree"] = std::make_unique<ResourceTexture>(TEXTURE_PATH_HEAD + L"tree.dds");
+	mResourceTextures["ggx_ltc_mat"] = std::make_unique<ResourceTexture>(TEXTURE_PATH_HEAD + L"ggx_ltc_mat.dds");
+	mResourceTextures["ggx_ltc_amp"] = std::make_unique<ResourceTexture>(TEXTURE_PATH_HEAD + L"ggx_ltc_amp.dds");
 }
 
 void SceneGraphApp::BuildRenderTargets()
@@ -744,6 +754,7 @@ void SceneGraphApp::BuildShaders()
 	std::string maxDirLightNumStr = std::to_string(MAX_DIR_LIGHT_NUM);
 	std::string maxPointLightNumStr = std::to_string(MAX_POINT_LIGHT_NUM);
 	std::string maxSpotLightNumStr = std::to_string(MAX_SPOT_LIGHT_NUM);
+	std::string maxRectLightNumStr = std::to_string(MAX_RECT_LIGHT_NUM);
 	std::string textureNumStr = std::to_string(mResourceTextures.size());
 	std::string spotShadowTexNumStr = std::to_string(mSpotLights.size());
 	std::string dirShadowTexNumStr = std::to_string(mDirLights.size());
@@ -751,6 +762,7 @@ void SceneGraphApp::BuildShaders()
 	defines.push_back({ "MAX_DIR_LIGHT_NUM", maxDirLightNumStr.c_str() });
 	defines.push_back({ "MAX_POINT_LIGHT_NUM", maxPointLightNumStr.c_str() });
 	defines.push_back({ "MAX_SPOT_LIGHT_NUM", maxSpotLightNumStr.c_str() });
+	defines.push_back({ "MAX_RECT_LIGHT_NUM", maxRectLightNumStr.c_str() });
 	defines.push_back({ "TEXTURE_NUM",  textureNumStr.c_str()});
 	defines.push_back({ "SPOT_SHADOW_TEX_NUM",  spotShadowTexNumStr.c_str()});
 	defines.push_back({ "DIR_SHADOW_TEX_NUM",  dirShadowTexNumStr.c_str()});
@@ -981,6 +993,8 @@ void SceneGraphApp::UpdateLightsInPassConstantBuffers()
 		throw "PointLights too many with " + std::to_string(mPointLights.size());
 	if(mSpotLights.size() > MAX_SPOT_LIGHT_NUM)
 		throw "SpotLights too many with " + std::to_string(mSpotLights.size());
+	if(mRectLights.size() > MAX_RECT_LIGHT_NUM)
+		throw "RectLights too many with " + std::to_string(mRectLights.size());
 
 	auto& content = mPassConstants->content;
 
@@ -996,6 +1010,11 @@ void SceneGraphApp::UpdateLightsInPassConstantBuffers()
 	for (unsigned int i = 0; i < mSpotLights.size(); i++)
 		content.SpotLights[i] = mSpotLights[i].ToContent();
 	content.LightPerTypeNum.z = static_cast<UINT32>(mSpotLights.size());
+
+	// area lights
+	for (unsigned int i = 0; i < mRectLights.size(); i++)
+		content.RectLights[i] = mRectLights[i].ToContent();
+	content.LightPerTypeNum.w = static_cast<UINT32>(mRectLights.size());
 }
 
 template <class T, class U>
@@ -1201,7 +1220,12 @@ void SceneGraphApp::BuildGeos()
 void SceneGraphApp::BuildMaterialConstants()
 {
 	auto whiteMtl = std::make_shared<MaterialConstants>();
-	whiteMtl->content.Diffuse = { 1.0f, 1.0f, 1.0f, 1.0f };
+	// whiteMtl->content.Diffuse = { 0.9f, 0.8f, 0.9f, 1.0f };
+	// whiteMtl->content.Specular = { 0.04f, 0.04f, 0.04f, 0.04f }; // default dielectrics
+	whiteMtl->content.Diffuse = { 0.0f, 0.0f, 0.0f, 0.0f };
+	whiteMtl->content.Specular = { 0.972f, 0.960f, 0.915f, 1.0f }; // silver
+	whiteMtl->content.LTCMatTexID = mResourceTextures["ggx_ltc_mat"]->ID + 1;
+	whiteMtl->content.LTCAmpTexID = mResourceTextures["ggx_ltc_amp"]->ID + 1;
 	// whiteMtl->content.DiffuseTexID = mResourceTextures["color"]->ID + 1;
 	// whiteMtl->content.DispTexID = mResourceTextures["height"]->ID + 1;
 	// whiteMtl->content.DispHeightScale = 0.7f;
@@ -1990,6 +2014,7 @@ void SceneGraphApp::Update(const GameTimer& gt)
 			auto consts = pair.second;
 			XMMATRIX normalModelMat = XMLoadFloat4x4(&consts->content.ModelMat);
 			normalModelMat = MathHelper::InverseTranspose(normalModelMat);
+			normalModelMat.r[3] = { 0.0f, 0.0f, 0.0f, 1.0f };
 			XMStoreFloat4x4(&consts->content.NormalModelMat, normalModelMat);
 		}
 	}
@@ -2063,6 +2088,8 @@ void TransResourceState(
 ) {
 	if (resources.size() != fromStates.size() || fromStates.size() != toStates.size())
 		throw "Size does not match.";
+	if (!resources.size())
+		return;
 	std::vector<CD3DX12_RESOURCE_BARRIER> barriers;
 	for (UINT i = 0; i < resources.size(); i++) {
 		barriers.push_back(CD3DX12_RESOURCE_BARRIER::Transition(

@@ -15,6 +15,9 @@
 #ifndef MAX_SPOT_LIGHT_NUM
     #define MAX_SPOT_LIGHT_NUM 5
 #endif
+#ifndef MAX_RECT_LIGHT_NUM
+    #define MAX_RECT_LIGHT_NUM 10
+#endif
 
 #ifndef TEXTURE_NUM
     #define TEXTURE_NUM 3
@@ -30,6 +33,10 @@
 
 #ifndef POINT_SHADOW_TEX_NUM
     #define POINT_SHADOW_TEX_NUM 1
+#endif
+
+#ifndef RECT_LIGHT_ON
+    #define RECT_LIGHT_ON 0
 #endif
 
 // #define MULTIPLE_SAMPLE 4

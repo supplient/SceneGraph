@@ -37,6 +37,15 @@ struct SpotLight
     float3 padding1;
 };
 
+struct RectLight
+{
+    float4 color;
+    float4 verts[4];
+    float rmin;
+    float r0;
+    float2 padding1;
+};
+
 struct VertexIn
 {
     float3 posL : POSITION_LOCAL;
@@ -71,6 +80,10 @@ cbuffer cbPerObject: register(b0)
 cbuffer cbPerMaterial : register(b1)
 {
     float4 gDiffuse;
+    float4 gSpecular;
+    float gRoughness;
+    uint gLTCMatTexID;
+    uint gLTCAmpTexID;
     uint gDiffuseTexID;
     uint gDispTexID;
     float gDispHeightScale;
@@ -83,10 +96,11 @@ cbuffer cbPerPass : register(b2)
     float4 gEyePosW;
     float4x4 gViewMat;
     float4x4 gProjMat;
-    uint4 gLightPerTypeNum; // direction, point, spot, padding
+    uint4 gLightPerTypeNum; // direction, point, spot, rect
     DirLight gDirLights[MAX_DIR_LIGHT_NUM];
     PointLight gPointLights[MAX_POINT_LIGHT_NUM];
     SpotLight gSpotLights[MAX_SPOT_LIGHT_NUM];
+    RectLight gRectLights[MAX_RECT_LIGHT_NUM];
 };
 
 // NCount for weighted-average

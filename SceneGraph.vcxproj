@@ -272,9 +272,14 @@
     </FxCompile>
   </ItemGroup>
   <ItemGroup>
+    <None Include="BRDF.hlsli" />
+    <None Include="BRDF_common.hlsli" />
+    <None Include="BRDF_punctual.hlsli" />
+    <None Include="BRDF_rect.hlsli" />
     <None Include="Fxaa3_11.hlsli" />
     <None Include="Header.hlsli" />
     <None Include="Light.hlsli" />
+    <None Include="LTC.hlsli" />
     <None Include="MultiSampleLoader.hlsli" />
     <None Include="pointShadowHeader.hlsli" />
     <None Include="Predefine.hlsli" />
@@ -284,6 +289,8 @@
     <Image Include="Resources\Textures\bricks2.dds" />
     <Image Include="Resources\Textures\bricks2_nmap.dds" />
     <Image Include="Resources\Textures\bricks_nmap.dds" />
+    <Image Include="Resources\Textures\ggx_ltc_amp.dds" />
+    <Image Include="Resources\Textures\ggx_ltc_mat.dds" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
