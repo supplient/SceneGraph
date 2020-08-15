@@ -281,7 +281,7 @@ float3 calDiffuseBRDFWithCos_rect(
     );
 
     // Multiple standard consine's magnitude
-    cosLobe *= 2.0f * 3.14159;
+    // cosLobe *= 3.14159; // Note, this is wrong, should not multiple pi.
 
     // Calculate centerDir as an approximation for Fresnel
     float3 centerDir = vertDirs[0].xyz;

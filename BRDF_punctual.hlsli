@@ -35,7 +35,7 @@ float3 calSpecularBRDFWithCos_punctual(
     cosLobe *= ltcAmp;
 
     // Calculate Fresnel reflectance, using Schlick approximation
-    float3 fresnel = calFresnelReflectance(normal, lightDir);
+    float3 fresnel = calFresnelReflectance(normalize(lightDir+normal), lightDir);
 
     // Multiple Fresnel reflectance
     return cosLobe * fresnel;
