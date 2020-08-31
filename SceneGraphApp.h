@@ -8,6 +8,7 @@
 #include "Camera.h"
 #include "StaticDescriptorHeap.h"
 #include "RenderTarget.h"
+#include "UnorderedAccessBuffer.h"
 #include "Texture.h"
 
 class SceneGraphApp : public D3DApp
@@ -26,6 +27,7 @@ public:
 	void BuildTextures();
 
 	// Init DirectX
+	void BuildUABs();
 	/// <summary>
 	/// 仅仅初始化RenderTarget，不建立资源，也不建立描述符
 	/// </summary>
@@ -115,12 +117,11 @@ private:
 	std::unordered_map<std::string, std::unique_ptr<SingleRenderTarget>> mRenderTargets;
 	std::unique_ptr<SwapChainRenderTarget> mSwapChain;
 
+	// Unordered Access Buffers
+	std::unordered_map<std::string, std::unique_ptr<UnorderedAccessBuffer>> mUABs;
+
 	// NCount UAV
 	DXGI_FORMAT mNCountFormat = DXGI_FORMAT_R32_UINT;
-	Microsoft::WRL::ComPtr<ID3D12Resource> mNCountResource;
-	D3D12_CPU_DESCRIPTOR_HANDLE mNCountUAVCPUHandle;
-	D3D12_GPU_DESCRIPTOR_HANDLE mNCountUAVGPUHandle;
-	D3D12_CPU_DESCRIPTOR_HANDLE mNCountUAVCPUHeapCPUHandle;
 
 	// ZBuffer SRV
 	DXGI_FORMAT mZBufferResourceFormat = DXGI_FORMAT_R32_TYPELESS;

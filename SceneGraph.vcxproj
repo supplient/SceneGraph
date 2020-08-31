@@ -171,6 +171,7 @@
     <ClInclude Include="SceneGraphApp.h" />
     <ClInclude Include="StaticDescriptorHeap.h" />
     <ClInclude Include="Texture.h" />
+    <ClInclude Include="UnorderedAccessBuffer.h" />
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="displacementDomain.hlsl">

@@ -36,6 +36,7 @@ bool SceneGraphApp::Initialize()
 	BuildTextures();
 
 	// Init DirectX
+	BuildUABs();
 	BuildRenderTargets();
 	BuildDescriptorHeaps();
 
@@ -159,6 +160,19 @@ void SceneGraphApp::BuildTextures()
 	mResourceTextures["tree"] = std::make_unique<ResourceTexture>(TEXTURE_PATH_HEAD + L"tree.dds");
 	mResourceTextures["ggx_ltc_mat"] = std::make_unique<ResourceTexture>(TEXTURE_PATH_HEAD + L"ggx_ltc_mat.dds");
 	mResourceTextures["ggx_ltc_amp"] = std::make_unique<ResourceTexture>(TEXTURE_PATH_HEAD + L"ggx_ltc_amp.dds");
+}
+
+void SceneGraphApp::BuildUABs() 
+{
+	UINT zeroClearValue[4];
+	zeroClearValue[0] = 0;
+	zeroClearValue[1] = 0;
+	zeroClearValue[2] = 0;
+	zeroClearValue[3] = 0;
+
+	mUABs["nCount"] = std::make_unique<UnorderedAccessBuffer>(
+		L"nCount", DXGI_FORMAT_R32_UINT, (FLOAT*)zeroClearValue
+		);
 }
 
 void SceneGraphApp::BuildRenderTargets()
@@ -329,7 +343,9 @@ void SceneGraphApp::BuildDescriptorHeaps()
 	{
 		D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
 		heapDesc.NumDescriptors = 
-			2 + (UINT)mRenderTargets.size() 
+			1
+			+ (UINT)mUABs.size()
+			+ (UINT)mRenderTargets.size() 
 			+ mSwapChain->GetSwapChainBufferCount() 
 			+ (UINT)mResourceTextures.size() 
 			+ (UINT)mSpotLights.size()
@@ -365,9 +381,13 @@ void SceneGraphApp::BuildDescriptorHeaps()
 		index = mCBVSRVUAVHeap->Alloc();
 		mZBufferSRVCPUHandle = mCBVSRVUAVHeap->GetCPUHandle(index);
 		mZBufferSRVGPUHandle = mCBVSRVUAVHeap->GetGPUHandle(index);
-		index = mCBVSRVUAVHeap->Alloc();
-		mNCountUAVCPUHandle = mCBVSRVUAVHeap->GetCPUHandle(index);
-		mNCountUAVGPUHandle = mCBVSRVUAVHeap->GetGPUHandle(index);
+
+		for (auto& pair : mUABs) {
+			auto& uab = pair.second;
+			index = mCBVSRVUAVHeap->Alloc();
+			uab->SetCPUHandle(mCBVSRVUAVHeap->GetCPUHandle(index));
+			uab->SetGPUHandle(mCBVSRVUAVHeap->GetGPUHandle(index));
+		}
 
 		index = mCBVSRVUAVHeap->Alloc((UINT)mResourceTextures.size());
 		mTexGPUHandleStart = mCBVSRVUAVHeap->GetGPUHandle(index);
@@ -398,8 +418,12 @@ void SceneGraphApp::BuildDescriptorHeaps()
 			md3dDevice, heapDesc
 		);
 
-		UINT index = mCBVSRVUAVCPUHeap->Alloc();
-		mNCountUAVCPUHeapCPUHandle = mCBVSRVUAVCPUHeap->GetCPUHandle(index);
+		UINT index;
+		for (auto& pair : mUABs) {
+			auto& uab = pair.second;
+			index = mCBVSRVUAVCPUHeap->Alloc();
+			uab->SetCPUHandle_CPUHeap(mCBVSRVUAVCPUHeap->GetCPUHandle(index));
+		}
 	}
 
 	// Light Shadow RenderTarget's SRV Handle Set
@@ -1512,27 +1536,6 @@ void SceneGraphApp::BuildRenderItems()
 		}
 		*/
 
-		// ViewVolume
-		/*
-		{
-			// Create Object constants
-			auto consts = std::make_shared<ObjectConstants>();
-			consts->content.ModelMat = MathHelper::Identity4x4();
-			mObjConsts["viewVolume"] = consts;
-
-			// Create render items
-			auto renderItem = std::make_shared<RenderItem>();
-			renderItem->Geo = mGeos["triangle"];
-			renderItem->Submesh = mGeos["triangle"]->DrawArgs["viewVolume"];
-			renderItem->PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-			renderItem->MtlConsts = mMtlConsts["white"];
-			renderItem->PSO = "opaque";
-			renderItem->ObjConsts = mObjConsts["viewVolume"];
-
-			// Save render items
-			mOpaqueRenderItemQueue.push_back(std::move(renderItem));
-		}
-		*/
 	}
 
 	// Transparent
@@ -1648,9 +1651,8 @@ void SceneGraphApp::InitFxaa()
 
 void SceneGraphApp::ResizeScreenUAVSRV()
 {
-	// NCount UAV
+	// UAVs
 	{
-		// Build Resources
 		D3D12_RESOURCE_DESC desc;
 		desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
 		desc.Alignment = 0;
@@ -1658,34 +1660,13 @@ void SceneGraphApp::ResizeScreenUAVSRV()
 		desc.Height = mClientHeight;
 		desc.DepthOrArraySize = 1;
 		desc.MipLevels = 1;
-		desc.Format = mNCountFormat;
+		desc.Format = mUABs["nCount"]->GetViewFormat();
 		desc.SampleDesc.Count = 1;
 		desc.SampleDesc.Quality = 0;
 		desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 		desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
 
-		ThrowIfFailed(md3dDevice->CreateCommittedResource(
-			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-			D3D12_HEAP_FLAG_NONE,
-			&desc,
-			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-			nullptr,
-			IID_PPV_ARGS(&mNCountResource)
-		));
-
-		// Build Descriptor
-		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
-		uavDesc.Format = mNCountFormat;
-		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-		uavDesc.Texture2D.MipSlice = 0;
-		md3dDevice->CreateUnorderedAccessView(
-			mNCountResource.Get(), nullptr,
-			&uavDesc, mNCountUAVCPUHandle
-		);
-		md3dDevice->CreateUnorderedAccessView(
-			mNCountResource.Get(), nullptr,
-			&uavDesc, mNCountUAVCPUHeapCPUHandle
-		);
+		mUABs["nCount"]->Resize(md3dDevice, &desc);
 	}
 
 	// ZBuffer SRV
@@ -2145,10 +2126,11 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 
 	// Refresh Frame Shared Data
 	{
-		UINT clearValues[4] = { 0, 0, 0, 0 };
 		mCommandList->ClearUnorderedAccessViewUint(
-			mNCountUAVGPUHandle, mNCountUAVCPUHeapCPUHandle,
-			mNCountResource.Get(), clearValues,
+			mUABs["nCount"]->GetGPUHandle(), 
+			mUABs["nCount"]->GetCPUHandle_CPUHeap(),
+			mUABs["nCount"]->GetResource(),
+			(UINT*)mUABs["nCount"]->GetClearValue(),
 			0, nullptr
 		);
 	}
@@ -2423,7 +2405,7 @@ signPI["dirShadowSR"], mDirShadowTexGPUHandleStart
 
 		// Assign UAV
 		mCommandList->SetGraphicsRootDescriptorTable(
-			signPI["ncountUA"], mNCountUAVGPUHandle
+			signPI["ncountUA"], mUABs["nCount"]->GetGPUHandle()
 		);
 
 		// Assign ZBuffer for reference
@@ -2466,6 +2448,9 @@ signPI["dirShadowSR"], mDirShadowTexGPUHandleStart
 			mRenderTargets["opaque"]->GetDepthStencilResource(),
 			D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_DEPTH_WRITE
 		);
+
+		// HBAO
+		// TODO
 
 		// Transparent
 		nowColorRenderTarget = mRenderTargets["trans"].get();
@@ -2558,7 +2543,7 @@ signPI["dirShadowSR"], mDirShadowTexGPUHandleStart
 
 		// Assign UAV
 		mCommandList->SetGraphicsRootDescriptorTable(
-			2, mNCountUAVGPUHandle
+			2, mUABs["nCount"]->GetGPUHandle()
 		);
 
 		// Draw Render Items
