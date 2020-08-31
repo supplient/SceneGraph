@@ -56,6 +56,7 @@ public:
 	void BuildObjectConstantBuffers();
 
 	// Init Postprocess Resources
+	void InitHbao();
 	void InitFxaa();
 
 	// ScreenSize Concerned Resources' Init
@@ -120,9 +121,6 @@ private:
 	// Unordered Access Buffers
 	std::unordered_map<std::string, std::unique_ptr<UnorderedAccessBuffer>> mUABs;
 
-	// NCount UAV
-	DXGI_FORMAT mNCountFormat = DXGI_FORMAT_R32_UINT;
-
 	// ZBuffer SRV
 	DXGI_FORMAT mZBufferResourceFormat = DXGI_FORMAT_R32_TYPELESS;
 	DXGI_FORMAT mZBufferViewFormat = DXGI_FORMAT_R32_FLOAT;
@@ -175,6 +173,7 @@ private:
 	std::unordered_map<std::string, std::shared_ptr<ObjectConstants>> mObjConsts;
 
 	// PostProcess Constants
+	std::unique_ptr<HbaoConstants> mHbaoConstants;
 	std::unique_ptr<FxaaConstants> mFxaaConstants;
 
 	// Render Items
@@ -186,6 +185,7 @@ private:
 	std::unique_ptr<UploadBuffer<MaterialConstants::Content>> mMaterialConstantsBuffers;
 	std::unique_ptr<UploadBuffer<ObjectConstants::Content>> mObjectConstantsBuffers;
 	std::unique_ptr<UploadBuffer<PassConstants::Content>> mPassConstantsBuffers;
+	std::unique_ptr<UploadBuffer<HbaoConstants::Content>> mHbaoConstantsBuffers;
 	std::unique_ptr<UploadBuffer<FxaaConstants::Content>> mFxaaConstantsBuffers;
 	std::unique_ptr<UploadBuffer<ShadowPassConstants::Content>> mShadowPassConstantsBuffers;
 };

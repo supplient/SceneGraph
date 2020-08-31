@@ -74,6 +74,23 @@ private:
 	static UINT sIDCount;
 };
 
+class HbaoConstants {
+public:
+	HbaoConstants() {
+		mID = sIDCount;
+		sIDCount++;
+	}
+	UINT getID()const { return mID; }
+	static UINT getTotalNum() { return sIDCount; }
+
+	struct Content {
+	} content;
+
+private:
+	UINT mID;
+	static UINT sIDCount;
+};
+
 class FxaaConstants {
 public:
 	FxaaConstants() {

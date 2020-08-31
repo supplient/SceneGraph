@@ -62,6 +62,7 @@ bool SceneGraphApp::Initialize()
 	BuildObjectConstantBuffers();
 
 	// Init Postprocess Resources
+	InitHbao();
 	InitFxaa();
 
 	// Execute the initialization commands.
@@ -164,14 +165,19 @@ void SceneGraphApp::BuildTextures()
 
 void SceneGraphApp::BuildUABs() 
 {
-	UINT zeroClearValue[4];
-	zeroClearValue[0] = 0;
-	zeroClearValue[1] = 0;
-	zeroClearValue[2] = 0;
-	zeroClearValue[3] = 0;
+	UINT zeroUINT[4];
+	zeroUINT[0] = 0;
+	zeroUINT[1] = 0;
+	zeroUINT[2] = 0;
+	zeroUINT[3] = 0;
+	FLOAT zeroFLOAT[4];
+	zeroFLOAT[0] = 0.0f;
+	zeroFLOAT[1] = 0.0f;
+	zeroFLOAT[2] = 0.0f;
+	zeroFLOAT[3] = 0.0f;
 
 	mUABs["nCount"] = std::make_unique<UnorderedAccessBuffer>(
-		L"nCount", DXGI_FORMAT_R32_UINT, (FLOAT*)zeroClearValue
+		L"nCount", DXGI_FORMAT_R32_UINT, (FLOAT*)zeroUINT
 		);
 }
 
@@ -192,6 +198,9 @@ void SceneGraphApp::BuildRenderTargets()
 	mRenderTargets["opaque"] = std::make_unique<SingleRenderTarget>(
 		L"opaque", DXGI_FORMAT_R8G8B8A8_UNORM, whiteClearValue,
 		true, L"render depth", DXGI_FORMAT_R32_TYPELESS, DXGI_FORMAT_D32_FLOAT
+		);
+	mRenderTargets["hbao"] = std::make_unique<SingleRenderTarget>(
+		L"hbao", DXGI_FORMAT_R8G8B8A8_UNORM, whiteClearValue
 		);
 	mRenderTargets["trans"] = std::make_unique<SingleRenderTarget>(
 		L"transparent", DXGI_FORMAT_R32G32B32A32_FLOAT, whiteClearValue);
@@ -278,10 +287,20 @@ void SceneGraphApp::BuildDescriptorHeaps()
 {
 	// DSV
 	{
+		// Check who need DepthStencilView among RenderTargets
+		std::vector<std::string> renderTargetsNeedDS;
+		for (auto& pair : mRenderTargets) {
+			std::string name = pair.first;
+			auto& renderTarget = pair.second;
+			if (renderTarget->CheckHasDepthStencil())
+				renderTargetsNeedDS.push_back(name);
+		}
+
 		// Build Descriptor Heap
 		D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
 		heapDesc.NumDescriptors = 
-			2 + (UINT)mSpotLights.size() 
+			(UINT)renderTargetsNeedDS.size()
+			+ (UINT)mSpotLights.size() 
 			+ (UINT)mDirLights.size()
 			+ (UINT)mPointLights.size();
 		heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
@@ -292,8 +311,9 @@ void SceneGraphApp::BuildDescriptorHeaps()
 		);
 
 		// Build Handle
-		mRenderTargets["opaque"]->SetDSVCPUHandle(mDSVHeap->GetCPUHandle(mDSVHeap->Alloc()));
-		mRenderTargets["fxaa"]->SetDSVCPUHandle(mDSVHeap->GetCPUHandle(mDSVHeap->Alloc()));
+		for (std::string name : renderTargetsNeedDS) {
+			mRenderTargets[name]->SetDSVCPUHandle(mDSVHeap->GetCPUHandle(mDSVHeap->Alloc()));
+		}
 
 		for (auto& spotLight : mSpotLights)
 			spotLight.ShadowRT->SetDSVCPUHandle(mDSVHeap->GetCPUHandle(mDSVHeap->Alloc()));
@@ -321,11 +341,10 @@ void SceneGraphApp::BuildDescriptorHeaps()
 		);
 
 		// Build Handle
-		mRenderTargets["opaque"]->SetRTVCPUHandle(mRTVHeap->GetCPUHandle(mRTVHeap->Alloc()));
-		mRenderTargets["trans"]->SetRTVCPUHandle(mRTVHeap->GetCPUHandle(mRTVHeap->Alloc()));
-		mRenderTargets["transBlend"]->SetRTVCPUHandle(mRTVHeap->GetCPUHandle(mRTVHeap->Alloc()));
-		mRenderTargets["afterResolve"]->SetRTVCPUHandle(mRTVHeap->GetCPUHandle(mRTVHeap->Alloc()));
-		mRenderTargets["fxaa"]->SetRTVCPUHandle(mRTVHeap->GetCPUHandle(mRTVHeap->Alloc()));
+		for (auto& pair : mRenderTargets) {
+			auto& renderTarget = pair.second;
+			renderTarget->SetRTVCPUHandle(mRTVHeap->GetCPUHandle(mRTVHeap->Alloc()));
+		}
 		UINT index = mRTVHeap->Alloc(mSwapChain->GetSwapChainBufferCount());
 		mSwapChain->SetRTVCPUHandleStart(mRTVHeap->GetCPUHandle(index));
 
@@ -358,21 +377,13 @@ void SceneGraphApp::BuildDescriptorHeaps()
 			md3dDevice, heapDesc
 		);
 
-		UINT index = mCBVSRVUAVHeap->Alloc();
-		mRenderTargets["opaque"]->SetSRVCPUHandle(mCBVSRVUAVHeap->GetCPUHandle(index));
-		mRenderTargets["opaque"]->SetSRVGPUHandle(mCBVSRVUAVHeap->GetGPUHandle(index));
-		index = mCBVSRVUAVHeap->Alloc();
-		mRenderTargets["trans"]->SetSRVCPUHandle(mCBVSRVUAVHeap->GetCPUHandle(index));
-		mRenderTargets["trans"]->SetSRVGPUHandle(mCBVSRVUAVHeap->GetGPUHandle(index));
-		index = mCBVSRVUAVHeap->Alloc();
-		mRenderTargets["transBlend"]->SetSRVCPUHandle(mCBVSRVUAVHeap->GetCPUHandle(index));
-		mRenderTargets["transBlend"]->SetSRVGPUHandle(mCBVSRVUAVHeap->GetGPUHandle(index));
-		index = mCBVSRVUAVHeap->Alloc();
-		mRenderTargets["afterResolve"]->SetSRVCPUHandle(mCBVSRVUAVHeap->GetCPUHandle(index));
-		mRenderTargets["afterResolve"]->SetSRVGPUHandle(mCBVSRVUAVHeap->GetGPUHandle(index));
-		index = mCBVSRVUAVHeap->Alloc();
-		mRenderTargets["fxaa"]->SetSRVCPUHandle(mCBVSRVUAVHeap->GetCPUHandle(index));
-		mRenderTargets["fxaa"]->SetSRVGPUHandle(mCBVSRVUAVHeap->GetGPUHandle(index));
+		UINT index;
+		for (auto& pair : mRenderTargets) {
+			auto& renderTarget = pair.second;
+			index = mCBVSRVUAVHeap->Alloc();
+			renderTarget->SetSRVCPUHandle(mCBVSRVUAVHeap->GetCPUHandle(index));
+			renderTarget->SetSRVGPUHandle(mCBVSRVUAVHeap->GetGPUHandle(index));
+		}
 
 		index = mCBVSRVUAVHeap->Alloc(mSwapChain->GetSwapChainBufferCount());
 		mSwapChain->SetSRVCPUHandleStart(mCBVSRVUAVHeap->GetCPUHandle(index));
@@ -615,7 +626,7 @@ void SceneGraphApp::BuildRootSignature()
 		if (mResourceTextures.size()) {
 			texSRVranges.push_back(CD3DX12_DESCRIPTOR_RANGE(
 				D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
-				(UINT)mResourceTextures.size(), 
+				(UINT)mResourceTextures.size(),
 				1, 0, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND
 			));
 		}
@@ -623,7 +634,7 @@ void SceneGraphApp::BuildRootSignature()
 		if (mSpotLights.size()) {
 			spotShadowSRVranges.push_back(CD3DX12_DESCRIPTOR_RANGE(
 				D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
-				(UINT)mSpotLights.size(), 
+				(UINT)mSpotLights.size(),
 				0, 1, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND
 			));
 		}
@@ -631,7 +642,7 @@ void SceneGraphApp::BuildRootSignature()
 		if (mDirLights.size()) {
 			dirShadowSRVranges.push_back(CD3DX12_DESCRIPTOR_RANGE(
 				D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
-				(UINT)mDirLights.size(), 
+				(UINT)mDirLights.size(),
 				0, 2, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND
 			));
 		}
@@ -639,7 +650,7 @@ void SceneGraphApp::BuildRootSignature()
 		if (mPointLights.size()) {
 			pointShadowSRVranges.push_back(CD3DX12_DESCRIPTOR_RANGE(
 				D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
-				(UINT)mPointLights.size(), 
+				(UINT)mPointLights.size(),
 				0, 3, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND
 			));
 		}
@@ -656,7 +667,7 @@ void SceneGraphApp::BuildRootSignature()
 		paramIndices["passCB"] = index++;
 		rootParams.push_back(GetTableParam(nCountUAVranges)); // 3
 		paramIndices["ncountUA"] = index++;
-		rootParams.push_back(GetTableParam(zbufferSRVranges)); // 4
+		rootParams.push_back(GetTableParam(zbufferSRVranges)); // 5
 		paramIndices["zbufferSR"] = index++;
 		if (texSRVranges.size()) {
 			rootParams.push_back(GetTableParam(texSRVranges)); // 5
@@ -678,7 +689,7 @@ void SceneGraphApp::BuildRootSignature()
 		// Create desc for root signature
 		CD3DX12_ROOT_SIGNATURE_DESC rootSignDesc;
 		rootSignDesc.Init(
-			static_cast<UINT>(rootParams.size()), 
+			static_cast<UINT>(rootParams.size()),
 			rootParams.data(),
 			static_cast<UINT>(staticSamplers.size()),
 			staticSamplers.data()
@@ -688,6 +699,47 @@ void SceneGraphApp::BuildRootSignature()
 		// Serialize And Create RootSignature
 		mRootSigns["standard"] = SerializeAndCreateRootSignature(md3dDevice, &rootSignDesc);
 		mRootSignParamIndices["standard"] = paramIndices;
+	}
+
+	// HBAO
+	{
+		std::vector<D3D12_DESCRIPTOR_RANGE> depthSRVranges;
+		depthSRVranges.push_back(CD3DX12_DESCRIPTOR_RANGE(
+			D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
+			1, 0,
+			0, 0U
+		));
+		std::vector<D3D12_DESCRIPTOR_RANGE> colorSRVranges;
+		colorSRVranges.push_back(CD3DX12_DESCRIPTOR_RANGE(
+			D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
+			1, 1,
+			0, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND
+		));
+
+		// Describe root parameters
+		UINT index = 0;
+		std::unordered_map<std::string, UINT> paramIndices;
+		std::vector<CD3DX12_ROOT_PARAMETER> rootParams;
+		rootParams.push_back(GetCBVParam(0)); // 0
+		paramIndices["hbaoCB"] = index++;
+		rootParams.push_back(GetTableParam(depthSRVranges)); // 3
+		paramIndices["depthSRV"] = index++;
+		rootParams.push_back(GetTableParam(colorSRVranges)); // 4
+		paramIndices["colorSRV"] = index++;
+
+		// Create desc for root signature
+		CD3DX12_ROOT_SIGNATURE_DESC rootSignDesc;
+		rootSignDesc.Init(
+			static_cast<UINT>(rootParams.size()),
+			rootParams.data(),
+			static_cast<UINT>(staticSamplers.size()),
+			staticSamplers.data()
+		);
+		rootSignDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+
+		// Serialize And Create RootSignature
+		mRootSigns["hbao"] = SerializeAndCreateRootSignature(md3dDevice, &rootSignDesc);
+		mRootSignParamIndices["hbao"] = paramIndices;
 	}
 
 	// transBlend
@@ -830,6 +882,9 @@ void SceneGraphApp::BuildShaders()
 	mShaders["pointShadowPS"] = d3dUtil::CompileShader(
 		L"pointShadowPixel.hlsl", defines.data(), "main", PS_TARGET
 	);
+	mShaders["hbaoPS"] = d3dUtil::CompileShader(
+		L"hbaoPixel.hlsl", defines.data(), "main", PS_TARGET
+	);
 }
 
 void SceneGraphApp::BuildPSOs()
@@ -919,6 +974,16 @@ void SceneGraphApp::BuildPSOs()
 	transBlendPsoDesc.DepthStencilState.DepthEnable = false;
 	transBlendPsoDesc.RTVFormats[0] = mRenderTargets["transBlend"]->GetColorViewFormat();
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&transBlendPsoDesc, IID_PPV_ARGS(&mPSOs["transBlend"])));
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC hbaoPsoDesc = transBlendPsoDesc;
+	hbaoPsoDesc.pRootSignature = mRootSigns["hbao"].Get();
+	hbaoPsoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["hbaoPS"]->GetBufferPointer()),
+		mShaders["hbaoPS"]->GetBufferSize()
+	};
+	hbaoPsoDesc.RTVFormats[0] = mRenderTargets["hbao"]->GetColorViewFormat();
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&hbaoPsoDesc, IID_PPV_ARGS(&mPSOs["hbao"])));
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC fxaaPsoDesc = transBlendPsoDesc;
 	fxaaPsoDesc.pRootSignature = mRootSigns["fxaa"].Get();
@@ -1310,9 +1375,6 @@ void SceneGraphApp::BuildRenderItems()
 				&consts->content.ModelMat, 
 				XMMatrixTranspose(translationMat)
 			);
-			XMMATRIX normalModelMat = MathHelper::GenNormalModelMat(consts->content.ModelMat);
-				// Has Transported above
-			XMStoreFloat4x4(&consts->content.NormalModelMat, normalModelMat);
 
 			mObjConsts["blueBoard"] = consts;
 
@@ -1338,9 +1400,6 @@ void SceneGraphApp::BuildRenderItems()
 				&consts->content.ModelMat, 
 				XMMatrixTranspose(translationMat)
 			);
-			XMMATRIX normalModelMat = MathHelper::GenNormalModelMat(consts->content.ModelMat);
-				// Has Transported above
-			XMStoreFloat4x4(&consts->content.NormalModelMat, normalModelMat);
 
 			mObjConsts["redBoard"] = consts;
 
@@ -1619,6 +1678,22 @@ void SceneGraphApp::BuildObjectConstantBuffers()
 	);
 }
 
+void SceneGraphApp::InitHbao()
+{
+	// Create constants
+	mHbaoConstants = std::make_unique<HbaoConstants>();
+
+	// Init constants
+	auto& content = mHbaoConstants->content;
+	// TODO now is empty
+
+	// Create buffer
+	mHbaoConstantsBuffers = std::make_unique<UploadBuffer<HbaoConstants::Content>>(
+		md3dDevice.Get(), 
+		HbaoConstants::getTotalNum(), true
+	);
+}
+
 void SceneGraphApp::InitFxaa()
 {
 	// Settings
@@ -1747,6 +1822,15 @@ void SceneGraphApp::ResizeRenderTargets()
 	mRenderTargets["transBlend"]->Resize(
 		md3dDevice,
 		&transBlendDesc
+	);
+
+	// HBAO
+	D3D12_RESOURCE_DESC hbaoDesc = transBlendDesc;
+	hbaoDesc.Format = mRenderTargets["hbao"]->GetColorViewFormat();
+
+	mRenderTargets["hbao"]->Resize(
+		md3dDevice,
+		&hbaoDesc
 	);
 
 	// After Resolve
@@ -1975,13 +2059,10 @@ void SceneGraphApp::Update(const GameTimer& gt)
 		XMStoreFloat4(&content.EyePos, eyePos);
 
 		XMMATRIX viewMat = mCamera.GetViewMatrix();
-		viewMat = XMMatrixTranspose(viewMat);
-		XMStoreFloat4x4(&content.ViewMat, viewMat);
-
+		XMStoreFloat4x4(&content.ViewMat, XMMatrixTranspose(viewMat));
 
 		XMMATRIX projMat = mCamera.GetOrthoProjMatrix(screenWidthHeightAspect);
-		projMat = XMMatrixTranspose(projMat);
-		XMStoreFloat4x4(&content.ProjMat, projMat);
+		XMStoreFloat4x4(&content.ProjMat, XMMatrixTranspose(projMat));
 
 		// direction lights
 		for (unsigned int i = 0; i < mDirLights.size(); i++)
@@ -1993,9 +2074,7 @@ void SceneGraphApp::Update(const GameTimer& gt)
 		// Cal All NormalModelMat
 		for (auto& pair : mObjConsts) {
 			auto consts = pair.second;
-			XMMATRIX normalModelMat = XMLoadFloat4x4(&consts->content.ModelMat);
-			normalModelMat = MathHelper::InverseTranspose(normalModelMat);
-			normalModelMat.r[3] = { 0.0f, 0.0f, 0.0f, 1.0f };
+			XMMATRIX normalModelMat = MathHelper::GenNormalMat(consts->content.ModelMat);
 			XMStoreFloat4x4(&consts->content.NormalModelMat, normalModelMat);
 		}
 	}
@@ -2049,6 +2128,14 @@ void SceneGraphApp::Update(const GameTimer& gt)
 		mObjectConstantsBuffers->CopyData(
 			mBackgroundRenderItem->ObjConsts->getID(),
 			mBackgroundRenderItem->ObjConsts->content
+		);
+	}
+
+	// Upload Hbao Constant
+	{
+		mHbaoConstantsBuffers->CopyData(
+			mHbaoConstants->getID(),
+			mHbaoConstants->content
 		);
 	}
 
@@ -2449,9 +2536,6 @@ signPI["dirShadowSR"], mDirShadowTexGPUHandleStart
 			D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_DEPTH_WRITE
 		);
 
-		// HBAO
-		// TODO
-
 		// Transparent
 		nowColorRenderTarget = mRenderTargets["trans"].get();
 		{
@@ -2499,13 +2583,97 @@ signPI["dirShadowSR"], mDirShadowTexGPUHandleStart
 		);
 	}
 
+	// HBAO
+	bool hasHBAO = true; // DEBUG
+	nowColorRenderTarget = mRenderTargets["hbao"].get();
+	if(hasHBAO)
+	{
+		auto& signPI = mRootSignParamIndices["hbao"]; // root sign param indices
+
+		// Trans Previous RenderTarget to Shader Resource
+		TransResourceState(
+			mCommandList,
+			{ mRenderTargets["opaque"]->GetColorResource() },
+			{ D3D12_RESOURCE_STATE_RENDER_TARGET },	
+			{ D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE }
+		);
+
+		// Specify the buffers we are going to render to.
+		mCommandList->OMSetRenderTargets(
+			1, &nowColorRenderTarget->GetRTVCPUHandle(), 
+			true, &nowDSRenderTarget->GetDSVCPUHandle()
+		);
+
+		// Clear the back buffer and depth buffer.
+		mCommandList->ClearRenderTargetView(
+			nowColorRenderTarget->GetRTVCPUHandle(), 
+			nowColorRenderTarget->GetColorClearValue(), 
+			0, nullptr
+		);
+		mCommandList->ClearDepthStencilView(
+			nowDSRenderTarget->GetDSVCPUHandle(), 
+			D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 
+			nowDSRenderTarget->GetDepthClearValue(),  
+			nowDSRenderTarget->GetStencilClearValue(),
+			0, nullptr
+		);
+
+		// Set Root Signature
+		mCommandList->SetGraphicsRootSignature(mRootSigns["hbao"].Get());
+
+		// Assign CBV
+		auto hbaoCBGPUAddr = mHbaoConstantsBuffers->Resource()->GetGPUVirtualAddress();
+		UINT64 hbaoCBElementByteSize = mHbaoConstantsBuffers->getElementByteSize();
+		mCommandList->SetGraphicsRootConstantBufferView(
+			signPI["hbaoCB"], hbaoCBGPUAddr + mHbaoConstants->getID() * hbaoCBElementByteSize
+		);
+
+		// Assign SRV
+		mCommandList->SetGraphicsRootDescriptorTable(
+			signPI["depthSRV"], mZBufferSRVGPUHandle
+		);
+		mCommandList->SetGraphicsRootDescriptorTable(
+			signPI["colorSRV"], mRenderTargets["opaque"]->GetSRVGPUHandle()
+		);
+
+		// Draw Render Items
+		auto& renderItem = mBackgroundRenderItem;
+		mCommandList->SetPipelineState(mPSOs["hbao"].Get());
+
+		// Set IA
+		D3D12_VERTEX_BUFFER_VIEW VBVs[1] = {
+			renderItem->Geo->VertexBufferView()
+		};
+		mCommandList->IASetVertexBuffers(0, 1, VBVs);
+		mCommandList->IASetIndexBuffer(&renderItem->Geo->IndexBufferView());
+		mCommandList->IASetPrimitiveTopology(renderItem->PrimitiveTopology);
+
+		// Draw Call
+		mCommandList->DrawIndexedInstanced(
+			renderItem->Submesh.IndexCount, 
+			1,
+			renderItem->Submesh.StartIndexLocation,
+			renderItem->Submesh.BaseVertexLocation,
+			0
+		);
+
+		// Turn Back
+		TransResourceState(
+			mCommandList,
+			{ mRenderTargets["opaque"]->GetColorResource() },
+			{ D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE },
+			{ D3D12_RESOURCE_STATE_RENDER_TARGET}
+		);
+	}
+
 	// Transparent Blend
 	nowColorRenderTarget = mRenderTargets["transBlend"].get();
 	{
 		// Trans Previous RenderTarget to Shader Resource
+		auto& prevRenderTarget = hasHBAO ? mRenderTargets["hbao"] : mRenderTargets["opaque"];
 		TransResourceState(
 			mCommandList,
-			{ mRenderTargets["opaque"]->GetColorResource(), mRenderTargets["trans"]->GetColorResource() },
+			{ prevRenderTarget->GetColorResource(), mRenderTargets["trans"]->GetColorResource() },
 			{ D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RENDER_TARGET },
 			{ D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE }
 		);
@@ -2535,7 +2703,7 @@ signPI["dirShadowSR"], mDirShadowTexGPUHandleStart
 
 		// Assign SRV
 		mCommandList->SetGraphicsRootDescriptorTable(
-			0, mRenderTargets["opaque"]->GetSRVGPUHandle()
+			0, prevRenderTarget->GetSRVGPUHandle()
 		);
 		mCommandList->SetGraphicsRootDescriptorTable(
 			1, mRenderTargets["trans"]->GetSRVGPUHandle()
@@ -2570,7 +2738,7 @@ signPI["dirShadowSR"], mDirShadowTexGPUHandleStart
 		// Trans Back to Render Targets
 		TransResourceState(
 			mCommandList,
-			{ mRenderTargets["opaque"]->GetColorResource(), mRenderTargets["trans"]->GetColorResource() },
+			{ prevRenderTarget->GetColorResource(), mRenderTargets["trans"]->GetColorResource() },
 			{ D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE },
 			{ D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RENDER_TARGET }
 		);

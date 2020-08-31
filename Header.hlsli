@@ -103,6 +103,7 @@ cbuffer cbPerPass : register(b2)
     RectLight gRectLights[MAX_RECT_LIGHT_NUM];
 };
 
+// UAVs
 // NCount for weighted-average
 RWTexture2D<uint> uabNCount : register(u0);
 
