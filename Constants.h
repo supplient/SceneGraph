@@ -84,6 +84,13 @@ public:
 	static UINT getTotalNum() { return sIDCount; }
 
 	struct Content {
+		float ScaleX; // 1
+		float ScaleY; // 2
+		float NearZ; // 3
+		float FarZ; // 4
+		UINT ClientWidth; // 1
+		UINT ClientHeight; // 2
+		DirectX::XMFLOAT2 padding1;
 	} content;
 
 private:

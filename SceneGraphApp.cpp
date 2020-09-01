@@ -2069,6 +2069,19 @@ void SceneGraphApp::Update(const GameTimer& gt)
 			content.DirLights[i] = mDirLights[i].ToContent();
 	}
 
+	// Update Hbao Constant
+	{
+		auto& content = mHbaoConstants->content;
+
+		XMMATRIX projMat = mCamera.GetOrthoProjMatrix(screenWidthHeightAspect);
+		content.ScaleX = 1.0f / projMat.r[0].m128_f32[0];
+		content.ScaleY = 1.0f / projMat.r[1].m128_f32[1];
+		content.NearZ = 0.0f;
+		content.FarZ = 1.0f / projMat.r[2].m128_f32[2];
+		content.ClientWidth = mClientWidth;
+		content.ClientHeight = mClientHeight;
+	}
+
 	// Update Object Constants
 	{
 		// Cal All NormalModelMat
