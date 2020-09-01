@@ -1,6 +1,12 @@
 #include "Predefine.hlsli"
 #include "MultiSampleLoader.hlsli"
 
+static const float PI = 3.14156f;
+static const int R = 3; 
+// Note, we hard-encode sample pattern, 
+// so changes for R cannot affect sample pattern.
+// When changing R, hard-encoded sample pattern should be changed too.
+
 cbuffer cbHBAO : register(b0)
 {
     float gScaleX;
@@ -13,9 +19,8 @@ cbuffer cbHBAO : register(b0)
 };
 
 #ifdef MULTIPLE_SAMPLE
-    // TODO
-    Texture2DMS<float> depthTex : register(t0);
-    Texture2DMS<float> colorTex : register(t1);
+    Texture2DMS<float4> depthTex : register(t0);
+    Texture2DMS<float4> colorTex : register(t1);
 #else
     Texture2D depthTex : register(t0);
     Texture2D colorTex : register(t1);
@@ -59,9 +64,6 @@ float3 reconstructNormal(int2 posS, uint sampleIndex)
     float3 normal = cross(minDiff(pl, p, pr), minDiff(pu, p, pd));
     return normalize(normal);
 }
-
-static float PI = 3.14156f;
-static int R = 3;
 
 float2 screenLen2EyeLen(int2 lenS)
 {
@@ -144,8 +146,6 @@ float calAmbientOcclusion(float3 normalE, int2 posS, uint sampleIndex)
     float k = (1.0f - integration / 2.0f / PI) / PI;
     return k;
 }
-
-#define HBAO_DEBUG 1
 
 float4 main(float4 posH : SV_POSITION, uint sampleIndex : SV_SampleIndex) : SV_TARGET
 {
