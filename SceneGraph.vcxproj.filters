@@ -134,6 +134,9 @@
     <ClInclude Include="Object.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="UnorderedAccessBuffer.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="simpleVertex.hlsl">
@@ -170,6 +173,9 @@
       <Filter>Shaders\Vertex</Filter>
     </FxCompile>
     <FxCompile Include="pointShadowPixel.hlsl">
+      <Filter>Shaders\Pixel</Filter>
+    </FxCompile>
+    <FxCompile Include="hbaoPixel.hlsl">
       <Filter>Shaders\Pixel</Filter>
     </FxCompile>
   </ItemGroup>

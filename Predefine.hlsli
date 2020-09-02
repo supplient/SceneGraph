@@ -41,4 +41,8 @@
 
 // #define MULTIPLE_SAMPLE 4
 
+#ifndef HBAO_DEBUG
+    #define HBAO_DEBUG 0
+#endif
+
 #endif// PREDEFINE_H

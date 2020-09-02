@@ -58,6 +58,8 @@ public:
 		dsvCPUHandle = handle;
 	}
 
+	bool CheckHasDepthStencil() { return hasDepthStencil; }
+
 	void Resize(
 		Microsoft::WRL::ComPtr<ID3D12Device> device,
 		D3D12_RESOURCE_DESC* desc,
