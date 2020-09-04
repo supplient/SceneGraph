@@ -31,6 +31,7 @@ bool SceneGraphApp::Initialize()
 	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
 	// Init Scene
+	BuildObjects();
 	BuildLights();
 	BuildLightShadowConstantBuffers();
 	BuildTextures();
@@ -55,9 +56,6 @@ bool SceneGraphApp::Initialize()
 	BuildMaterialConstants();
 	BuildAndUpdateMaterialConstantBuffers();
 
-	// Init Render Items
-	BuildRenderItems();
-
 	// Init Render Item Resources
 	BuildObjectConstantBuffers();
 
@@ -77,6 +75,114 @@ bool SceneGraphApp::Initialize()
     OnResize();
 
 	return true;
+}
+
+void SceneGraphApp::BuildObjects()
+{
+	// Make Root
+	mRootObject = std::make_shared<Object>("_root");
+
+	// Cube
+	{
+		// mid
+		{
+			// Create Object
+			auto obj = std::make_shared<Object>("midCube");
+			obj->SetScale(0.1f, 0.1f, 0.1f);
+			Object::Link(mRootObject, obj);
+
+			// Create render item
+			auto renderItem = std::make_shared<RenderItem>();
+			renderItem->MeshPool = "triangle";
+			renderItem->SubMesh = "triangle";
+			renderItem->PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+			renderItem->Material = "white";
+			renderItem->PSO = "opaque";
+			renderItem->ObjectID = obj->GetID();
+
+			// Save render item
+			mOpaqueRenderItemQueue.push_back(std::move(renderItem));
+		}
+
+		// bottom
+		{
+			// Create Object
+			auto obj = std::make_shared<Object>("bottomCube");
+			obj->SetScale(2.0f, 0.1f, 2.0f);
+			obj->SetTranslation(0.0f, -1.05f, 0.0f);
+			Object::Link(mRootObject, obj);
+
+			// Create render item
+			auto renderItem = std::make_shared<RenderItem>();
+			renderItem->MeshPool = "triangle";
+			renderItem->SubMesh = "triangle";
+			renderItem->PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+			renderItem->Material = "white";
+			renderItem->PSO = "opaque";
+			renderItem->ObjectID = obj->GetID();
+
+			// Save render item
+			mOpaqueRenderItemQueue.push_back(std::move(renderItem));
+		}
+
+		// left
+		{
+			// Create Object
+			auto obj = std::make_shared<Object>("leftCube");
+			obj->SetScale(0.1f, 2.0f, 2.0f);
+			obj->SetTranslation(-1.05f, 0.0f, 0.0f);
+			Object::Link(mRootObject, obj);
+
+			// Create render item
+			auto renderItem = std::make_shared<RenderItem>();
+			renderItem->MeshPool = "triangle";
+			renderItem->SubMesh = "triangle";
+			renderItem->PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+			renderItem->Material = "white";
+			renderItem->PSO = "opaque";
+			renderItem->ObjectID = obj->GetID();
+
+			// Save render item
+			mOpaqueRenderItemQueue.push_back(std::move(renderItem));
+		}
+
+		// back
+		{
+			// Create Object
+			auto obj = std::make_shared<Object>("backCube");
+			obj->SetScale(2.0f, 2.0f, 0.1f);
+			obj->SetTranslation(0.0f, 0.0f, 1.05f);
+			Object::Link(mRootObject, obj);
+
+			// Create render item
+			auto renderItem = std::make_shared<RenderItem>();
+			renderItem->MeshPool = "triangle";
+			renderItem->SubMesh = "triangle";
+			renderItem->PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+			renderItem->Material = "white";
+			renderItem->PSO = "opaque";
+			renderItem->ObjectID = obj->GetID();
+
+			// Save render item
+			mOpaqueRenderItemQueue.push_back(std::move(renderItem));
+		}
+	}
+
+	// Post
+	{
+		auto obj = std::make_shared<Object>("background");
+		Object::Link(mRootObject, obj);
+		
+		auto renderItem = std::make_shared<RenderItem>();
+		renderItem->MeshPool = "background";
+		renderItem->SubMesh = "background";
+		renderItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+		renderItem->Material = "white";
+		renderItem->ObjectID = obj->GetID();
+
+		// Save render items
+		mBackgroundRenderItem = std::move(renderItem);
+	}
 }
 
 void SceneGraphApp::BuildLights()
@@ -1361,9 +1467,9 @@ void SceneGraphApp::BuildAndUpdateMaterialConstantBuffers()
 	}
 }
 
+/*
 void SceneGraphApp::BuildRenderItems()
 {
-	/*
 	// Test
 	{
 		// blue
@@ -1416,12 +1522,10 @@ void SceneGraphApp::BuildRenderItems()
 			mRenderItemQueue.push_back(std::move(renderItem));
 		}
 	}
-	*/
 
 	// Opaque
 	{
 		// Tree
-		/*
 		{
 			// Hor
 			{
@@ -1466,116 +1570,9 @@ void SceneGraphApp::BuildRenderItems()
 			}
 
 		}
-		*/
 
-		// Cube
-		{
-			// mid
-			{
-				// Create Object constants
-				auto consts = std::make_shared<ObjectConstants>();
-				auto modelMat = XMMatrixScaling(0.1f, 0.1f, 0.1f);
-				// modelMat = XMMatrixMultiply(modelMat, XMMatrixRotationY(MathHelper::AngleToRadius(45)));
-				// modelMat = XMMatrixMultiply(modelMat, XMMatrixRotationX(MathHelper::AngleToRadius(45)));
-				modelMat = XMMatrixMultiply(modelMat, XMMatrixTranslation(0.0f, 0.0f, 0.0f));
-				XMStoreFloat4x4(
-					&consts->content.ModelMat, 
-					XMMatrixTranspose(modelMat)
-				);
-				mObjConsts["midCube"] = consts;
-
-				// Create render items
-				auto renderItem = std::make_shared<RenderItem>();
-				renderItem->MeshPool = "triangle";
-				renderItem->SubMesh = "triangle";
-				renderItem->PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-				renderItem->Material = "white";
-				renderItem->PSO = "opaque";
-				renderItem->ObjectID = mObjConsts["midCube"]->getID();
-
-				// Save render items
-				mOpaqueRenderItemQueue.push_back(std::move(renderItem));
-			}
-
-			// bottom
-			{
-				// Create Object constants
-				auto consts = std::make_shared<ObjectConstants>();
-				auto modelMat = XMMatrixScaling(2.0f, 0.1f, 2.0f);
-				auto transMat = XMMatrixTranslation(0.0f, -1.05f, 0.0f);
-				modelMat = modelMat * transMat;
-				XMStoreFloat4x4(
-					&consts->content.ModelMat, 
-					XMMatrixTranspose(modelMat)
-				);
-				mObjConsts["bottomCube"] = consts;
-
-				// Create render items
-				auto renderItem = std::make_shared<RenderItem>();
-				renderItem->MeshPool = "triangle";
-				renderItem->SubMesh = "triangle";
-				renderItem->PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-				renderItem->Material = "white";
-				renderItem->PSO = "opaque";
-				renderItem->ObjectID = mObjConsts["bottomCube"]->getID();
-
-				// Save render items
-				mOpaqueRenderItemQueue.push_back(std::move(renderItem));
-			}
-
-			// left
-			{
-				// Create Object constants
-				auto consts = std::make_shared<ObjectConstants>();
-				auto modelMat = XMMatrixScaling(0.1f, 2.0f, 2.0f);
-				modelMat = XMMatrixMultiply(modelMat, XMMatrixTranslation(-1.05f, 0.0f, 0.0f));
-				XMStoreFloat4x4(
-					&consts->content.ModelMat, 
-					XMMatrixTranspose(modelMat)
-				);
-				mObjConsts["leftCube"] = consts;
-
-				// Create render items
-				auto renderItem = std::make_shared<RenderItem>();
-				renderItem->MeshPool = "triangle";
-				renderItem->SubMesh = "triangle";
-				renderItem->PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-				renderItem->Material = "white";
-				renderItem->PSO = "opaque";
-				renderItem->ObjectID = mObjConsts["leftCube"]->getID();
-
-				// Save render items
-				mOpaqueRenderItemQueue.push_back(std::move(renderItem));
-			}
-
-			// back
-			{
-				// Create Object constants
-				auto consts = std::make_shared<ObjectConstants>();
-				auto modelMat = XMMatrixScaling(2.0f, 2.0f, 0.1f);
-				modelMat = XMMatrixMultiply(modelMat, XMMatrixTranslation(0.0f, 0.0f, 1.05f));
-				XMStoreFloat4x4(
-					&consts->content.ModelMat, 
-					XMMatrixTranspose(modelMat)
-				);
-				mObjConsts["backCube"] = consts;
-
-				// Create render items
-				auto renderItem = std::make_shared<RenderItem>();
-				renderItem->MeshPool = "triangle";
-				renderItem->SubMesh = "triangle";
-				renderItem->PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-				renderItem->Material = "white";
-				renderItem->PSO = "opaque";
-				renderItem->ObjectID = mObjConsts["backCube"]->getID();
-
-				// Save render items
-				mOpaqueRenderItemQueue.push_back(std::move(renderItem));
-			}
-		}
 
 		// Displacement Cube
-		/*
 		{
 			// Create Object constants
 			auto triConsts = std::make_shared<ObjectConstants>();
@@ -1594,12 +1591,10 @@ void SceneGraphApp::BuildRenderItems()
 			// Save render items
 			mRenderItemQueue.push_back(std::move(renderItem));
 		}
-		*/
 
 	}
 
 	// Transparent
-	/*
 	{
 		// transBlue
 		{
@@ -1649,33 +1644,14 @@ void SceneGraphApp::BuildRenderItems()
 			mTransRenderItemQueue.push_back(std::move(renderItem));
 		}
 	}
-	*/
-
-	// Post
-	{
-		// Create Object constants
-		auto consts = std::make_shared<ObjectConstants>();
-		consts->content.ModelMat = MathHelper::Identity4x4();
-		mObjConsts["background"] = consts;
-
-		// Create render items
-		auto renderItem = std::make_shared<RenderItem>();
-				renderItem->MeshPool = "background";
-				renderItem->SubMesh = "background";
-		renderItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-		renderItem->Material = "white";
-		renderItem->ObjectID = mObjConsts["background"]->getID();
-
-		// Save render items
-		mBackgroundRenderItem = std::move(renderItem);
-	}
 }
+*/
 
 void SceneGraphApp::BuildObjectConstantBuffers()
 {
-	mObjectConstantsBuffers = std::make_unique<UploadBuffer<ObjectConstants::Content>>(
+	mObjectConstantsBuffers = std::make_unique<UploadBuffer<Object::Content>>(
 		md3dDevice.Get(), 
-		ObjectConstants::getTotalNum(), true
+		Object::GetTotalNum(), true
 	);
 }
 
@@ -2088,16 +2064,6 @@ void SceneGraphApp::Update(const GameTimer& gt)
 		content.ClientHeight = mClientHeight;
 	}
 
-	// Update Object Constants
-	{
-		// Cal All NormalModelMat
-		for (auto& pair : mObjConsts) {
-			auto consts = pair.second;
-			XMMATRIX normalModelMat = MathHelper::GenNormalMat(consts->content.ModelMat);
-			XMStoreFloat4x4(&consts->content.NormalModelMat, normalModelMat);
-		}
-	}
-
 	// Upload Pass Constant
 	{
 		mPassConstantsBuffers->CopyData(
@@ -2132,13 +2098,19 @@ void SceneGraphApp::Update(const GameTimer& gt)
 
 	// Upload Object Constant
 	{
-		for (auto& pair : mObjConsts) {
-			auto& objConst = pair.second;
-			mObjectConstantsBuffers->CopyData(
-				objConst->getID(),
-				objConst->content
+		auto buffer = mObjectConstantsBuffers.get();
+		std::function<void(std::shared_ptr<Object>)> iterFunc;
+		iterFunc = [buffer, &iterFunc](std::shared_ptr<Object> root) {
+			buffer->CopyData(
+				root->GetID(),
+				root->ToContent()
 			);
-		}
+			for (auto& child : root->GetChilds())
+				iterFunc(child);
+		};
+
+		mRootObject->UpdateGlobalModelMatRecursively();
+		iterFunc(mRootObject);
 	}
 
 	// Upload Hbao Constant

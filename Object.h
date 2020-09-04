@@ -1,6 +1,7 @@
 #pragma once
 #include "Common/d3dUtil.h"
 #include "Predefine.h"
+#include "RenderItem.h"
 
 class Object
 {
@@ -11,12 +12,37 @@ public:
 			return false;
 		parent->mChilds.push_back(child);
 		child->mParent = parent;
+		return true;
+	}
+
+	static bool Link(std::shared_ptr<Object> obj, std::shared_ptr<RenderItem> item)
+	{
+		if (item->ObjectID != 0)
+			return false;
+		obj->mRenderItems.push_back(item);
+		item->ObjectID = obj->mID;
+		return true;
 	}
 
 public:
 	Object(const std::string& name)
 		: mName(name)
-	{}
+	{
+		mID = sIDCount + 1; 
+		sIDCount++;
+		sIDMap.push_back(this);
+	}
+	~Object() {
+		sIDMap[mID - 1] = nullptr;
+	}
+
+	UINT GetID()const { return mID; }
+	static UINT GetTotalNum() { return sIDCount; }
+	static Object* FindObjectByID(UINT id) {
+		if (id-1 >= sIDMap.size())
+			return nullptr;
+		return sIDMap[id - 1];
+	}
 
 	struct Content {
 		DirectX::XMFLOAT4X4 ModelMat = MathHelper::Identity4x4();
@@ -40,6 +66,8 @@ public:
 			&content.NormalModelMat,
 			DirectX::XMMatrixTranspose(normalMat)
 		);
+
+		return content;
 	}
 
 	void SetTranslation(float x, float y, float z) {
@@ -47,6 +75,9 @@ public:
 	}
 	void SetRotation(float x, float y, float z) {
 		mRotation = { x, y, z };
+	}
+	void SetRotation_Degree(float x, float y, float z) {
+		mRotation = { MathHelper::AngleToRadius(x), MathHelper::AngleToRadius(y), MathHelper::AngleToRadius(z) };
 	}
 	void SetScale(float x, float y, float z) {
 		mScale = { x, y, z };
@@ -79,20 +110,26 @@ public:
 		for (auto& child : mChilds)
 			child->UpdateGlobalModelMatRecursively(globalMat);
 	}
-
 	DirectX::XMMATRIX GetGlobalModelMat()const {
 		return DirectX::XMLoadFloat4x4(&mGlobalModelMat);
 	}
 
+	std::vector<std::shared_ptr<Object>> GetChilds() { return mChilds; }
+
 private:
+	// Note: We left 0 as an invalid ID.
+	UINT mID;
+	static UINT sIDCount;
+	static std::vector<Object*> sIDMap;
+
 	std::string mName;
 
 	std::shared_ptr<Object> mParent = nullptr;
 	std::vector<std::shared_ptr<Object>> mChilds;
+	std::vector<std::shared_ptr<RenderItem>> mRenderItems;
 
-	DirectX::XMFLOAT3 mTranslation;
-	DirectX::XMFLOAT3 mRotation;
-	DirectX::XMFLOAT3 mScale;
+	DirectX::XMFLOAT3 mTranslation = { 0.0f, 0.0f, 0.0f };
+	DirectX::XMFLOAT3 mRotation = { 0.0f, 0.0f, 0.0f };;
+	DirectX::XMFLOAT3 mScale = { 1.0f, 1.0f, 1.0f };;
 	DirectX::XMFLOAT4X4 mGlobalModelMat;
-
 };

@@ -1,8 +1,10 @@
 #pragma once
 #include <DirectXColors.h>
+#include <functional>
 
 #include "Common/d3dApp.h"
 #include "Common/UploadBuffer.h"
+#include "Object.h"
 #include "Light.h"
 #include "RenderItem.h"
 #include "Camera.h"
@@ -22,6 +24,7 @@ public:
 	// Initialize
 
 	// Init Scene
+	void BuildObjects();
 	void BuildLights();
 	void BuildLightShadowConstantBuffers();
 	void BuildTextures();
@@ -45,9 +48,6 @@ public:
 	void BuildGeos();
 	void BuildMaterialConstants();
 	void BuildAndUpdateMaterialConstantBuffers();
-
-	// Init Render Items
-	void BuildRenderItems();
 	
 	// Init Render Item Resources
 	void BuildObjectConstantBuffers();
@@ -138,6 +138,9 @@ private:
 	// PSOs
 	std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3D12PipelineState>> mPSOs;
 
+	// Objects
+	std::shared_ptr<Object> mRootObject;
+
 	// Lights
 	std::vector<DirectionLight> mDirLights;
 	std::vector<PointLight> mPointLights;
@@ -166,9 +169,6 @@ private:
 	// Material Constants
 	std::unordered_map<std::string, std::shared_ptr<MaterialConstants>> mMtlConsts;
 
-	// Object Constants
-	std::unordered_map<std::string, std::shared_ptr<ObjectConstants>> mObjConsts;
-
 	// PostProcess Constants
 	std::unique_ptr<HbaoConstants> mHbaoConstants;
 	std::unique_ptr<FxaaConstants> mFxaaConstants;
@@ -180,7 +180,7 @@ private:
 
 	// Constant Buffers
 	std::unique_ptr<UploadBuffer<MaterialConstants::Content>> mMaterialConstantsBuffers;
-	std::unique_ptr<UploadBuffer<ObjectConstants::Content>> mObjectConstantsBuffers;
+	std::unique_ptr<UploadBuffer<Object::Content>> mObjectConstantsBuffers;
 	std::unique_ptr<UploadBuffer<PassConstants::Content>> mPassConstantsBuffers;
 	std::unique_ptr<UploadBuffer<HbaoConstants::Content>> mHbaoConstantsBuffers;
 	std::unique_ptr<UploadBuffer<FxaaConstants::Content>> mFxaaConstantsBuffers;
