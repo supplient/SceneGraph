@@ -1383,7 +1383,7 @@ void SceneGraphApp::BuildRenderItems()
 			renderItem->Geo = mGeos["triangle"];
 			renderItem->Submesh = mGeos["triangle"]->DrawArgs["board"];
 			renderItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-			renderItem->MtlConsts = mMtlConsts["blue"];
+				renderItem->Material = "white";
 			renderItem->PSO = "opaque";
 			renderItem->ObjConsts = mObjConsts["blueBoard"];
 
@@ -1408,7 +1408,7 @@ void SceneGraphApp::BuildRenderItems()
 			renderItem->Geo = mGeos["triangle"];
 			renderItem->Submesh = mGeos["triangle"]->DrawArgs["board"];
 			renderItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-			renderItem->MtlConsts = mMtlConsts["red"];
+				renderItem->Material = "white";
 			renderItem->PSO = "opaque";
 			renderItem->ObjConsts = mObjConsts["redBoard"];
 
@@ -1434,7 +1434,7 @@ void SceneGraphApp::BuildRenderItems()
 				horItem->Geo = mGeos["triangle"];
 				horItem->Submesh = mGeos["triangle"]->DrawArgs["board"];
 				horItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-				horItem->MtlConsts = mMtlConsts["cutoutTree"];
+				renderItem->Material = "white";
 				horItem->PSO = "opaque";
 				horItem->ObjConsts = mObjConsts["horTree"];
 
@@ -1457,7 +1457,7 @@ void SceneGraphApp::BuildRenderItems()
 				verItem->Geo = mGeos["triangle"];
 				verItem->Submesh = mGeos["triangle"]->DrawArgs["board"];
 				verItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-				verItem->MtlConsts = mMtlConsts["cutoutTree"];
+				renderItem->Material = "white";
 				verItem->PSO = "opaque";
 				verItem->ObjConsts = mObjConsts["verTree"];
 
@@ -1489,7 +1489,7 @@ void SceneGraphApp::BuildRenderItems()
 				renderItem->Geo = mGeos["triangle"];
 				renderItem->Submesh = mGeos["triangle"]->DrawArgs["triangle"];
 				renderItem->PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-				renderItem->MtlConsts = mMtlConsts["white"];
+				renderItem->Material = "white";
 				renderItem->PSO = "opaque";
 				renderItem->ObjConsts = mObjConsts["midCube"];
 
@@ -1515,7 +1515,7 @@ void SceneGraphApp::BuildRenderItems()
 				renderItem->Geo = mGeos["triangle"];
 				renderItem->Submesh = mGeos["triangle"]->DrawArgs["triangle"];
 				renderItem->PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-				renderItem->MtlConsts = mMtlConsts["white"];
+				renderItem->Material = "white";
 				renderItem->PSO = "opaque";
 				renderItem->ObjConsts = mObjConsts["bottomCube"];
 
@@ -1540,7 +1540,7 @@ void SceneGraphApp::BuildRenderItems()
 				renderItem->Geo = mGeos["triangle"];
 				renderItem->Submesh = mGeos["triangle"]->DrawArgs["triangle"];
 				renderItem->PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-				renderItem->MtlConsts = mMtlConsts["white"];
+				renderItem->Material = "white";
 				renderItem->PSO = "opaque";
 				renderItem->ObjConsts = mObjConsts["leftCube"];
 
@@ -1565,7 +1565,7 @@ void SceneGraphApp::BuildRenderItems()
 				renderItem->Geo = mGeos["triangle"];
 				renderItem->Submesh = mGeos["triangle"]->DrawArgs["triangle"];
 				renderItem->PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-				renderItem->MtlConsts = mMtlConsts["white"];
+				renderItem->Material = "white";
 				renderItem->PSO = "opaque";
 				renderItem->ObjConsts = mObjConsts["backCube"];
 
@@ -1587,7 +1587,7 @@ void SceneGraphApp::BuildRenderItems()
 			renderItem->Geo = mGeos["triangle"];
 			renderItem->Submesh = mGeos["triangle"]->DrawArgs["triangle"];
 			renderItem->PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_3_CONTROL_POINT_PATCHLIST;
-			renderItem->MtlConsts = mMtlConsts["white"];
+				renderItem->Material = "white";
 			renderItem->PSO = "dispOpaque";
 			renderItem->ObjConsts = mObjConsts["triangle"];
 
@@ -1617,7 +1617,7 @@ void SceneGraphApp::BuildRenderItems()
 			renderItem->Geo = mGeos["triangle"];
 			renderItem->Submesh = mGeos["triangle"]->DrawArgs["board"];
 			renderItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-			renderItem->MtlConsts = mMtlConsts["transBlue"];
+				renderItem->Material = "white";
 			renderItem->PSO = "trans";
 			renderItem->ObjConsts = mObjConsts["transBlueBoard"];
 
@@ -1641,7 +1641,7 @@ void SceneGraphApp::BuildRenderItems()
 			renderItem->Geo = mGeos["triangle"];
 			renderItem->Submesh = mGeos["triangle"]->DrawArgs["board"];
 			renderItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-			renderItem->MtlConsts = mMtlConsts["transRed"];
+				renderItem->Material = "white";
 			renderItem->PSO = "trans";
 			renderItem->ObjConsts = mObjConsts["transRedBoard"];
 
@@ -1663,7 +1663,7 @@ void SceneGraphApp::BuildRenderItems()
 		renderItem->Geo = mGeos["background"];
 		renderItem->Submesh = mGeos["background"]->DrawArgs["background"];
 		renderItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-		renderItem->MtlConsts = mMtlConsts["white"];
+		renderItem->Material = "white";
 		renderItem->ObjConsts = mObjConsts["background"];
 
 		// Save render items
@@ -1966,8 +1966,10 @@ void SceneGraphApp::DrawRenderItems(
 		mCommandList->IASetPrimitiveTopology(renderItem->PrimitiveTopology);
 
 		// Assign Material Constants Buffer
+		auto& mtlConst = mMtlConsts[renderItem->Material];
 		mCommandList->SetGraphicsRootConstantBufferView(
-			rootSignParamIndices["materialCB"], mtlCBGPUAddr + renderItem->MtlConsts->getID() * mtlCBElementByteSize
+			rootSignParamIndices["materialCB"], 
+			mtlCBGPUAddr + mtlConst->getID() * mtlCBElementByteSize
 		);
 
 		// Assign Object Constants Buffer

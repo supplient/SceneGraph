@@ -11,11 +11,12 @@ public:
 	D3D_PRIMITIVE_TOPOLOGY PrimitiveTopology;
 
 	// Material concerned
-	std::shared_ptr<MaterialConstants> MtlConsts = nullptr;
+	std::string Material;
 
 	// Shader concerned
 	std::string PSO;
 
 	// Object Constants concerned
 	std::shared_ptr<ObjectConstants> ObjConsts = nullptr;
+	UINT ObjectID = 0;
 };
