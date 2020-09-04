@@ -6,8 +6,8 @@
 class RenderItem {
 public:
 	// Mesh concerned
-	std::shared_ptr<MeshGeometry> Geo;
-	SubmeshGeometry Submesh;
+	std::string MeshPool;
+	std::string SubMesh;
 	D3D_PRIMITIVE_TOPOLOGY PrimitiveTopology;
 
 	// Material concerned
@@ -17,6 +17,5 @@ public:
 	std::string PSO;
 
 	// Object Constants concerned
-	std::shared_ptr<ObjectConstants> ObjConsts = nullptr;
 	UINT ObjectID = 0;
 };

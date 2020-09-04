@@ -1380,12 +1380,12 @@ void SceneGraphApp::BuildRenderItems()
 
 			// Create render items
 			auto renderItem = std::make_shared<RenderItem>();
-			renderItem->Geo = mGeos["triangle"];
-			renderItem->Submesh = mGeos["triangle"]->DrawArgs["board"];
+			renderItem->MeshPool = "triangle"
+			renderItem->SubMesh = "board";
 			renderItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 				renderItem->Material = "white";
 			renderItem->PSO = "opaque";
-			renderItem->ObjConsts = mObjConsts["blueBoard"];
+			renderItem->ObjectID = mObjConsts["blueBoard"]->getID();
 
 			// Save render items
 			mRenderItemQueue.push_back(std::move(renderItem));
@@ -1405,12 +1405,12 @@ void SceneGraphApp::BuildRenderItems()
 
 			// Create render items
 			auto renderItem = std::make_shared<RenderItem>();
-			renderItem->Geo = mGeos["triangle"];
-			renderItem->Submesh = mGeos["triangle"]->DrawArgs["board"];
+			renderItem->MeshPool = "triangle"
+			renderItem->SubMesh = "board";
 			renderItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 				renderItem->Material = "white";
 			renderItem->PSO = "opaque";
-			renderItem->ObjConsts = mObjConsts["redBoard"];
+			renderItem->ObjectID = mObjConsts["redBoard"]->getID();
 
 			// Save render items
 			mRenderItemQueue.push_back(std::move(renderItem));
@@ -1431,12 +1431,12 @@ void SceneGraphApp::BuildRenderItems()
 
 				// Create render items
 				auto horItem = std::make_shared<RenderItem>();
-				horItem->Geo = mGeos["triangle"];
-				horItem->Submesh = mGeos["triangle"]->DrawArgs["board"];
+			horItem->MeshPool = "triangle"
+			horItem->SubMesh = "board";
 				horItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 				renderItem->Material = "white";
 				horItem->PSO = "opaque";
-				horItem->ObjConsts = mObjConsts["horTree"];
+				horItem->ObjectID = mObjConsts["horTree"]->getID();
 
 				// Save render items
 				mOpaqueRenderItemQueue.push_back(std::move(horItem));
@@ -1454,12 +1454,12 @@ void SceneGraphApp::BuildRenderItems()
 
 				// Create render items
 				auto verItem = std::make_shared<RenderItem>();
-				verItem->Geo = mGeos["triangle"];
-				verItem->Submesh = mGeos["triangle"]->DrawArgs["board"];
+			verItem->MeshPool = "triangle"
+			verItem->SubMesh = "board";
 				verItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 				renderItem->Material = "white";
 				verItem->PSO = "opaque";
-				verItem->ObjConsts = mObjConsts["verTree"];
+				verItem->ObjectID = mObjConsts["verTree"]->getID();
 
 				// Save render items
 				mOpaqueRenderItemQueue.push_back(std::move(verItem));
@@ -1486,12 +1486,12 @@ void SceneGraphApp::BuildRenderItems()
 
 				// Create render items
 				auto renderItem = std::make_shared<RenderItem>();
-				renderItem->Geo = mGeos["triangle"];
-				renderItem->Submesh = mGeos["triangle"]->DrawArgs["triangle"];
+				renderItem->MeshPool = "triangle";
+				renderItem->SubMesh = "triangle";
 				renderItem->PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 				renderItem->Material = "white";
 				renderItem->PSO = "opaque";
-				renderItem->ObjConsts = mObjConsts["midCube"];
+				renderItem->ObjectID = mObjConsts["midCube"]->getID();
 
 				// Save render items
 				mOpaqueRenderItemQueue.push_back(std::move(renderItem));
@@ -1512,12 +1512,12 @@ void SceneGraphApp::BuildRenderItems()
 
 				// Create render items
 				auto renderItem = std::make_shared<RenderItem>();
-				renderItem->Geo = mGeos["triangle"];
-				renderItem->Submesh = mGeos["triangle"]->DrawArgs["triangle"];
+				renderItem->MeshPool = "triangle";
+				renderItem->SubMesh = "triangle";
 				renderItem->PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 				renderItem->Material = "white";
 				renderItem->PSO = "opaque";
-				renderItem->ObjConsts = mObjConsts["bottomCube"];
+				renderItem->ObjectID = mObjConsts["bottomCube"]->getID();
 
 				// Save render items
 				mOpaqueRenderItemQueue.push_back(std::move(renderItem));
@@ -1537,12 +1537,12 @@ void SceneGraphApp::BuildRenderItems()
 
 				// Create render items
 				auto renderItem = std::make_shared<RenderItem>();
-				renderItem->Geo = mGeos["triangle"];
-				renderItem->Submesh = mGeos["triangle"]->DrawArgs["triangle"];
+				renderItem->MeshPool = "triangle";
+				renderItem->SubMesh = "triangle";
 				renderItem->PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 				renderItem->Material = "white";
 				renderItem->PSO = "opaque";
-				renderItem->ObjConsts = mObjConsts["leftCube"];
+				renderItem->ObjectID = mObjConsts["leftCube"]->getID();
 
 				// Save render items
 				mOpaqueRenderItemQueue.push_back(std::move(renderItem));
@@ -1562,12 +1562,12 @@ void SceneGraphApp::BuildRenderItems()
 
 				// Create render items
 				auto renderItem = std::make_shared<RenderItem>();
-				renderItem->Geo = mGeos["triangle"];
-				renderItem->Submesh = mGeos["triangle"]->DrawArgs["triangle"];
+				renderItem->MeshPool = "triangle";
+				renderItem->SubMesh = "triangle";
 				renderItem->PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 				renderItem->Material = "white";
 				renderItem->PSO = "opaque";
-				renderItem->ObjConsts = mObjConsts["backCube"];
+				renderItem->ObjectID = mObjConsts["backCube"]->getID();
 
 				// Save render items
 				mOpaqueRenderItemQueue.push_back(std::move(renderItem));
@@ -1584,12 +1584,12 @@ void SceneGraphApp::BuildRenderItems()
 
 			// Create render items
 			auto renderItem = std::make_shared<RenderItem>();
-			renderItem->Geo = mGeos["triangle"];
-			renderItem->Submesh = mGeos["triangle"]->DrawArgs["triangle"];
+				renderItem->MeshPool = "triangle";
+				renderItem->SubMesh = "triangle";
 			renderItem->PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_3_CONTROL_POINT_PATCHLIST;
 				renderItem->Material = "white";
 			renderItem->PSO = "dispOpaque";
-			renderItem->ObjConsts = mObjConsts["triangle"];
+				renderItem->ObjectID = mObjConsts["triangle"]->getID();
 
 			// Save render items
 			mRenderItemQueue.push_back(std::move(renderItem));
@@ -1614,12 +1614,12 @@ void SceneGraphApp::BuildRenderItems()
 
 			// Create render items
 			auto renderItem = std::make_shared<RenderItem>();
-			renderItem->Geo = mGeos["triangle"];
-			renderItem->Submesh = mGeos["triangle"]->DrawArgs["board"];
+				renderItem->MeshPool = "triangle";
+				renderItem->SubMesh = "board";
 			renderItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 				renderItem->Material = "white";
 			renderItem->PSO = "trans";
-			renderItem->ObjConsts = mObjConsts["transBlueBoard"];
+				renderItem->ObjectID = mObjConsts["transBlueBoard"]->getID();
 
 			// Save render items
 			mTransRenderItemQueue.push_back(std::move(renderItem));
@@ -1638,12 +1638,12 @@ void SceneGraphApp::BuildRenderItems()
 
 			// Create render items
 			auto renderItem = std::make_shared<RenderItem>();
-			renderItem->Geo = mGeos["triangle"];
-			renderItem->Submesh = mGeos["triangle"]->DrawArgs["board"];
+				renderItem->MeshPool = "triangle";
+				renderItem->SubMesh = "board";
 			renderItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 				renderItem->Material = "white";
 			renderItem->PSO = "trans";
-			renderItem->ObjConsts = mObjConsts["transRedBoard"];
+				renderItem->ObjectID = mObjConsts["transRedBoard"]->getID();
 
 			// Save render items
 			mTransRenderItemQueue.push_back(std::move(renderItem));
@@ -1660,11 +1660,11 @@ void SceneGraphApp::BuildRenderItems()
 
 		// Create render items
 		auto renderItem = std::make_shared<RenderItem>();
-		renderItem->Geo = mGeos["background"];
-		renderItem->Submesh = mGeos["background"]->DrawArgs["background"];
+				renderItem->MeshPool = "background";
+				renderItem->SubMesh = "background";
 		renderItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 		renderItem->Material = "white";
-		renderItem->ObjConsts = mObjConsts["background"];
+		renderItem->ObjectID = mObjConsts["background"]->getID();
 
 		// Save render items
 		mBackgroundRenderItem = std::move(renderItem);
@@ -1958,11 +1958,12 @@ void SceneGraphApp::DrawRenderItems(
 		}
 
 		// Set IA
+		auto& meshPool = mGeos[renderItem->MeshPool];
 		D3D12_VERTEX_BUFFER_VIEW VBVs[1] = {
-			renderItem->Geo->VertexBufferView()
+			meshPool->VertexBufferView()
 		};
 		mCommandList->IASetVertexBuffers(0, 1, VBVs);
-		mCommandList->IASetIndexBuffer(&renderItem->Geo->IndexBufferView());
+		mCommandList->IASetIndexBuffer(&meshPool->IndexBufferView());
 		mCommandList->IASetPrimitiveTopology(renderItem->PrimitiveTopology);
 
 		// Assign Material Constants Buffer
@@ -1974,15 +1975,17 @@ void SceneGraphApp::DrawRenderItems(
 
 		// Assign Object Constants Buffer
 		mCommandList->SetGraphicsRootConstantBufferView(
-			rootSignParamIndices["objectCB"], objCBGPUAddr + renderItem->ObjConsts->getID()*objCBElementByteSize
+			rootSignParamIndices["objectCB"], 
+			objCBGPUAddr + renderItem->ObjectID*objCBElementByteSize
 		);
 
 		// Draw Call
+		auto& submesh = meshPool->DrawArgs[renderItem->SubMesh];
 		mCommandList->DrawIndexedInstanced(
-			renderItem->Submesh.IndexCount, 
+			submesh.IndexCount, 
 			1,
-			renderItem->Submesh.StartIndexLocation,
-			renderItem->Submesh.BaseVertexLocation,
+			submesh.StartIndexLocation,
+			submesh.BaseVertexLocation,
 			0
 		);
 	}
@@ -2129,22 +2132,13 @@ void SceneGraphApp::Update(const GameTimer& gt)
 
 	// Upload Object Constant
 	{
-		for (auto renderItem : mOpaqueRenderItemQueue) {
+		for (auto& pair : mObjConsts) {
+			auto& objConst = pair.second;
 			mObjectConstantsBuffers->CopyData(
-				renderItem->ObjConsts->getID(),
-				renderItem->ObjConsts->content
+				objConst->getID(),
+				objConst->content
 			);
 		}
-		for (auto renderItem : mTransRenderItemQueue) {
-			mObjectConstantsBuffers->CopyData(
-				renderItem->ObjConsts->getID(),
-				renderItem->ObjConsts->content
-			);
-		}
-		mObjectConstantsBuffers->CopyData(
-			mBackgroundRenderItem->ObjConsts->getID(),
-			mBackgroundRenderItem->ObjConsts->content
-		);
 	}
 
 	// Upload Hbao Constant
@@ -2293,24 +2287,26 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 			for(auto renderItem: mOpaqueRenderItemQueue)
 			{
 				// Set IA
+				auto& meshPool = mGeos[renderItem->MeshPool];
 				D3D12_VERTEX_BUFFER_VIEW VBVs[1] = {
-					renderItem->Geo->VertexBufferView()
+					meshPool->VertexBufferView()
 				};
 				mCommandList->IASetVertexBuffers(0, 1, VBVs);
-				mCommandList->IASetIndexBuffer(&renderItem->Geo->IndexBufferView());
+				mCommandList->IASetIndexBuffer(&meshPool->IndexBufferView());
 				mCommandList->IASetPrimitiveTopology(renderItem->PrimitiveTopology);
 
 				// Assign Object Constants Buffer
 				mCommandList->SetGraphicsRootConstantBufferView(
-					0, objCBGPUAddr + renderItem->ObjConsts->getID()*objCBElementByteSize
+					0, objCBGPUAddr + renderItem->ObjectID*objCBElementByteSize
 				);
 
 				// Draw Call
+				auto& submesh = meshPool->DrawArgs[renderItem->SubMesh];
 				mCommandList->DrawIndexedInstanced(
-					renderItem->Submesh.IndexCount, 
+					submesh.IndexCount, 
 					1,
-					renderItem->Submesh.StartIndexLocation,
-					renderItem->Submesh.BaseVertexLocation,
+					submesh.StartIndexLocation,
+					submesh.BaseVertexLocation,
 					0
 				);
 			}
@@ -2349,24 +2345,26 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 			for(auto renderItem: mOpaqueRenderItemQueue)
 			{
 				// Set IA
+				auto& meshPool = mGeos[renderItem->MeshPool];
 				D3D12_VERTEX_BUFFER_VIEW VBVs[1] = {
-					renderItem->Geo->VertexBufferView()
+					meshPool->VertexBufferView()
 				};
 				mCommandList->IASetVertexBuffers(0, 1, VBVs);
-				mCommandList->IASetIndexBuffer(&renderItem->Geo->IndexBufferView());
+				mCommandList->IASetIndexBuffer(&meshPool->IndexBufferView());
 				mCommandList->IASetPrimitiveTopology(renderItem->PrimitiveTopology);
 
 				// Assign Object Constants Buffer
 				mCommandList->SetGraphicsRootConstantBufferView(
-					0, objCBGPUAddr + renderItem->ObjConsts->getID()*objCBElementByteSize
+					0, objCBGPUAddr + renderItem->ObjectID*objCBElementByteSize
 				);
 
 				// Draw Call
+				auto& submesh = meshPool->DrawArgs[renderItem->SubMesh];
 				mCommandList->DrawIndexedInstanced(
-					renderItem->Submesh.IndexCount, 
+					submesh.IndexCount, 
 					1,
-					renderItem->Submesh.StartIndexLocation,
-					renderItem->Submesh.BaseVertexLocation,
+					submesh.StartIndexLocation,
+					submesh.BaseVertexLocation,
 					0
 				);
 			}
@@ -2412,24 +2410,26 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 				for(auto renderItem: mOpaqueRenderItemQueue)
 				{
 					// Set IA
+					auto& meshPool = mGeos[renderItem->MeshPool];
 					D3D12_VERTEX_BUFFER_VIEW VBVs[1] = {
-						renderItem->Geo->VertexBufferView()
+						meshPool->VertexBufferView()
 					};
 					mCommandList->IASetVertexBuffers(0, 1, VBVs);
-					mCommandList->IASetIndexBuffer(&renderItem->Geo->IndexBufferView());
+					mCommandList->IASetIndexBuffer(&meshPool->IndexBufferView());
 					mCommandList->IASetPrimitiveTopology(renderItem->PrimitiveTopology);
 
 					// Assign Object Constants Buffer
 					mCommandList->SetGraphicsRootConstantBufferView(
-						0, objCBGPUAddr + renderItem->ObjConsts->getID()*objCBElementByteSize
+						0, objCBGPUAddr + renderItem->ObjectID*objCBElementByteSize
 					);
 
 					// Draw Call
+					auto& submesh = meshPool->DrawArgs[renderItem->SubMesh];
 					mCommandList->DrawIndexedInstanced(
-						renderItem->Submesh.IndexCount, 
+						submesh.IndexCount, 
 						1,
-						renderItem->Submesh.StartIndexLocation,
-						renderItem->Submesh.BaseVertexLocation,
+						submesh.StartIndexLocation,
+						submesh.BaseVertexLocation,
 						0
 					);
 				}
@@ -2657,19 +2657,21 @@ signPI["dirShadowSR"], mDirShadowTexGPUHandleStart
 		mCommandList->SetPipelineState(mPSOs["hbao"].Get());
 
 		// Set IA
+		auto& meshPool = mGeos[renderItem->MeshPool];
 		D3D12_VERTEX_BUFFER_VIEW VBVs[1] = {
-			renderItem->Geo->VertexBufferView()
+			meshPool->VertexBufferView()
 		};
 		mCommandList->IASetVertexBuffers(0, 1, VBVs);
-		mCommandList->IASetIndexBuffer(&renderItem->Geo->IndexBufferView());
+		mCommandList->IASetIndexBuffer(&meshPool->IndexBufferView());
 		mCommandList->IASetPrimitiveTopology(renderItem->PrimitiveTopology);
 
 		// Draw Call
+		auto& submesh = meshPool->DrawArgs[renderItem->SubMesh];
 		mCommandList->DrawIndexedInstanced(
-			renderItem->Submesh.IndexCount, 
+			submesh.IndexCount, 
 			1,
-			renderItem->Submesh.StartIndexLocation,
-			renderItem->Submesh.BaseVertexLocation,
+			submesh.StartIndexLocation,
+			submesh.BaseVertexLocation,
 			0
 		);
 
@@ -2735,19 +2737,21 @@ signPI["dirShadowSR"], mDirShadowTexGPUHandleStart
 		mCommandList->SetPipelineState(mPSOs["transBlend"].Get());
 
 		// Set IA
+		auto& meshPool = mGeos[renderItem->MeshPool];
 		D3D12_VERTEX_BUFFER_VIEW VBVs[1] = {
-			renderItem->Geo->VertexBufferView()
+			meshPool->VertexBufferView()
 		};
 		mCommandList->IASetVertexBuffers(0, 1, VBVs);
-		mCommandList->IASetIndexBuffer(&renderItem->Geo->IndexBufferView());
+		mCommandList->IASetIndexBuffer(&meshPool->IndexBufferView());
 		mCommandList->IASetPrimitiveTopology(renderItem->PrimitiveTopology);
 
 		// Draw Call
+		auto submesh = meshPool->DrawArgs[renderItem->SubMesh];
 		mCommandList->DrawIndexedInstanced(
-			renderItem->Submesh.IndexCount, 
+			submesh.IndexCount, 
 			1,
-			renderItem->Submesh.StartIndexLocation,
-			renderItem->Submesh.BaseVertexLocation,
+			submesh.StartIndexLocation,
+			submesh.BaseVertexLocation,
 			0
 		);
 
@@ -2837,19 +2841,21 @@ signPI["dirShadowSR"], mDirShadowTexGPUHandleStart
 			mCommandList->SetPipelineState(mPSOs["fxaa"].Get());
 
 			// Set IA
+			auto& meshPool = mGeos[renderItem->MeshPool];
 			D3D12_VERTEX_BUFFER_VIEW VBVs[1] = {
-				renderItem->Geo->VertexBufferView()
+				meshPool->VertexBufferView()
 			};
 			mCommandList->IASetVertexBuffers(0, 1, VBVs);
-			mCommandList->IASetIndexBuffer(&renderItem->Geo->IndexBufferView());
+			mCommandList->IASetIndexBuffer(&meshPool->IndexBufferView());
 			mCommandList->IASetPrimitiveTopology(renderItem->PrimitiveTopology);
 
 			// Draw Call
+			auto& submesh = meshPool->DrawArgs[renderItem->SubMesh];
 			mCommandList->DrawIndexedInstanced(
-				renderItem->Submesh.IndexCount, 
+				submesh.IndexCount, 
 				1,
-				renderItem->Submesh.StartIndexLocation,
-				renderItem->Submesh.BaseVertexLocation,
+				submesh.StartIndexLocation,
+				submesh.BaseVertexLocation,
 				0
 			);
 
