@@ -131,10 +131,10 @@
     <ClInclude Include="Texture.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="Object.h">
+    <ClInclude Include="UnorderedAccessBuffer.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="UnorderedAccessBuffer.h">
+    <ClInclude Include="Object.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

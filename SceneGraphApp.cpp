@@ -1502,7 +1502,8 @@ void SceneGraphApp::BuildRenderItems()
 				// Create Object constants
 				auto consts = std::make_shared<ObjectConstants>();
 				auto modelMat = XMMatrixScaling(2.0f, 0.1f, 2.0f);
-				modelMat = XMMatrixMultiply(modelMat, XMMatrixTranslation(0.0f, -1.05f, 0.0f));
+				auto transMat = XMMatrixTranslation(0.0f, -1.05f, 0.0f);
+				modelMat = modelMat * transMat;
 				XMStoreFloat4x4(
 					&consts->content.ModelMat, 
 					XMMatrixTranspose(modelMat)

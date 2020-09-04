@@ -66,9 +66,26 @@ public:
 			1.0f);
 	}
 
-    static DirectX::XMMATRIX InverseTranspose(DirectX::CXMMATRIX M)
+    static DirectX::XMMATRIX XM_CALLCONV InverseTranspose(const DirectX::CXMMATRIX& M)
 	{
-        DirectX::XMMATRIX A = M;
+        DirectX::XMVECTOR det = DirectX::XMMatrixDeterminant(M);
+        return DirectX::XMMatrixTranspose(DirectX::XMMatrixInverse(&det, M));
+	}
+
+	static DirectX::XMMATRIX GenNormalMat(DirectX::XMFLOAT4X4 mat) {
+		mat._14 = 0.0f;
+		mat._24 = 0.0f;
+		mat._34 = 0.0f;
+		mat._41 = 0.0f;
+		mat._42 = 0.0f;
+		mat._43 = 0.0f;
+		mat._44 = 0.0f;
+		DirectX::XMMATRIX normalModelMat = DirectX::XMLoadFloat4x4(&mat);
+		return MathHelper::InverseTranspose(normalModelMat);
+	}
+
+	static DirectX::XMMATRIX XM_CALLCONV GenNormalMat(DirectX::CXMMATRIX mat) {
+        DirectX::XMMATRIX A = mat;
 		// Inverse-transpose is just applied to normals.  So zero out 
 		// translation row so that it doesn't get into our inverse-transpose
 		// calculation--we don't want the inverse-transpose of the translation.
@@ -76,14 +93,7 @@ public:
 		A.r[1].m128_f32[3] = 0.0f;
 		A.r[2].m128_f32[3] = 0.0f;
         A.r[3] = DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
-
-        DirectX::XMVECTOR det = DirectX::XMMatrixDeterminant(A);
-        return DirectX::XMMatrixTranspose(DirectX::XMMatrixInverse(&det, A));
-	}
-
-	static DirectX::XMMATRIX GenNormalMat(DirectX::XMFLOAT4X4 mat) {
-		DirectX::XMMATRIX normalModelMat = DirectX::XMLoadFloat4x4(&mat);
-		return MathHelper::InverseTranspose(normalModelMat);
+		return MathHelper::InverseTranspose(A);
 	}
 
     static DirectX::XMFLOAT3X3 Identity3x3()

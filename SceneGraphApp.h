@@ -28,10 +28,7 @@ public:
 
 	// Init DirectX
 	void BuildUABs();
-	/// <summary>
-	/// 仅仅初始化RenderTarget，不建立资源，也不建立描述符
-	/// </summary>
-	void BuildRenderTargets();
+	void BuildRenderTargets(); // 仅仅初始化RenderTarget，不建立资源，也不建立描述符
 	void BuildDescriptorHeaps();
 
 	// Init PSOs
