@@ -66,7 +66,7 @@ public:
 			1.0f);
 	}
 
-    static DirectX::XMMATRIX XM_CALLCONV InverseTranspose(const DirectX::CXMMATRIX& M)
+    static DirectX::XMMATRIX XM_CALLCONV InverseTranspose(DirectX::CXMMATRIX M)
 	{
         DirectX::XMVECTOR det = DirectX::XMMatrixDeterminant(M);
         return DirectX::XMMatrixTranspose(DirectX::XMMatrixInverse(&det, M));
@@ -79,7 +79,7 @@ public:
 		mat._41 = 0.0f;
 		mat._42 = 0.0f;
 		mat._43 = 0.0f;
-		mat._44 = 0.0f;
+		mat._44 = 1.0f;
 		DirectX::XMMATRIX normalModelMat = DirectX::XMLoadFloat4x4(&mat);
 		return MathHelper::InverseTranspose(normalModelMat);
 	}
