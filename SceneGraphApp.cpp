@@ -13,6 +13,33 @@
 using namespace DirectX;
 using Microsoft::WRL::ComPtr;
 
+template <class T, class U>
+void FillBufferInfoAndUpload(
+		ComPtr<ID3D12Device> device, ComPtr<ID3D12GraphicsCommandList> commandList,
+		std::shared_ptr<MeshGeometry> geo, 
+		std::vector<T> verts, std::vector<U> indices, 
+		DXGI_FORMAT indiceFormat) {
+	// Fill buffer info
+	UINT vertByteSize = static_cast<UINT>(verts.size() * sizeof(T));
+	UINT indexByteSize = static_cast<UINT>(indices.size() * sizeof(U));
+	geo->VertexByteStride = sizeof(T);
+	geo->VertexBufferByteSize = vertByteSize;
+	geo->IndexFormat = indiceFormat;
+	geo->IndexBufferByteSize = indexByteSize;
+
+	// Upload to GPU
+	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(
+		device.Get(), commandList.Get(),
+		(const void*)verts.data(), vertByteSize,
+		geo->VertexBufferUploader
+	);
+	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(
+		device.Get(), commandList.Get(),
+		(const void*)indices.data(), indexByteSize,
+		geo->IndexBufferUploader
+	);
+}
+
 SceneGraphApp::SceneGraphApp(HINSTANCE hInstance)
 	: D3DApp(hInstance)
 {
@@ -31,7 +58,12 @@ bool SceneGraphApp::Initialize()
 	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
 	// Init Scene
-	BuildObjects();
+	bool fromFile = true;
+	if(fromFile)
+		LoadScene();
+	else
+		BuildObjects();
+	BuildManualObjects();
 	BuildLights();
 	BuildLightShadowConstantBuffers();
 	BuildTextures();
@@ -75,6 +107,294 @@ bool SceneGraphApp::Initialize()
     OnResize();
 
 	return true;
+}
+
+// TODO Make background object after load scene
+void SceneGraphApp::LoadScene()
+{
+	// Make Root
+	mRootObject = std::make_shared<Object>("_root");
+
+	// Make cache buffers
+	VertexBufferMapping vertexBufferMappings;
+	vertexBufferMappings["triangle"] = {};
+
+	// Make mesh mapppings
+	MeshNameMapping meshNameMappings;
+	MeshBaseInfoMapping meshBaseInfoMappings;
+
+	// Load FBX file
+	// Change the following filename to a suitable filename value.
+	const char* lFilename = "cube.fbx";
+
+	// Initialize the SDK manager. This object handles all our memory management.
+	FbxManager* lSdkManager = FbxManager::Create();
+
+	// Create the IO settings object.
+	FbxIOSettings *ios = FbxIOSettings::Create(lSdkManager, IOSROOT);
+	lSdkManager->SetIOSettings(ios);
+
+	// Create an importer using the SDK manager.
+	FbxImporter* lImporter = FbxImporter::Create(lSdkManager,"");
+
+	// Use the first argument as the filename for the importer.
+	if(!lImporter->Initialize(lFilename, -1, lSdkManager->GetIOSettings())) {
+		printf("Call to FbxImporter::Initialize() failed.\n");
+		printf("Error returned: %s\n\n", lImporter->GetStatus().GetErrorString());
+		exit(-1);
+	}
+
+	// Create a new scene so that it can be populated by the imported file.
+	FbxScene* lScene = FbxScene::Create(lSdkManager,"myScene");
+
+	// Import the contents of the file into the scene.
+	lImporter->Import(lScene);
+
+	// The file is imported; so get rid of the importer.
+	lImporter->Destroy();
+
+	// Recursively process the nodes of the scene and their attributes.
+	FbxNode* lRootNode = lScene->GetRootNode();
+	if(lRootNode) {
+		for (int i = 0; i < lRootNode->GetChildCount(); i++) {
+			auto childObj = LoadObjectRecursively(
+				lRootNode->GetChild(i), 
+				vertexBufferMappings, 
+				meshNameMappings,
+				meshBaseInfoMappings
+			);
+			Object::Link(mRootObject, childObj);
+		}
+	}
+
+	// Upload meshpools
+	for (auto pair : meshNameMappings) {
+		auto mesh = pair.first;
+		auto meshFullname = pair.second;
+		std::string meshPoolName = meshFullname.first;
+		std::string meshName = meshFullname.second;
+
+		auto meshPool = mGeos[meshPoolName];
+		meshPool->DrawArgs[meshName] = meshBaseInfoMappings[mesh];
+	}
+	for (auto pair : mGeos) {
+		std::string meshPoolName = pair.first;
+		auto meshPool = pair.second;
+		auto& vbm = vertexBufferMappings[meshPoolName];
+		auto& vertBuf = vbm.first;
+		auto& indBuf = vbm.second;
+
+		FillBufferInfoAndUpload(
+			md3dDevice, mCommandList,
+			pair.second,
+			vertBuf, indBuf,
+			DXGI_FORMAT_R32_UINT
+		);
+	}
+
+	// Destroy the SDK manager and all the other objects it was handling.
+	lSdkManager->Destroy();
+}
+
+std::pair<std::string, std::string> LoadMesh(
+	FbxNode* node, FbxMesh* mesh, 
+	VertexBufferMapping& vertexBufferMappings, 
+	MeshNameMapping& meshNameMappings,
+	MeshBaseInfoMapping& meshBaseInfoMappings
+) {
+	// Check if loaded
+	if (meshNameMappings.find(mesh) != meshNameMappings.end()) {
+		return meshNameMappings[mesh];
+	}
+
+	// Map to meshNameMappings
+	std::string meshPoolName = "";
+	switch (mesh->GetPolygonSize(0)) {
+	case 3:
+		meshPoolName = "triangle";
+		break;
+	default:
+		throw std::string("Polygon size ") + std::to_string(mesh->GetPolygonSize(0)) + " is not supported now.";
+	}
+	std::string meshName = mesh->GetName();
+	meshNameMappings[mesh] = { meshPoolName, meshName };
+
+	// Map to vertexBufferMappings & meshBaseInfoMappings
+	{
+		// Init something
+		FbxStringList uvSetNames;
+		mesh->GetUVSetNames(uvSetNames);
+		if (uvSetNames.GetCount() < 1)
+			throw "Lack of UV.";
+
+		FbxVector4* ctlPoints = mesh->GetControlPoints();
+		int viTotal = 0;
+
+		// TODO note here we should alter the axis system
+
+		auto& vbm = vertexBufferMappings; // just for convenience
+		auto& vertBuf = vbm[meshPoolName].first;
+		auto& indBuf = vbm[meshPoolName].second;
+
+		// Map to meshBaseInfoMappings
+		auto& baseInfoMap = meshBaseInfoMappings[mesh];
+		baseInfoMap.BaseVertexLocation = static_cast<UINT>(vertBuf.size());
+		baseInfoMap.StartIndexLocation = static_cast<UINT>(indBuf.size());
+		baseInfoMap.IndexCount = mesh->GetPolygonVertexCount();
+
+		// Load each Polygon
+		for (int pi = 0; pi < mesh->GetPolygonCount(); pi++) {
+			for (int vi = 0; vi < mesh->GetPolygonSize(pi); vi++) {
+				// Coordinate
+				int ctlPointIndex = mesh->GetPolygonVertex(pi, vi);
+				FbxVector4 coordinate = ctlPoints[ctlPointIndex];
+
+				// Normal
+				FbxVector4 normal;
+				if (!mesh->GetPolygonVertexNormal(pi, vi, normal)) {
+					if (!mesh->GenerateNormals())
+						throw std::string("Generate normals failed.");
+					mesh->GetPolygonVertexNormal(pi, vi, normal);
+				}
+
+				// UV
+				FbxVector2 uv;
+				// for (int uvSetIndex = 0; uvSetIndex < uvSetNames.GetCount(); uvSetIndex++) 
+				{
+					std::string uvSetName = uvSetNames.GetStringAt(0); // Now, we only access one UVSet.
+					FbxGeometryElementUV* uvEle = mesh->GetElementUV(uvSetName.c_str());
+					if (!uvEle)
+						throw "Load UV failed.";
+					
+					bool refDirect = uvEle->GetReferenceMode()==FbxGeometryElement::eDirect;
+					int uvi;
+
+					switch (uvEle->GetMappingMode()) {
+					case FbxGeometryElement::eByPolygonVertex:
+						uvi = viTotal;
+						break;
+					case FbxGeometryElement::eByControlPoint:
+						uvi = ctlPointIndex;
+						break;
+					default:
+						throw "UV loading only support MappingMode of eByControlPoint and eByPolygonVertex";
+					}
+					if(!refDirect)
+						uvi = uvEle->GetIndexArray().GetAt(uvi);
+					uv = uvEle->GetDirectArray().GetAt(uvi);
+				}
+				
+				// Tangent
+				FbxVector4 tangent;
+				{
+					FbxGeometryElementTangent* ele = mesh->GetElementTangent(0); // Now, we only access one UVSet.
+					if (!ele) {
+						if (!mesh->GenerateTangentsDataForAllUVSets())
+							throw "Generate Tangent Failed.";
+						ele = mesh->GetElementTangent(0);
+					}
+
+					bool refDirect = ele->GetReferenceMode()==FbxGeometryElement::eDirect;
+					int index;
+
+					switch (ele->GetMappingMode()) {
+					case FbxGeometryElement::eByPolygonVertex:
+						index = viTotal;
+						break;
+					case FbxGeometryElement::eByControlPoint:
+						index = ctlPointIndex;
+						break;
+					default:
+						throw "Tangent loading only support MappingMode of eByControlPoint and eByPolygonVertex";
+					}
+					if(!refDirect)
+						index = ele->GetIndexArray().GetAt(index);
+					tangent = ele->GetDirectArray().GetAt(index);
+				}
+
+				// Fill into buffer
+				Vertex vert;
+				vert.pos = { (float)coordinate[0], coordinate[1], coordinate[2] };
+				vert.normal = { (float)normal[0], normal[1], normal[2] };
+				vert.tex = { (float)uv[0], uv[1] };
+				vert.tangent = { (float)tangent[0], tangent[1], tangent[2] };
+				vertBuf.push_back(vert);
+				indBuf.push_back(viTotal); // TODO indices now do not allow share the vertex
+
+				viTotal++;
+			}
+		}
+	}
+}
+
+std::shared_ptr<Object> SceneGraphApp::LoadObjectRecursively(
+	FbxNode* rootNode,
+	VertexBufferMapping& vertexBufferMappings,
+	MeshNameMapping& meshNameMappings,
+	MeshBaseInfoMapping& meshBaseInfoMappings
+) {
+	if (!rootNode)
+		return nullptr;
+	// Node & Create Node
+	std::string name(rootNode->GetName());
+	auto rootObj = std::make_shared<Object>(name);
+
+	// Transformation
+	FbxDouble3 scaling = rootNode->LclScaling.Get();
+	FbxDouble3 rotation = rootNode->LclRotation.Get();
+	FbxDouble3 translation = rootNode->LclTranslation.Get();
+	rootObj->SetScale(scaling[0], scaling[1], scaling[2]);
+	rootObj->SetRotation(rotation[0], rotation[1], rotation[2]);
+	rootObj->SetTranslation(translation[0], translation[1], translation[2]);
+	
+	// Attributes
+	for (int ai = 0; ai < rootNode->GetNodeAttributeCount(); ai++) {
+		FbxNodeAttribute* attr = rootNode->GetNodeAttributeByIndex(ai);
+
+		if (attr->GetAttributeType() == FbxNodeAttribute::eMesh) {
+			FbxMesh* mesh = dynamic_cast<FbxMesh*>(attr);
+			if (!mesh)
+				throw "The attribute's type is eMesh, while it cannot be converted to FbxMesh.";
+
+			// Load mesh
+			auto meshName = LoadMesh(rootNode, mesh,
+				vertexBufferMappings,
+				meshNameMappings,
+				meshBaseInfoMappings
+			);
+
+			// Create renderItem
+			auto renderItem = std::make_shared<RenderItem>();
+			renderItem->MeshPool = meshName.first;
+			renderItem->SubMesh = meshName.second;
+			if (meshName.first == "triangle")
+				renderItem->PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+			else
+				throw "Error."; // Should never reach here.
+			renderItem->Material = "white";
+			renderItem->PSO = "opaque";
+			Object::Link(rootObj, renderItem);
+
+			// Save renderItem
+			mOpaqueRenderItemQueue.push_back(std::move(renderItem));
+		}
+		else {
+			// Do nothing now.
+			break;
+		}
+	}
+
+	// Childs
+	for (int i = 0; i < rootNode->GetChildCount(); i++) {
+		auto childObj = LoadObjectRecursively(
+			rootNode->GetChild(i),
+			vertexBufferMappings,
+			meshNameMappings,
+			meshBaseInfoMappings
+			);
+		Object::Link(rootObj, childObj);
+	}
+	return rootObj;
 }
 
 void SceneGraphApp::BuildObjects()
@@ -168,6 +488,10 @@ void SceneGraphApp::BuildObjects()
 		}
 	}
 
+}
+
+void SceneGraphApp::BuildManualObjects()
+{
 	// Post
 	{
 		auto obj = std::make_shared<Object>("background");
@@ -1212,37 +1536,10 @@ void SceneGraphApp::UpdateLightsInPassConstantBuffers()
 	content.LightPerTypeNum.w = static_cast<UINT32>(mRectLights.size());
 }
 
-template <class T, class U>
-void FillBufferInfoAndUpload(
-		ComPtr<ID3D12Device> device, ComPtr<ID3D12GraphicsCommandList> commandList,
-		std::shared_ptr<MeshGeometry> geo, 
-		std::vector<T> verts, std::vector<U> indices, 
-		DXGI_FORMAT indiceFormat) {
-	// Fill buffer info
-	UINT vertByteSize = static_cast<UINT>(verts.size() * sizeof(T));
-	UINT indexByteSize = static_cast<UINT>(indices.size() * sizeof(U));
-	geo->VertexByteStride = sizeof(T);
-	geo->VertexBufferByteSize = vertByteSize;
-	geo->IndexFormat = indiceFormat;
-	geo->IndexBufferByteSize = indexByteSize;
-
-	// Upload to GPU
-	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(
-		device.Get(), commandList.Get(),
-		(const void*)verts.data(), vertByteSize,
-		geo->VertexBufferUploader
-	);
-	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(
-		device.Get(), commandList.Get(),
-		(const void*)indices.data(), indexByteSize,
-		geo->IndexBufferUploader
-	);
-}
-
 void SceneGraphApp::BuildGeos()
 {
 	{
-		struct Vertex {
+		struct Vertex_in {
 			XMFLOAT3 pos;
 			XMFLOAT3 normal;
 			XMFLOAT3 tangent;
@@ -1256,7 +1553,7 @@ void SceneGraphApp::BuildGeos()
 		// Generate Vertex Info
 		GeometryGenerator geoGenerator;
 		std::vector<UINT32> indices;
-		std::vector<Vertex> verts;
+		std::vector<Vertex_in> verts;
 		{
 			// Box
 			GeometryGenerator::MeshData boxMesh = geoGenerator.CreateBox(1.0, 1.0, 1.0, 1);
@@ -1372,7 +1669,7 @@ void SceneGraphApp::BuildGeos()
 	}
 
 	{
-		struct Vertex {
+		struct Vertex_in {
 			XMFLOAT3 pos;
 		};
 
@@ -1381,7 +1678,7 @@ void SceneGraphApp::BuildGeos()
 		geo->Name = "background";
 
 		// Generate Vertex Info
-		std::vector<Vertex> verts = {
+		std::vector<Vertex_in> verts = {
 			{{-1.0f, -1.0f, 0.0f}},
 			{{+1.0f, -1.0f, 0.0f}},
 			{{+1.0f, +1.0f, 0.0f}},

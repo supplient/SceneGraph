@@ -1,6 +1,7 @@
 #pragma once
 #include <DirectXColors.h>
 #include <functional>
+#include <fbxsdk.h>
 
 #include "Common/d3dApp.h"
 #include "Common/UploadBuffer.h"
@@ -13,6 +14,27 @@
 #include "UnorderedAccessBuffer.h"
 #include "Texture.h"
 
+// Type Define
+struct Vertex {
+	XMFLOAT3 pos;
+	XMFLOAT3 normal;
+	XMFLOAT3 tangent;
+	XMFLOAT2 tex;
+};
+typedef std::unordered_map<std::string,
+	std::pair<
+	std::vector<Vertex>,
+	std::vector<UINT32>
+	>> VertexBufferMapping;
+typedef std::unordered_map<FbxMesh*,
+	std::pair<
+	std::string,
+	std::string
+	>> MeshNameMapping;
+typedef std::unordered_map<FbxMesh*,
+	SubmeshGeometry
+	> MeshBaseInfoMapping;
+
 class SceneGraphApp : public D3DApp
 {
 public:
@@ -24,7 +46,10 @@ public:
 	// Initialize
 
 	// Init Scene
+	void LoadScene();
+	std::shared_ptr<Object> LoadObjectRecursively(FbxNode* root, VertexBufferMapping& vertexBufferMappings, MeshNameMapping& meshMappings, MeshBaseInfoMapping& meshBaseInfoMappings);
 	void BuildObjects();
+	void BuildManualObjects();
 	void BuildLights();
 	void BuildLightShadowConstantBuffers();
 	void BuildTextures();
