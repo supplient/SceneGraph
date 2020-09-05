@@ -65,6 +65,7 @@ bool SceneGraphApp::Initialize()
 	else
 		BuildObjects();
 	BuildManualObjects();
+	BuildRenderItemQueueRecursively(mRootObject);
 	BuildLights();
 	BuildLightShadowConstantBuffers();
 	BuildTextures();
@@ -154,103 +155,18 @@ void SceneGraphApp::BuildManualMeshs()
 	}
 }
 
-// TODO Make background object after load scene
-void SceneGraphApp::LoadScene()
-{
-	// Make Root
-	mRootObject = std::make_shared<Object>("_root");
-
-	// Make cache buffers
-	VertexBufferMapping vertexBufferMappings;
-	vertexBufferMappings["triangle"] = {};
-
-	// Make mesh mapppings
-	MeshNameMapping meshNameMappings;
-	MeshBaseInfoMapping meshBaseInfoMappings;
-
-	// Load FBX file
-	// Change the following filename to a suitable filename value.
-	const char* lFilename = "cube.fbx";
-
-	// Initialize the SDK manager. This object handles all our memory management.
-	FbxManager* lSdkManager = FbxManager::Create();
-
-	// Create the IO settings object.
-	FbxIOSettings *ios = FbxIOSettings::Create(lSdkManager, IOSROOT);
-	lSdkManager->SetIOSettings(ios);
-
-	// Create an importer using the SDK manager.
-	FbxImporter* lImporter = FbxImporter::Create(lSdkManager,"");
-
-	// Use the first argument as the filename for the importer.
-	if(!lImporter->Initialize(lFilename, -1, lSdkManager->GetIOSettings())) {
-		printf("Call to FbxImporter::Initialize() failed.\n");
-		printf("Error returned: %s\n\n", lImporter->GetStatus().GetErrorString());
-		exit(-1);
-	}
-
-	// Create a new scene so that it can be populated by the imported file.
-	FbxScene* lScene = FbxScene::Create(lSdkManager,"myScene");
-
-	// Import the contents of the file into the scene.
-	lImporter->Import(lScene);
-
-	// The file is imported; so get rid of the importer.
-	lImporter->Destroy();
-
-	// Recursively process the nodes of the scene and their attributes.
-	FbxNode* lRootNode = lScene->GetRootNode();
-	if(lRootNode) {
-		for (int i = 0; i < lRootNode->GetChildCount(); i++) {
-			auto childObj = LoadObjectRecursively(
-				lRootNode->GetChild(i), 
-				vertexBufferMappings, 
-				meshNameMappings,
-				meshBaseInfoMappings
-			);
-			Object::Link(mRootObject, childObj);
-		}
-	}
-
-	// Upload meshpools
-	for (auto pair : meshNameMappings) {
-		auto mesh = pair.first;
-		auto meshFullname = pair.second;
-		std::string meshPoolName = meshFullname.first;
-		std::string meshName = meshFullname.second;
-
-		if (mGeos.find(meshPoolName) == mGeos.end())
-			mGeos[meshPoolName] = std::make_shared<MeshGeometry>();
-		auto meshPool = mGeos[meshPoolName];
-		const auto& meshBaseInfo = meshBaseInfoMappings[mesh];
-		meshPool->DrawArgs[meshName] = meshBaseInfo;
-	}
-	for (auto pair : mGeos) {
-		std::string meshPoolName = pair.first;
-		auto meshPool = pair.second;
-		if (vertexBufferMappings.find(meshPoolName) == vertexBufferMappings.end())
-			continue; // Manual Meshs
-		auto& vbm = vertexBufferMappings[meshPoolName];
-		auto& vertBuf = vbm.first;
-		auto& indBuf = vbm.second;
-
-		FillBufferInfoAndUpload(
-			md3dDevice, mCommandList,
-			meshPool,
-			vertBuf, indBuf,
-			DXGI_FORMAT_R32_UINT
-		);
-	}
-
-	// Destroy the SDK manager and all the other objects it was handling.
-	lSdkManager->Destroy();
+void XM_CALLCONV AxisTrans(FbxVector4 src, XMFLOAT3* dest, CXMMATRIX mat) {
+	XMVECTOR vec = { (float)src[0], (float)src[1], (float)src[2], 0.0f };
+	vec = XMVector3Transform(vec, mat);
+	XMStoreFloat3(dest, vec);
 }
 
-std::pair<std::string, std::string> LoadMesh(
+std::pair<std::string, std::string> XM_CALLCONV LoadMesh(
 	FbxNode* node, FbxMesh* mesh, 
 	VertexBufferMapping& vertexBufferMappings, 
 	MeshNameMapping& meshNameMappings,
-	MeshBaseInfoMapping& meshBaseInfoMappings
+	MeshBaseInfoMapping& meshBaseInfoMappings,
+	CXMMATRIX axisTransMat
 ) {
 	// Check if loaded
 	if (meshNameMappings.find(mesh) != meshNameMappings.end()) {
@@ -364,12 +280,14 @@ std::pair<std::string, std::string> LoadMesh(
 					tangent = ele->GetDirectArray().GetAt(index);
 				}
 
-				// Fill into buffer
+				// Make the vertex & change the axis system
 				Vertex vert;
-				vert.pos = { (float)coordinate[0], (float)coordinate[1], (float)coordinate[2] };
-				vert.normal = { (float)normal[0], (float)normal[1], (float)normal[2] };
+				AxisTrans(coordinate, &vert.pos, axisTransMat);
+				AxisTrans(normal, &vert.normal, axisTransMat);
+				AxisTrans(tangent, &vert.tangent, axisTransMat);
 				vert.tex = { (float)uv[0], (float)uv[1] };
-				vert.tangent = { (float)tangent[0], (float)tangent[1], (float)tangent[2] };
+
+				// Fill into buffer
 				vertBuf.push_back(vert);
 				indBuf.push_back(viTotal); // TODO indices now do not allow share the vertex
 
@@ -381,11 +299,12 @@ std::pair<std::string, std::string> LoadMesh(
 	return { meshPoolName, meshName };
 }
 
-std::shared_ptr<Object> SceneGraphApp::LoadObjectRecursively(
+std::shared_ptr<Object> XM_CALLCONV LoadObjectRecursively(
 	FbxNode* rootNode,
 	VertexBufferMapping& vertexBufferMappings,
 	MeshNameMapping& meshNameMappings,
-	MeshBaseInfoMapping& meshBaseInfoMappings
+	MeshBaseInfoMapping& meshBaseInfoMappings,
+	CXMMATRIX axisTransMat
 ) {
 	if (!rootNode)
 		return nullptr;
@@ -414,7 +333,8 @@ std::shared_ptr<Object> SceneGraphApp::LoadObjectRecursively(
 			auto meshName = LoadMesh(rootNode, mesh,
 				vertexBufferMappings,
 				meshNameMappings,
-				meshBaseInfoMappings
+				meshBaseInfoMappings,
+				axisTransMat
 			);
 
 			// Create renderItem
@@ -428,9 +348,6 @@ std::shared_ptr<Object> SceneGraphApp::LoadObjectRecursively(
 			renderItem->Material = "white";
 			renderItem->PSO = "opaque";
 			Object::Link(rootObj, renderItem);
-
-			// Save renderItem
-			mOpaqueRenderItemQueue.push_back(std::move(renderItem));
 		}
 		else {
 			// Do nothing now.
@@ -444,11 +361,119 @@ std::shared_ptr<Object> SceneGraphApp::LoadObjectRecursively(
 			rootNode->GetChild(i),
 			vertexBufferMappings,
 			meshNameMappings,
-			meshBaseInfoMappings
+			meshBaseInfoMappings,
+			axisTransMat
 			);
 		Object::Link(rootObj, childObj);
 	}
 	return rootObj;
+}
+
+void SceneGraphApp::LoadScene()
+{
+	// Make Root
+	mRootObject = std::make_shared<Object>("_root");
+
+	// Make cache buffers
+	VertexBufferMapping vertexBufferMappings;
+	vertexBufferMappings["triangle"] = {};
+
+	// Make mesh mapppings
+	MeshNameMapping meshNameMappings;
+	MeshBaseInfoMapping meshBaseInfoMappings;
+
+	// Load FBX file
+	// Change the following filename to a suitable filename value.
+	const char* lFilename = "teapot.fbx";
+
+	// Initialize the SDK manager. This object handles all our memory management.
+	FbxManager* lSdkManager = FbxManager::Create();
+
+	// Create the IO settings object.
+	FbxIOSettings *ios = FbxIOSettings::Create(lSdkManager, IOSROOT);
+	lSdkManager->SetIOSettings(ios);
+
+	// Create an importer using the SDK manager.
+	FbxImporter* lImporter = FbxImporter::Create(lSdkManager,"");
+
+	// Use the first argument as the filename for the importer.
+	if(!lImporter->Initialize(lFilename, -1, lSdkManager->GetIOSettings())) {
+		printf("Call to FbxImporter::Initialize() failed.\n");
+		printf("Error returned: %s\n\n", lImporter->GetStatus().GetErrorString());
+		exit(-1);
+	}
+
+	// Create a new scene so that it can be populated by the imported file.
+	FbxScene* lScene = FbxScene::Create(lSdkManager,"myScene");
+
+	// Import the contents of the file into the scene.
+	lImporter->Import(lScene);
+
+	// The file is imported; so get rid of the importer.
+	lImporter->Destroy();
+
+	// Cal axis system transform matrix
+	XMMATRIX axisTransMat = XMMatrixIdentity();
+	{
+		FbxGlobalSettings* globalSettings = &lScene->GetGlobalSettings();
+		int upAxis = globalSettings->GetOriginalUpAxis();
+		if (upAxis == 0) // X
+			axisTransMat = XMMatrixRotationZ(MathHelper::Pi / 2.0f);
+		else if (upAxis == 2) // Z
+			axisTransMat = XMMatrixRotationX(-MathHelper::Pi / 2.0f);
+		
+		auto axisSystem = globalSettings->GetAxisSystem();
+		if (axisSystem.GetCoorSystem() == FbxAxisSystem::eRightHanded)
+			axisTransMat *= XMMatrixScaling(1.0f, 1.0f, -1.0f);
+	}
+
+	// Recursively process the nodes of the scene and their attributes.
+	FbxNode* lRootNode = lScene->GetRootNode();
+	if(lRootNode) {
+		for (int i = 0; i < lRootNode->GetChildCount(); i++) {
+			auto childObj = LoadObjectRecursively(
+				lRootNode->GetChild(i), 
+				vertexBufferMappings, 
+				meshNameMappings,
+				meshBaseInfoMappings,
+				axisTransMat
+			);
+			Object::Link(mRootObject, childObj);
+		}
+	}
+
+	// Upload meshpools
+	for (auto pair : meshNameMappings) {
+		auto mesh = pair.first;
+		auto meshFullname = pair.second;
+		std::string meshPoolName = meshFullname.first;
+		std::string meshName = meshFullname.second;
+
+		if (mGeos.find(meshPoolName) == mGeos.end())
+			mGeos[meshPoolName] = std::make_shared<MeshGeometry>();
+		auto meshPool = mGeos[meshPoolName];
+		const auto& meshBaseInfo = meshBaseInfoMappings[mesh];
+		meshPool->DrawArgs[meshName] = meshBaseInfo;
+	}
+	for (auto pair : mGeos) {
+		std::string meshPoolName = pair.first;
+		auto meshPool = pair.second;
+		if (vertexBufferMappings.find(meshPoolName) == vertexBufferMappings.end())
+			continue; // Manual Meshs
+		auto& vbm = vertexBufferMappings[meshPoolName];
+		auto& vertBuf = vbm.first;
+		auto& indBuf = vbm.second;
+
+		FillBufferInfoAndUpload(
+			md3dDevice, mCommandList,
+			meshPool,
+			vertBuf, indBuf,
+			DXGI_FORMAT_R32_UINT
+		);
+	}
+
+	// Destroy the SDK manager and all the other objects it was handling.
+	lSdkManager->Destroy();
 }
 
 void SceneGraphApp::BuildObjects()
@@ -561,6 +586,18 @@ void SceneGraphApp::BuildManualObjects()
 		// Save render items
 		mBackgroundRenderItem = std::move(renderItem);
 	}
+}
+
+void SceneGraphApp::BuildRenderItemQueueRecursively(std::shared_ptr<Object> root)
+{
+	for (auto renderItem : root->GetRenderItems()) {
+		if (renderItem->MeshPool == "background")
+			continue;
+		// TODO now we just push all renderItems into opaqueQueue
+		mOpaqueRenderItemQueue.push_back(renderItem);
+	}
+	for (auto child : root->GetChilds())
+		BuildRenderItemQueueRecursively(child);
 }
 
 void SceneGraphApp::BuildLights()

@@ -115,6 +115,7 @@ public:
 	}
 
 	std::vector<std::shared_ptr<Object>> GetChilds() { return mChilds; }
+	std::vector<std::shared_ptr<RenderItem>> GetRenderItems() { return mRenderItems; }
 
 private:
 	// Note: We left 0 as an invalid ID.

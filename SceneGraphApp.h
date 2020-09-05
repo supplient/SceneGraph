@@ -46,11 +46,13 @@ public:
 	// Initialize
 
 	// Init Scene
+	// Init Scene's Meshs
 	void BuildManualMeshs();
 	void LoadScene();
-	std::shared_ptr<Object> LoadObjectRecursively(FbxNode* root, VertexBufferMapping& vertexBufferMappings, MeshNameMapping& meshMappings, MeshBaseInfoMapping& meshBaseInfoMappings);
 	void BuildObjects();
 	void BuildManualObjects();
+	void BuildRenderItemQueueRecursively(std::shared_ptr<Object> root);
+	// Init Scene's others
 	void BuildLights();
 	void BuildLightShadowConstantBuffers();
 	void BuildTextures();
