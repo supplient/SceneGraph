@@ -16,10 +16,10 @@
 
 // Type Define
 struct Vertex {
-	XMFLOAT3 pos;
-	XMFLOAT3 normal;
-	XMFLOAT3 tangent;
-	XMFLOAT2 tex;
+	DirectX::XMFLOAT3 pos;
+	DirectX::XMFLOAT3 normal;
+	DirectX::XMFLOAT3 tangent;
+	DirectX::XMFLOAT2 tex;
 };
 typedef std::unordered_map<std::string,
 	std::pair<
@@ -46,6 +46,7 @@ public:
 	// Initialize
 
 	// Init Scene
+	void BuildManualMeshs();
 	void LoadScene();
 	std::shared_ptr<Object> LoadObjectRecursively(FbxNode* root, VertexBufferMapping& vertexBufferMappings, MeshNameMapping& meshMappings, MeshBaseInfoMapping& meshBaseInfoMappings);
 	void BuildObjects();

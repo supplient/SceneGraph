@@ -59,6 +59,7 @@ bool SceneGraphApp::Initialize()
 
 	// Init Scene
 	bool fromFile = true;
+	BuildManualMeshs();
 	if(fromFile)
 		LoadScene();
 	else
@@ -84,7 +85,7 @@ bool SceneGraphApp::Initialize()
 	BuildPassConstants();
 	BuildPassConstantBuffers();
 	UpdateLightsInPassConstantBuffers();
-	BuildGeos();
+	// BuildGeos();
 	BuildMaterialConstants();
 	BuildAndUpdateMaterialConstantBuffers();
 
@@ -107,6 +108,50 @@ bool SceneGraphApp::Initialize()
     OnResize();
 
 	return true;
+}
+
+void SceneGraphApp::BuildManualMeshs()
+{
+	// Background
+	{
+		struct Vertex_in {
+			XMFLOAT3 pos;
+		};
+
+		// Create Geo
+		auto geo = std::make_shared<MeshGeometry>();
+		geo->Name = "background";
+
+		// Generate Vertex Info
+		std::vector<Vertex_in> verts = {
+			{{-1.0f, -1.0f, 0.0f}},
+			{{+1.0f, -1.0f, 0.0f}},
+			{{+1.0f, +1.0f, 0.0f}},
+			{{-1.0f, +1.0f, 0.0f}},
+		};
+		std::vector<UINT32> indices = {
+			0, 2, 1,
+			0, 3, 2,
+		};
+
+		// Create submesh
+		SubmeshGeometry submesh;
+		submesh.BaseVertexLocation = 0;
+		submesh.StartIndexLocation = 0;
+		submesh.IndexCount = static_cast<UINT>(indices.size());
+		geo->DrawArgs["background"] = submesh;
+
+		// Fill buffer info & Upload
+		FillBufferInfoAndUpload(
+			md3dDevice, mCommandList,
+			geo, 
+			verts, indices,
+			DXGI_FORMAT_R32_UINT
+		);
+
+		// Save geo
+		mGeos[geo->Name] = std::move(geo);
+	}
 }
 
 // TODO Make background object after load scene
@@ -174,19 +219,24 @@ void SceneGraphApp::LoadScene()
 		std::string meshPoolName = meshFullname.first;
 		std::string meshName = meshFullname.second;
 
+		if (mGeos.find(meshPoolName) == mGeos.end())
+			mGeos[meshPoolName] = std::make_shared<MeshGeometry>();
 		auto meshPool = mGeos[meshPoolName];
-		meshPool->DrawArgs[meshName] = meshBaseInfoMappings[mesh];
+		const auto& meshBaseInfo = meshBaseInfoMappings[mesh];
+		meshPool->DrawArgs[meshName] = meshBaseInfo;
 	}
 	for (auto pair : mGeos) {
 		std::string meshPoolName = pair.first;
 		auto meshPool = pair.second;
+		if (vertexBufferMappings.find(meshPoolName) == vertexBufferMappings.end())
+			continue; // Manual Meshs
 		auto& vbm = vertexBufferMappings[meshPoolName];
 		auto& vertBuf = vbm.first;
 		auto& indBuf = vbm.second;
 
 		FillBufferInfoAndUpload(
 			md3dDevice, mCommandList,
-			pair.second,
+			meshPool,
 			vertBuf, indBuf,
 			DXGI_FORMAT_R32_UINT
 		);
@@ -216,7 +266,7 @@ std::pair<std::string, std::string> LoadMesh(
 	default:
 		throw std::string("Polygon size ") + std::to_string(mesh->GetPolygonSize(0)) + " is not supported now.";
 	}
-	std::string meshName = mesh->GetName();
+	std::string meshName = node->GetName();
 	meshNameMappings[mesh] = { meshPoolName, meshName };
 
 	// Map to vertexBufferMappings & meshBaseInfoMappings
@@ -243,8 +293,10 @@ std::pair<std::string, std::string> LoadMesh(
 		baseInfoMap.IndexCount = mesh->GetPolygonVertexCount();
 
 		// Load each Polygon
-		for (int pi = 0; pi < mesh->GetPolygonCount(); pi++) {
-			for (int vi = 0; vi < mesh->GetPolygonSize(pi); vi++) {
+		int polygonCount = mesh->GetPolygonCount();
+		for (int pi = 0; pi < polygonCount; pi++) {
+			int polygonSize = mesh->GetPolygonSize(pi);
+			for (int vi = 0; vi < polygonSize; vi++) {
 				// Coordinate
 				int ctlPointIndex = mesh->GetPolygonVertex(pi, vi);
 				FbxVector4 coordinate = ctlPoints[ctlPointIndex];
@@ -314,17 +366,19 @@ std::pair<std::string, std::string> LoadMesh(
 
 				// Fill into buffer
 				Vertex vert;
-				vert.pos = { (float)coordinate[0], coordinate[1], coordinate[2] };
-				vert.normal = { (float)normal[0], normal[1], normal[2] };
-				vert.tex = { (float)uv[0], uv[1] };
-				vert.tangent = { (float)tangent[0], tangent[1], tangent[2] };
+				vert.pos = { (float)coordinate[0], (float)coordinate[1], (float)coordinate[2] };
+				vert.normal = { (float)normal[0], (float)normal[1], (float)normal[2] };
+				vert.tex = { (float)uv[0], (float)uv[1] };
+				vert.tangent = { (float)tangent[0], (float)tangent[1], (float)tangent[2] };
 				vertBuf.push_back(vert);
 				indBuf.push_back(viTotal); // TODO indices now do not allow share the vertex
 
 				viTotal++;
-			}
-		}
-	}
+			} // PolygonSize
+		} // PolygonCount
+	} // Map to vertexBufferMappings & meshBaseInfoMappings
+
+	return { meshPoolName, meshName };
 }
 
 std::shared_ptr<Object> SceneGraphApp::LoadObjectRecursively(
@@ -343,16 +397,16 @@ std::shared_ptr<Object> SceneGraphApp::LoadObjectRecursively(
 	FbxDouble3 scaling = rootNode->LclScaling.Get();
 	FbxDouble3 rotation = rootNode->LclRotation.Get();
 	FbxDouble3 translation = rootNode->LclTranslation.Get();
-	rootObj->SetScale(scaling[0], scaling[1], scaling[2]);
-	rootObj->SetRotation(rotation[0], rotation[1], rotation[2]);
-	rootObj->SetTranslation(translation[0], translation[1], translation[2]);
+	rootObj->SetScale((float)scaling[0], (float)scaling[1], (float)scaling[2]);
+	rootObj->SetRotation((float)rotation[0], (float)rotation[1], (float)rotation[2]);
+	rootObj->SetTranslation((float)translation[0], (float)translation[1], (float)translation[2]);
 	
 	// Attributes
 	for (int ai = 0; ai < rootNode->GetNodeAttributeCount(); ai++) {
 		FbxNodeAttribute* attr = rootNode->GetNodeAttributeByIndex(ai);
 
 		if (attr->GetAttributeType() == FbxNodeAttribute::eMesh) {
-			FbxMesh* mesh = dynamic_cast<FbxMesh*>(attr);
+			FbxMesh* mesh = (FbxMesh*)(attr);
 			if (!mesh)
 				throw "The attribute's type is eMesh, while it cannot be converted to FbxMesh.";
 
@@ -1668,45 +1722,6 @@ void SceneGraphApp::BuildGeos()
 		mGeos[geo->Name] = std::move(geo);
 	}
 
-	{
-		struct Vertex_in {
-			XMFLOAT3 pos;
-		};
-
-		// Create Geo
-		auto geo = std::make_shared<MeshGeometry>();
-		geo->Name = "background";
-
-		// Generate Vertex Info
-		std::vector<Vertex_in> verts = {
-			{{-1.0f, -1.0f, 0.0f}},
-			{{+1.0f, -1.0f, 0.0f}},
-			{{+1.0f, +1.0f, 0.0f}},
-			{{-1.0f, +1.0f, 0.0f}},
-		};
-		std::vector<UINT32> indices = {
-			0, 2, 1,
-			0, 3, 2,
-		};
-
-		// Create submesh
-		SubmeshGeometry submesh;
-		submesh.BaseVertexLocation = 0;
-		submesh.StartIndexLocation = 0;
-		submesh.IndexCount = static_cast<UINT>(indices.size());
-		geo->DrawArgs["background"] = submesh;
-
-		// Fill buffer info & Upload
-		FillBufferInfoAndUpload(
-			md3dDevice, mCommandList,
-			geo, 
-			verts, indices,
-			DXGI_FORMAT_R32_UINT
-		);
-
-		// Save geo
-		mGeos[geo->Name] = std::move(geo);
-	}
 }
 
 void SceneGraphApp::BuildMaterialConstants()
