@@ -1627,6 +1627,7 @@ void SceneGraphApp::UpdateLightsInPassConstantBuffers()
 	content.LightPerTypeNum.w = static_cast<UINT32>(mRectLights.size());
 }
 
+/*
 void SceneGraphApp::BuildGeos()
 {
 	{
@@ -1760,6 +1761,7 @@ void SceneGraphApp::BuildGeos()
 	}
 
 }
+*/
 
 void SceneGraphApp::BuildMaterialConstants()
 {

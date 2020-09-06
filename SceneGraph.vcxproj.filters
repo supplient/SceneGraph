@@ -140,6 +140,9 @@
     <ClInclude Include="Object.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="Material.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="simpleVertex.hlsl">
@@ -216,6 +219,7 @@
     <None Include="LTC.hlsli">
       <Filter>Shaders\Headers\BRDF</Filter>
     </None>
+    <None Include="cpp.hint" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="Resources\Textures\bricks.dds">

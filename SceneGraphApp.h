@@ -73,7 +73,7 @@ public:
 	void BuildPassConstants();
 	void BuildPassConstantBuffers();
 	void UpdateLightsInPassConstantBuffers();
-	void BuildGeos();
+	// void BuildGeos();
 	void BuildMaterialConstants();
 	void BuildAndUpdateMaterialConstantBuffers();
 	

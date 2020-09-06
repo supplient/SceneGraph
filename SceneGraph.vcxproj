@@ -169,6 +169,7 @@
     <ClInclude Include="Common\UploadBuffer.h" />
     <ClInclude Include="Constants.h" />
     <ClInclude Include="Light.h" />
+    <ClInclude Include="Material.h" />
     <ClInclude Include="Object.h" />
     <ClInclude Include="Predefine.h" />
     <ClInclude Include="RenderItem.h" />
@@ -289,6 +290,7 @@
     <None Include="BRDF_common.hlsli" />
     <None Include="BRDF_punctual.hlsli" />
     <None Include="BRDF_rect.hlsli" />
+    <None Include="cpp.hint" />
     <None Include="Fxaa3_11.hlsli" />
     <None Include="Header.hlsli" />
     <None Include="Light.hlsli" />

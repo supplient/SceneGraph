@@ -17,7 +17,7 @@ public:
 
 	static bool Link(std::shared_ptr<Object> obj, std::shared_ptr<RenderItem> item)
 	{
-		if (item->ObjectID != 0)
+		if (item->ObjectID != INVALID_OBJECT_ID)
 			return false;
 		obj->mRenderItems.push_back(item);
 		item->ObjectID = obj->mID;
@@ -28,20 +28,20 @@ public:
 	Object(const std::string& name)
 		: mName(name)
 	{
-		mID = sIDCount + 1; 
+		mID = sIDCount; 
 		sIDCount++;
 		sIDMap.push_back(this);
 	}
 	~Object() {
-		sIDMap[mID - 1] = nullptr;
+		sIDMap[mID] = nullptr;
 	}
 
 	UINT GetID()const { return mID; }
 	static UINT GetTotalNum() { return sIDCount; }
 	static Object* FindObjectByID(UINT id) {
-		if (id-1 >= sIDMap.size())
+		if (id >= sIDMap.size())
 			return nullptr;
-		return sIDMap[id - 1];
+		return sIDMap[id];
 	}
 
 	struct Content {
@@ -118,7 +118,7 @@ public:
 	std::vector<std::shared_ptr<RenderItem>> GetRenderItems() { return mRenderItems; }
 
 private:
-	// Note: We left 0 as an invalid ID.
+	// Note: We left UINT32_MAX as an invalid ID.
 	UINT mID;
 	static UINT sIDCount;
 	static std::vector<Object*> sIDMap;

@@ -1,6 +1,9 @@
 #pragma once
 #include "Common/d3dUtil.h"
 #include "Constants.h"
+
+const UINT INVALID_OBJECT_ID = UINT32_MAX;
+
 class RenderItem {
 public:
 	// Mesh concerned
@@ -15,5 +18,5 @@ public:
 	std::string PSO;
 
 	// Object Constants concerned
-	UINT ObjectID = 0;
+	UINT ObjectID = INVALID_OBJECT_ID;
 };
