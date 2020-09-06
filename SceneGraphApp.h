@@ -13,6 +13,8 @@
 #include "RenderTarget.h"
 #include "UnorderedAccessBuffer.h"
 #include "Texture.h"
+#include "Material.h"
+#include "Mesh.h"
 
 // Type Define
 struct Vertex {
@@ -21,19 +23,6 @@ struct Vertex {
 	DirectX::XMFLOAT3 tangent;
 	DirectX::XMFLOAT2 tex;
 };
-typedef std::unordered_map<std::string,
-	std::pair<
-	std::vector<Vertex>,
-	std::vector<UINT32>
-	>> VertexBufferMapping;
-typedef std::unordered_map<FbxMesh*,
-	std::pair<
-	std::string,
-	std::string
-	>> MeshNameMapping;
-typedef std::unordered_map<FbxMesh*,
-	SubmeshGeometry
-	> MeshBaseInfoMapping;
 
 class SceneGraphApp : public D3DApp
 {
@@ -74,7 +63,7 @@ public:
 	void BuildPassConstantBuffers();
 	void UpdateLightsInPassConstantBuffers();
 	// void BuildGeos();
-	void BuildMaterialConstants();
+	void BuildMaterials();
 	void BuildAndUpdateMaterialConstantBuffers();
 	
 	// Init Render Item Resources
@@ -169,6 +158,12 @@ private:
 	// Objects
 	std::shared_ptr<Object> mRootObject;
 
+	// Materials
+	std::unordered_map<std::string, std::shared_ptr<Material>> mMaterials;
+
+	// Meshs
+	std::unordered_map<std::string, std::shared_ptr<Mesh>> mMeshs;
+
 	// Lights
 	std::vector<DirectionLight> mDirLights;
 	std::vector<PointLight> mPointLights;
@@ -192,10 +187,10 @@ private:
 	std::unique_ptr<PassConstants> mPassConstants;
 
 	// Geometries
-	std::unordered_map<std::string, std::shared_ptr<MeshGeometry>> mGeos;
+	// std::unordered_map<std::string, std::shared_ptr<MeshGeometry>> mGeos; // TODO discard
 
 	// Material Constants
-	std::unordered_map<std::string, std::shared_ptr<MaterialConstants>> mMtlConsts;
+	// std::unordered_map<std::string, std::shared_ptr<MaterialConstants>> mMtlConsts;
 
 	// PostProcess Constants
 	std::unique_ptr<HbaoConstants> mHbaoConstants;
@@ -207,7 +202,7 @@ private:
 	std::shared_ptr<RenderItem> mBackgroundRenderItem = nullptr;
 
 	// Constant Buffers
-	std::unique_ptr<UploadBuffer<MaterialConstants::Content>> mMaterialConstantsBuffers;
+	std::unique_ptr<UploadBuffer<Material::Content>> mMaterialConstantsBuffers;
 	std::unique_ptr<UploadBuffer<Object::Content>> mObjectConstantsBuffers;
 	std::unique_ptr<UploadBuffer<PassConstants::Content>> mPassConstantsBuffers;
 	std::unique_ptr<UploadBuffer<HbaoConstants::Content>> mHbaoConstantsBuffers;

@@ -152,6 +152,8 @@
     <ClCompile Include="Common\GeometryGenerator.cpp" />
     <ClCompile Include="Common\MathHelper.cpp" />
     <ClCompile Include="Constants.cpp" />
+    <ClCompile Include="Material.cpp" />
+    <ClCompile Include="Mesh.cpp" />
     <ClCompile Include="Object.cpp" />
     <ClCompile Include="SceneGraphAPP_Input.cpp" />
     <ClCompile Include="WinMain.cpp" />
@@ -170,6 +172,7 @@
     <ClInclude Include="Constants.h" />
     <ClInclude Include="Light.h" />
     <ClInclude Include="Material.h" />
+    <ClInclude Include="Mesh.h" />
     <ClInclude Include="Object.h" />
     <ClInclude Include="Predefine.h" />
     <ClInclude Include="RenderItem.h" />

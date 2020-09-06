@@ -2,17 +2,17 @@
 #include "Common/d3dUtil.h"
 #include "Constants.h"
 
-const UINT INVALID_OBJECT_ID = UINT32_MAX;
+const UINT INVALID_OBJECT_ID = -1;
+const UINT INVALID_MATERIAL_ID = -1;
 
 class RenderItem {
 public:
 	// Mesh concerned
-	std::string MeshPool;
-	std::string SubMesh;
-	D3D_PRIMITIVE_TOPOLOGY PrimitiveTopology;
+	UINT MeshID;
+	UINT SubMeshID;
 
 	// Material concerned
-	std::string Material;
+	UINT MaterialID = INVALID_MATERIAL_ID;
 
 	// Shader concerned
 	std::string PSO;

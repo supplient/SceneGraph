@@ -18,13 +18,13 @@ void FillBufferInfoAndUpload(
 		ComPtr<ID3D12Device> device, ComPtr<ID3D12GraphicsCommandList> commandList,
 		std::shared_ptr<MeshGeometry> geo, 
 		std::vector<T> verts, std::vector<U> indices, 
-		DXGI_FORMAT indiceFormat) {
+		DXGI_FORMAT indexFormat) {
 	// Fill buffer info
 	UINT vertByteSize = static_cast<UINT>(verts.size() * sizeof(T));
 	UINT indexByteSize = static_cast<UINT>(indices.size() * sizeof(U));
 	geo->VertexByteStride = sizeof(T);
 	geo->VertexBufferByteSize = vertByteSize;
-	geo->IndexFormat = indiceFormat;
+	geo->IndexFormat = indexFormat;
 	geo->IndexBufferByteSize = indexByteSize;
 
 	// Upload to GPU
@@ -57,9 +57,12 @@ bool SceneGraphApp::Initialize()
 	ThrowIfFailed(mDirectCmdListAlloc->Reset());
 	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
-	// Init Scene
 	bool fromFile = true;
+
+	// Init Scene
+	BuildTextures();
 	BuildManualMeshs();
+	BuildMaterials();
 	if(fromFile)
 		LoadScene();
 	else
@@ -68,7 +71,6 @@ bool SceneGraphApp::Initialize()
 	BuildRenderItemQueueRecursively(mRootObject);
 	BuildLights();
 	BuildLightShadowConstantBuffers();
-	BuildTextures();
 
 	// Init DirectX
 	BuildUABs();
@@ -87,7 +89,6 @@ bool SceneGraphApp::Initialize()
 	BuildPassConstantBuffers();
 	UpdateLightsInPassConstantBuffers();
 	// BuildGeos();
-	BuildMaterialConstants();
 	BuildAndUpdateMaterialConstantBuffers();
 
 	// Init Render Item Resources
@@ -119,11 +120,13 @@ void SceneGraphApp::BuildManualMeshs()
 			XMFLOAT3 pos;
 		};
 
-		// Create Geo
-		auto geo = std::make_shared<MeshGeometry>();
-		geo->Name = "background";
+		// Create Mesh
+		auto mesh = std::make_shared<Mesh>("background");
 
-		// Generate Vertex Info
+		// Save mesh for reference
+		mMeshs[mesh->GetName()] = mesh;
+
+		// Generate Vertex Data
 		std::vector<Vertex_in> verts = {
 			{{-1.0f, -1.0f, 0.0f}},
 			{{+1.0f, -1.0f, 0.0f}},
@@ -136,22 +139,17 @@ void SceneGraphApp::BuildManualMeshs()
 		};
 
 		// Create submesh
-		SubmeshGeometry submesh;
-		submesh.BaseVertexLocation = 0;
-		submesh.StartIndexLocation = 0;
-		submesh.IndexCount = static_cast<UINT>(indices.size());
-		geo->DrawArgs["background"] = submesh;
+		SubMesh submesh;
+		submesh.baseVertexLoc = 0;
+		submesh.startIndexLoc = 0;
+		submesh.indexCount = static_cast<UINT>(indices.size());
+		mesh->AddSubMesh(submesh);
 
-		// Fill buffer info & Upload
-		FillBufferInfoAndUpload(
-			md3dDevice, mCommandList,
-			geo, 
-			verts, indices,
-			DXGI_FORMAT_R32_UINT
-		);
+		// Pass Vertex Data into Mesh
+		mesh->SetBuffer(verts, indices, DXGI_FORMAT_R32_UINT);
 
-		// Save geo
-		mGeos[geo->Name] = std::move(geo);
+		// Upload mesh
+		mesh->UploadBuffer(md3dDevice, mCommandList);
 	}
 }
 
@@ -161,149 +159,176 @@ void XM_CALLCONV AxisTrans(FbxVector4 src, XMFLOAT3* dest, CXMMATRIX mat) {
 	XMStoreFloat3(dest, vec);
 }
 
-std::pair<std::string, std::string> XM_CALLCONV LoadMesh(
+std::shared_ptr<Mesh> XM_CALLCONV LoadMesh(
 	FbxNode* node, FbxMesh* mesh, 
-	VertexBufferMapping& vertexBufferMappings, 
-	MeshNameMapping& meshNameMappings,
-	MeshBaseInfoMapping& meshBaseInfoMappings,
+	std::unordered_map<FbxMesh*, std::shared_ptr<Mesh>>& meshMappings,
 	CXMMATRIX axisTransMat
 ) {
 	// Check if loaded
-	if (meshNameMappings.find(mesh) != meshNameMappings.end()) {
-		return meshNameMappings[mesh];
+	if (meshMappings.find(mesh) != meshMappings.end()) {
+		return meshMappings[mesh];
 	}
 
-	// Map to meshNameMappings
-	std::string meshPoolName = "";
-	switch (mesh->GetPolygonSize(0)) {
-	case 3:
-		meshPoolName = "triangle";
-		break;
-	default:
-		throw std::string("Polygon size ") + std::to_string(mesh->GetPolygonSize(0)) + " is not supported now.";
-	}
+	// Create Mesh
 	std::string meshName = node->GetName();
-	meshNameMappings[mesh] = { meshPoolName, meshName };
+	std::shared_ptr<Mesh> nMesh = std::make_shared<Mesh>(meshName);
+	meshMappings[mesh] = nMesh;
 
-	// Map to vertexBufferMappings & meshBaseInfoMappings
-	{
-		// Init something
-		FbxStringList uvSetNames;
-		mesh->GetUVSetNames(uvSetNames);
-		if (uvSetNames.GetCount() < 1)
-			throw "Lack of UV.";
+	// Init Vertex Data
+	std::vector<Vertex> verts;
+	std::vector<UINT32> indices;
 
-		FbxVector4* ctlPoints = mesh->GetControlPoints();
-		int viTotal = 0;
+	// Load UVSetnames
+	FbxStringList uvSetNames;
+	mesh->GetUVSetNames(uvSetNames);
+	if (uvSetNames.GetCount() < 1)
+		throw "Lack of UV.";
 
-		// TODO note here we should alter the axis system
+	// Load Control Points
+	FbxVector4* ctlPoints = mesh->GetControlPoints();
 
-		auto& vbm = vertexBufferMappings; // just for convenience
-		auto& vertBuf = vbm[meshPoolName].first;
-		auto& indBuf = vbm[meshPoolName].second;
+	// Check Material's mapping mode
+	// Note: we only use first material layer
+	//		We will never use multi-layer material
+	auto mtlEle = mesh->GetElementMaterial(0);
+	bool usingMtl = true;
+	if (!mtlEle) {
+		usingMtl = false;
+	}
+	bool mtlByPolygon = false;
+	if(usingMtl)
+		mtlByPolygon = mtlEle->GetMappingMode() == FbxLayerElement::eByPolygon;
 
-		// Map to meshBaseInfoMappings
-		auto& baseInfoMap = meshBaseInfoMappings[mesh];
-		baseInfoMap.BaseVertexLocation = static_cast<UINT>(vertBuf.size());
-		baseInfoMap.StartIndexLocation = static_cast<UINT>(indBuf.size());
-		baseInfoMap.IndexCount = mesh->GetPolygonVertexCount();
+	// Prepare for spliting SubMesh
+	SubMesh nowSubMesh;
+	nowSubMesh.startIndexLoc = 0;
+	nowSubMesh.baseVertexLoc = 0;
+	nowSubMesh.indexCount = 0;
+	nowSubMesh.materialID = -1; // Note: ID here is Node's local ID
 
-		// Load each Polygon
-		int polygonCount = mesh->GetPolygonCount();
-		for (int pi = 0; pi < polygonCount; pi++) {
-			int polygonSize = mesh->GetPolygonSize(pi);
-			for (int vi = 0; vi < polygonSize; vi++) {
-				// Coordinate
-				int ctlPointIndex = mesh->GetPolygonVertex(pi, vi);
-				FbxVector4 coordinate = ctlPoints[ctlPointIndex];
+	// Just save the submesh if mapping mode is byallsame, or not using material
+	if (!mtlByPolygon || !usingMtl) {
+		nowSubMesh.indexCount = mesh->GetPolygonVertexCount();
+		if (usingMtl)
+			nowSubMesh.materialID = mtlEle->GetIndexArray().GetAt(0);
+		else
+			nowSubMesh.materialID = -1;
+		nMesh->AddSubMesh(nowSubMesh);
+	}
 
-				// Normal
-				FbxVector4 normal;
-				if (!mesh->GetPolygonVertexNormal(pi, vi, normal)) {
-					if (!mesh->GenerateNormals())
-						throw std::string("Generate normals failed.");
-					mesh->GetPolygonVertexNormal(pi, vi, normal);
-				}
+	// Load each Polygon
+	int indexCount = 0;
+	for (int pi = 0; pi < mesh->GetPolygonCount(); pi++) {
+		for (int vi = 0; vi < mesh->GetPolygonSize(pi); vi++) {
+			// Coordinate
+			int ctlPointIndex = mesh->GetPolygonVertex(pi, vi);
+			FbxVector4 coordinate = ctlPoints[ctlPointIndex];
 
-				// UV
-				FbxVector2 uv;
-				// for (int uvSetIndex = 0; uvSetIndex < uvSetNames.GetCount(); uvSetIndex++) 
-				{
-					std::string uvSetName = uvSetNames.GetStringAt(0); // Now, we only access one UVSet.
-					FbxGeometryElementUV* uvEle = mesh->GetElementUV(uvSetName.c_str());
-					if (!uvEle)
-						throw "Load UV failed.";
-					
-					bool refDirect = uvEle->GetReferenceMode()==FbxGeometryElement::eDirect;
-					int uvi;
+			// Normal
+			FbxVector4 normal;
+			if (!mesh->GetPolygonVertexNormal(pi, vi, normal)) {
+				if (!mesh->GenerateNormals())
+					throw std::string("Generate normals failed.");
+				mesh->GetPolygonVertexNormal(pi, vi, normal);
+			}
 
-					switch (uvEle->GetMappingMode()) {
-					case FbxGeometryElement::eByPolygonVertex:
-						uvi = viTotal;
-						break;
-					case FbxGeometryElement::eByControlPoint:
-						uvi = ctlPointIndex;
-						break;
-					default:
-						throw "UV loading only support MappingMode of eByControlPoint and eByPolygonVertex";
-					}
-					if(!refDirect)
-						uvi = uvEle->GetIndexArray().GetAt(uvi);
-					uv = uvEle->GetDirectArray().GetAt(uvi);
-				}
+			// UV
+			FbxVector2 uv;
+			// for (int uvSetIndex = 0; uvSetIndex < uvSetNames.GetCount(); uvSetIndex++) 
+			{
+				std::string uvSetName = uvSetNames.GetStringAt(0); // Now, we only access one UVSet.
+				FbxGeometryElementUV* uvEle = mesh->GetElementUV(uvSetName.c_str());
+				if (!uvEle)
+					throw "Load UV failed.";
 				
-				// Tangent
-				FbxVector4 tangent;
-				{
-					FbxGeometryElementTangent* ele = mesh->GetElementTangent(0); // Now, we only access one UVSet.
-					if (!ele) {
-						if (!mesh->GenerateTangentsDataForAllUVSets())
-							throw "Generate Tangent Failed.";
-						ele = mesh->GetElementTangent(0);
-					}
+				bool refDirect = uvEle->GetReferenceMode()==FbxGeometryElement::eDirect;
+				int uvi;
 
-					bool refDirect = ele->GetReferenceMode()==FbxGeometryElement::eDirect;
-					int index;
-
-					switch (ele->GetMappingMode()) {
-					case FbxGeometryElement::eByPolygonVertex:
-						index = viTotal;
-						break;
-					case FbxGeometryElement::eByControlPoint:
-						index = ctlPointIndex;
-						break;
-					default:
-						throw "Tangent loading only support MappingMode of eByControlPoint and eByPolygonVertex";
-					}
-					if(!refDirect)
-						index = ele->GetIndexArray().GetAt(index);
-					tangent = ele->GetDirectArray().GetAt(index);
+				switch (uvEle->GetMappingMode()) {
+				case FbxGeometryElement::eByPolygonVertex:
+					uvi = indexCount;
+					break;
+				case FbxGeometryElement::eByControlPoint:
+					uvi = ctlPointIndex;
+					break;
+				default:
+					throw "UV loading only support MappingMode of eByControlPoint and eByPolygonVertex";
+				}
+				if(!refDirect)
+					uvi = uvEle->GetIndexArray().GetAt(uvi);
+				uv = uvEle->GetDirectArray().GetAt(uvi);
+			}
+			
+			// Tangent
+			FbxVector4 tangent;
+			{
+				FbxGeometryElementTangent* ele = mesh->GetElementTangent(0); // Now, we only access one UVSet.
+				if (!ele) {
+					if (!mesh->GenerateTangentsDataForAllUVSets())
+						throw "Generate Tangent Failed.";
+					ele = mesh->GetElementTangent(0);
 				}
 
-				// Make the vertex & change the axis system
-				Vertex vert;
-				AxisTrans(coordinate, &vert.pos, axisTransMat);
-				AxisTrans(normal, &vert.normal, axisTransMat);
-				AxisTrans(tangent, &vert.tangent, axisTransMat);
-				vert.tex = { (float)uv[0], (float)uv[1] };
+				bool refDirect = ele->GetReferenceMode()==FbxGeometryElement::eDirect;
+				int index;
 
-				// Fill into buffer
-				vertBuf.push_back(vert);
-				indBuf.push_back(viTotal); // TODO indices now do not allow share the vertex
+				switch (ele->GetMappingMode()) {
+				case FbxGeometryElement::eByPolygonVertex:
+					index = indexCount;
+					break;
+				case FbxGeometryElement::eByControlPoint:
+					index = ctlPointIndex;
+					break;
+				default:
+					throw "Tangent loading only support MappingMode of eByControlPoint and eByPolygonVertex";
+				}
+				if(!refDirect)
+					index = ele->GetIndexArray().GetAt(index);
+				tangent = ele->GetDirectArray().GetAt(index);
+			}
 
-				viTotal++;
-			} // PolygonSize
-		} // PolygonCount
-	} // Map to vertexBufferMappings & meshBaseInfoMappings
+			// Make the vertex & change the axis system
+			Vertex vert;
+			AxisTrans(coordinate, &vert.pos, axisTransMat);
+			AxisTrans(normal, &vert.normal, axisTransMat);
+			AxisTrans(tangent, &vert.tangent, axisTransMat);
+			vert.tex = { (float)uv[0], (float)uv[1] };
 
-	return { meshPoolName, meshName };
+			// Fill into buffer
+			verts.push_back(vert);
+			indices.push_back(indexCount); // TODO indices now do not allow share the vertex
+
+			indexCount++;
+		} // PolygonSize
+
+		// Check Material & Save SubMesh
+		if (mtlByPolygon && usingMtl) {
+			int matID = mtlEle->GetIndexArray().GetAt(pi);
+
+			if (pi == mesh->GetPolygonCount() - 1 || 
+				matID != mtlEle->GetIndexArray().GetAt(pi + 1)) 
+			{
+				// Last polygon or material will change, save nowSubMesh and start a new one
+				nowSubMesh.materialID = matID;
+				nowSubMesh.indexCount = indexCount;
+				nMesh->AddSubMesh(nowSubMesh);
+				
+				nowSubMesh.startIndexLoc = indices.size();
+				nowSubMesh.baseVertexLoc = verts.size();
+				indexCount = 0;
+			}
+		}
+	} // PolygonCount
+
+	// Pass verts and indices into mesh
+	nMesh->SetBuffer(verts, indices, DXGI_FORMAT_R32_UINT);
+
+	return nMesh;
 }
 
 std::shared_ptr<Object> XM_CALLCONV LoadObjectRecursively(
 	FbxNode* rootNode,
-	VertexBufferMapping& vertexBufferMappings,
-	MeshNameMapping& meshNameMappings,
-	MeshBaseInfoMapping& meshBaseInfoMappings,
+	std::unordered_map<FbxMesh*, std::shared_ptr<Mesh>>& meshMappings,
 	CXMMATRIX axisTransMat
 ) {
 	if (!rootNode)
@@ -330,24 +355,22 @@ std::shared_ptr<Object> XM_CALLCONV LoadObjectRecursively(
 				throw "The attribute's type is eMesh, while it cannot be converted to FbxMesh.";
 
 			// Load mesh
-			auto meshName = LoadMesh(rootNode, mesh,
-				vertexBufferMappings,
-				meshNameMappings,
-				meshBaseInfoMappings,
+			std::shared_ptr<Mesh> nMesh = LoadMesh(rootNode, mesh,
+				meshMappings,
 				axisTransMat
 			);
 
 			// Create renderItem
-			auto renderItem = std::make_shared<RenderItem>();
-			renderItem->MeshPool = meshName.first;
-			renderItem->SubMesh = meshName.second;
-			if (meshName.first == "triangle")
-				renderItem->PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-			else
-				throw "Error."; // Should never reach here.
-			renderItem->Material = "white";
-			renderItem->PSO = "opaque";
-			Object::Link(rootObj, renderItem);
+			for (UINT submeshID = 0; submeshID < nMesh->GetSubMeshNum(); submeshID++) {
+				SubMesh submesh = nMesh->GetSubMesh(submeshID);
+
+				auto renderItem = std::make_shared<RenderItem>();
+				renderItem->MeshID = nMesh->GetID();
+				renderItem->SubMeshID = submeshID;
+				renderItem->MaterialID = 0; // TODO should look up submesh for material ID
+				renderItem->PSO = "opaque";
+				Object::Link(rootObj, renderItem);
+			}
 		}
 		else {
 			// Do nothing now.
@@ -359,9 +382,7 @@ std::shared_ptr<Object> XM_CALLCONV LoadObjectRecursively(
 	for (int i = 0; i < rootNode->GetChildCount(); i++) {
 		auto childObj = LoadObjectRecursively(
 			rootNode->GetChild(i),
-			vertexBufferMappings,
-			meshNameMappings,
-			meshBaseInfoMappings,
+			meshMappings,
 			axisTransMat
 			);
 		Object::Link(rootObj, childObj);
@@ -374,13 +395,8 @@ void SceneGraphApp::LoadScene()
 	// Make Root
 	mRootObject = std::make_shared<Object>("_root");
 
-	// Make cache buffers
-	VertexBufferMapping vertexBufferMappings;
-	vertexBufferMappings["triangle"] = {};
-
 	// Make mesh mapppings
-	MeshNameMapping meshNameMappings;
-	MeshBaseInfoMapping meshBaseInfoMappings;
+	std::unordered_map<FbxMesh*, std::shared_ptr<Mesh>> meshMappings;
 
 	// Load FBX file
 	// Change the following filename to a suitable filename value.
@@ -433,47 +449,26 @@ void SceneGraphApp::LoadScene()
 		for (int i = 0; i < lRootNode->GetChildCount(); i++) {
 			auto childObj = LoadObjectRecursively(
 				lRootNode->GetChild(i), 
-				vertexBufferMappings, 
-				meshNameMappings,
-				meshBaseInfoMappings,
+				meshMappings,
 				axisTransMat
 			);
 			Object::Link(mRootObject, childObj);
 		}
 	}
 
-	// Upload meshpools
-	for (auto pair : meshNameMappings) {
-		auto mesh = pair.first;
-		auto meshFullname = pair.second;
-		std::string meshPoolName = meshFullname.first;
-		std::string meshName = meshFullname.second;
-
-		if (mGeos.find(meshPoolName) == mGeos.end())
-			mGeos[meshPoolName] = std::make_shared<MeshGeometry>();
-		auto meshPool = mGeos[meshPoolName];
-		const auto& meshBaseInfo = meshBaseInfoMappings[mesh];
-		meshPool->DrawArgs[meshName] = meshBaseInfo;
-	}
-	for (auto pair : mGeos) {
-		std::string meshPoolName = pair.first;
-		auto meshPool = pair.second;
-		if (vertexBufferMappings.find(meshPoolName) == vertexBufferMappings.end())
-			continue; // Manual Meshs
-		auto& vbm = vertexBufferMappings[meshPoolName];
-		auto& vertBuf = vbm.first;
-		auto& indBuf = vbm.second;
-
-		FillBufferInfoAndUpload(
-			md3dDevice, mCommandList,
-			meshPool,
-			vertBuf, indBuf,
-			DXGI_FORMAT_R32_UINT
-		);
-	}
-
 	// Destroy the SDK manager and all the other objects it was handling.
 	lSdkManager->Destroy();
+
+	// Save meshs
+	for (auto& pair : meshMappings) {
+		std::shared_ptr<Mesh> mesh = pair.second;
+		mMeshs[mesh->GetName()] = mesh;
+	}
+
+	// Upload meshs
+	for (UINT meshID = 0; meshID < Mesh::GetTotalNum(); meshID++) {
+		Mesh::FindObjectByID(meshID)->UploadBuffer(md3dDevice, mCommandList);
+	}
 }
 
 void SceneGraphApp::BuildObjects()
@@ -482,6 +477,7 @@ void SceneGraphApp::BuildObjects()
 	mRootObject = std::make_shared<Object>("_root");
 
 	// Cube
+	/*
 	{
 		// mid
 		{
@@ -566,6 +562,7 @@ void SceneGraphApp::BuildObjects()
 			mOpaqueRenderItemQueue.push_back(std::move(renderItem));
 		}
 	}
+	*/
 
 }
 
@@ -577,10 +574,9 @@ void SceneGraphApp::BuildManualObjects()
 		Object::Link(mRootObject, obj);
 		
 		auto renderItem = std::make_shared<RenderItem>();
-		renderItem->MeshPool = "background";
-		renderItem->SubMesh = "background";
-		renderItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-		renderItem->Material = "white";
+		renderItem->MeshID = mMeshs["background"]->GetID();
+		renderItem->SubMeshID = 0;
+		renderItem->MaterialID = mMaterials["white"]->GetID();
 		renderItem->ObjectID = obj->GetID();
 
 		// Save render items
@@ -591,7 +587,8 @@ void SceneGraphApp::BuildManualObjects()
 void SceneGraphApp::BuildRenderItemQueueRecursively(std::shared_ptr<Object> root)
 {
 	for (auto renderItem : root->GetRenderItems()) {
-		if (renderItem->MeshPool == "background")
+		Mesh* mesh = Mesh::FindObjectByID(renderItem->MeshID);
+		if (mesh->GetName() == "background")
 			continue;
 		// TODO now we just push all renderItems into opaqueQueue
 		mOpaqueRenderItemQueue.push_back(renderItem);
@@ -1763,8 +1760,17 @@ void SceneGraphApp::BuildGeos()
 }
 */
 
-void SceneGraphApp::BuildMaterialConstants()
+void SceneGraphApp::BuildMaterials()
 {
+	auto whiteMtl = std::make_shared<Material>("white");
+	whiteMtl->mDiffuse = { 0.0f, 0.0f, 0.0f, 0.0f };
+	whiteMtl->mSpecular = { 0.972f, 0.960f, 0.915f, 1.0f }; // silver
+	whiteMtl->mRoughness = 0.5f;
+	whiteMtl->mLTCMatTexID = mResourceTextures["ggx_ltc_mat"]->ID + 1;
+	whiteMtl->mLTCAmpTexID = mResourceTextures["ggx_ltc_amp"]->ID + 1;
+	mMaterials[whiteMtl->GetName()] = whiteMtl;
+
+/*
 	auto whiteMtl = std::make_shared<MaterialConstants>();
 	// whiteMtl->content.Diffuse = { 0.9f, 0.8f, 0.9f, 1.0f };
 	// whiteMtl->content.Specular = { 0.04f, 0.04f, 0.04f, 0.04f }; // default dielectrics
@@ -1777,7 +1783,8 @@ void SceneGraphApp::BuildMaterialConstants()
 	// whiteMtl->content.DispHeightScale = 0.7f;
 	// whiteMtl->content.NormalTexID = mResourceTextures["normal"]->ID + 1;
 	mMtlConsts["white"] = whiteMtl;
-
+*/
+/*
 	auto blueMtl = std::make_shared<MaterialConstants>();
 	blueMtl->content.Diffuse = { 0.0f, 0.0f, 1.0f, 1.0f };
 	mMtlConsts["blue"] = blueMtl;
@@ -1798,22 +1805,23 @@ void SceneGraphApp::BuildMaterialConstants()
 	cutoutTreeMtl->content.DiffuseTexID = mResourceTextures["tree"]->ID + 1;
 	cutoutTreeMtl->content.AlphaTestTheta = 0.2f;
 	mMtlConsts["cutoutTree"] = cutoutTreeMtl;
+*/
 }
 
 void SceneGraphApp::BuildAndUpdateMaterialConstantBuffers()
 {
 	// Build Buffers
-	mMaterialConstantsBuffers = std::make_unique<UploadBuffer<MaterialConstants::Content>>(
+	mMaterialConstantsBuffers = std::make_unique<UploadBuffer<Material::Content>>(
 		md3dDevice.Get(), 
-		MaterialConstants::getTotalNum(), true
+		Material::GetTotalNum(), true
 	);
 	
 	// Update Buffers
-	for (auto mtl_pair : mMtlConsts) {
-		auto mtl = mtl_pair.second;
+	for (UINT id = 0; id < Material::GetTotalNum(); id++) {
+		auto mtl = Material::FindObjectByID(id);
 		mMaterialConstantsBuffers->CopyData(
-			mtl->getID(),
-			mtl->content
+			id,
+			mtl->ToContent()
 		);
 	}
 }
@@ -2285,19 +2293,20 @@ void SceneGraphApp::DrawRenderItems(
 		}
 
 		// Set IA
-		auto& meshPool = mGeos[renderItem->MeshPool];
+		Mesh* mesh = Mesh::FindObjectByID(renderItem->MeshID);
+		SubMesh submesh = mesh->GetSubMesh(renderItem->SubMeshID);
 		D3D12_VERTEX_BUFFER_VIEW VBVs[1] = {
-			meshPool->VertexBufferView()
+			mesh->GetVertexBufferView()
 		};
 		mCommandList->IASetVertexBuffers(0, 1, VBVs);
-		mCommandList->IASetIndexBuffer(&meshPool->IndexBufferView());
-		mCommandList->IASetPrimitiveTopology(renderItem->PrimitiveTopology);
+		mCommandList->IASetIndexBuffer(&mesh->GetIndexBufferView());
+		mCommandList->IASetPrimitiveTopology(submesh.primitiveTopology);
 
 		// Assign Material Constants Buffer
-		auto& mtlConst = mMtlConsts[renderItem->Material];
+		UINT mtlID = renderItem->MaterialID;
 		mCommandList->SetGraphicsRootConstantBufferView(
 			rootSignParamIndices["materialCB"], 
-			mtlCBGPUAddr + mtlConst->getID() * mtlCBElementByteSize
+			mtlCBGPUAddr + mtlID * mtlCBElementByteSize
 		);
 
 		// Assign Object Constants Buffer
@@ -2307,12 +2316,11 @@ void SceneGraphApp::DrawRenderItems(
 		);
 
 		// Draw Call
-		auto& submesh = meshPool->DrawArgs[renderItem->SubMesh];
 		mCommandList->DrawIndexedInstanced(
-			submesh.IndexCount, 
+			submesh.indexCount, 
 			1,
-			submesh.StartIndexLocation,
-			submesh.BaseVertexLocation,
+			submesh.startIndexLoc,
+			submesh.baseVertexLoc,
 			0
 		);
 	}
@@ -2610,13 +2618,14 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 			for(auto renderItem: mOpaqueRenderItemQueue)
 			{
 				// Set IA
-				auto& meshPool = mGeos[renderItem->MeshPool];
+				Mesh* mesh = Mesh::FindObjectByID(renderItem->MeshID);
+				SubMesh submesh = mesh->GetSubMesh(renderItem->SubMeshID);
 				D3D12_VERTEX_BUFFER_VIEW VBVs[1] = {
-					meshPool->VertexBufferView()
+					mesh->GetVertexBufferView()
 				};
 				mCommandList->IASetVertexBuffers(0, 1, VBVs);
-				mCommandList->IASetIndexBuffer(&meshPool->IndexBufferView());
-				mCommandList->IASetPrimitiveTopology(renderItem->PrimitiveTopology);
+				mCommandList->IASetIndexBuffer(&mesh->GetIndexBufferView());
+				mCommandList->IASetPrimitiveTopology(submesh.primitiveTopology);
 
 				// Assign Object Constants Buffer
 				mCommandList->SetGraphicsRootConstantBufferView(
@@ -2624,12 +2633,11 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 				);
 
 				// Draw Call
-				auto& submesh = meshPool->DrawArgs[renderItem->SubMesh];
 				mCommandList->DrawIndexedInstanced(
-					submesh.IndexCount, 
+					submesh.indexCount, 
 					1,
-					submesh.StartIndexLocation,
-					submesh.BaseVertexLocation,
+					submesh.startIndexLoc,
+					submesh.baseVertexLoc,
 					0
 				);
 			}
@@ -2668,13 +2676,14 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 			for(auto renderItem: mOpaqueRenderItemQueue)
 			{
 				// Set IA
-				auto& meshPool = mGeos[renderItem->MeshPool];
+				Mesh* mesh = Mesh::FindObjectByID(renderItem->MeshID);
+				SubMesh submesh = mesh->GetSubMesh(renderItem->SubMeshID);
 				D3D12_VERTEX_BUFFER_VIEW VBVs[1] = {
-					meshPool->VertexBufferView()
+					mesh->GetVertexBufferView()
 				};
 				mCommandList->IASetVertexBuffers(0, 1, VBVs);
-				mCommandList->IASetIndexBuffer(&meshPool->IndexBufferView());
-				mCommandList->IASetPrimitiveTopology(renderItem->PrimitiveTopology);
+				mCommandList->IASetIndexBuffer(&mesh->GetIndexBufferView());
+				mCommandList->IASetPrimitiveTopology(submesh.primitiveTopology);
 
 				// Assign Object Constants Buffer
 				mCommandList->SetGraphicsRootConstantBufferView(
@@ -2682,12 +2691,11 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 				);
 
 				// Draw Call
-				auto& submesh = meshPool->DrawArgs[renderItem->SubMesh];
 				mCommandList->DrawIndexedInstanced(
-					submesh.IndexCount, 
+					submesh.indexCount, 
 					1,
-					submesh.StartIndexLocation,
-					submesh.BaseVertexLocation,
+					submesh.startIndexLoc,
+					submesh.baseVertexLoc,
 					0
 				);
 			}
@@ -2733,13 +2741,14 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 				for(auto renderItem: mOpaqueRenderItemQueue)
 				{
 					// Set IA
-					auto& meshPool = mGeos[renderItem->MeshPool];
+					Mesh* mesh = Mesh::FindObjectByID(renderItem->MeshID);
+					SubMesh submesh = mesh->GetSubMesh(renderItem->SubMeshID);
 					D3D12_VERTEX_BUFFER_VIEW VBVs[1] = {
-						meshPool->VertexBufferView()
+						mesh->GetVertexBufferView()
 					};
 					mCommandList->IASetVertexBuffers(0, 1, VBVs);
-					mCommandList->IASetIndexBuffer(&meshPool->IndexBufferView());
-					mCommandList->IASetPrimitiveTopology(renderItem->PrimitiveTopology);
+					mCommandList->IASetIndexBuffer(&mesh->GetIndexBufferView());
+					mCommandList->IASetPrimitiveTopology(submesh.primitiveTopology);
 
 					// Assign Object Constants Buffer
 					mCommandList->SetGraphicsRootConstantBufferView(
@@ -2747,12 +2756,11 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 					);
 
 					// Draw Call
-					auto& submesh = meshPool->DrawArgs[renderItem->SubMesh];
 					mCommandList->DrawIndexedInstanced(
-						submesh.IndexCount, 
+						submesh.indexCount, 
 						1,
-						submesh.StartIndexLocation,
-						submesh.BaseVertexLocation,
+						submesh.startIndexLoc,
+						submesh.baseVertexLoc,
 						0
 					);
 				}
@@ -2980,21 +2988,21 @@ signPI["dirShadowSR"], mDirShadowTexGPUHandleStart
 		mCommandList->SetPipelineState(mPSOs["hbao"].Get());
 
 		// Set IA
-		auto& meshPool = mGeos[renderItem->MeshPool];
+		Mesh* mesh = Mesh::FindObjectByID(renderItem->MeshID);
+		SubMesh submesh = mesh->GetSubMesh(renderItem->SubMeshID);
 		D3D12_VERTEX_BUFFER_VIEW VBVs[1] = {
-			meshPool->VertexBufferView()
+			mesh->GetVertexBufferView()
 		};
 		mCommandList->IASetVertexBuffers(0, 1, VBVs);
-		mCommandList->IASetIndexBuffer(&meshPool->IndexBufferView());
-		mCommandList->IASetPrimitiveTopology(renderItem->PrimitiveTopology);
+		mCommandList->IASetIndexBuffer(&mesh->GetIndexBufferView());
+		mCommandList->IASetPrimitiveTopology(submesh.primitiveTopology);
 
 		// Draw Call
-		auto& submesh = meshPool->DrawArgs[renderItem->SubMesh];
 		mCommandList->DrawIndexedInstanced(
-			submesh.IndexCount, 
+			submesh.indexCount, 
 			1,
-			submesh.StartIndexLocation,
-			submesh.BaseVertexLocation,
+			submesh.startIndexLoc,
+			submesh.baseVertexLoc,
 			0
 		);
 
@@ -3060,21 +3068,21 @@ signPI["dirShadowSR"], mDirShadowTexGPUHandleStart
 		mCommandList->SetPipelineState(mPSOs["transBlend"].Get());
 
 		// Set IA
-		auto& meshPool = mGeos[renderItem->MeshPool];
+		Mesh* mesh = Mesh::FindObjectByID(renderItem->MeshID);
+		SubMesh submesh = mesh->GetSubMesh(renderItem->SubMeshID);
 		D3D12_VERTEX_BUFFER_VIEW VBVs[1] = {
-			meshPool->VertexBufferView()
+			mesh->GetVertexBufferView()
 		};
 		mCommandList->IASetVertexBuffers(0, 1, VBVs);
-		mCommandList->IASetIndexBuffer(&meshPool->IndexBufferView());
-		mCommandList->IASetPrimitiveTopology(renderItem->PrimitiveTopology);
+		mCommandList->IASetIndexBuffer(&mesh->GetIndexBufferView());
+		mCommandList->IASetPrimitiveTopology(submesh.primitiveTopology);
 
 		// Draw Call
-		auto submesh = meshPool->DrawArgs[renderItem->SubMesh];
 		mCommandList->DrawIndexedInstanced(
-			submesh.IndexCount, 
+			submesh.indexCount, 
 			1,
-			submesh.StartIndexLocation,
-			submesh.BaseVertexLocation,
+			submesh.startIndexLoc,
+			submesh.baseVertexLoc,
 			0
 		);
 
@@ -3164,21 +3172,21 @@ signPI["dirShadowSR"], mDirShadowTexGPUHandleStart
 			mCommandList->SetPipelineState(mPSOs["fxaa"].Get());
 
 			// Set IA
-			auto& meshPool = mGeos[renderItem->MeshPool];
+			Mesh* mesh = Mesh::FindObjectByID(renderItem->MeshID);
+			SubMesh submesh = mesh->GetSubMesh(renderItem->SubMeshID);
 			D3D12_VERTEX_BUFFER_VIEW VBVs[1] = {
-				meshPool->VertexBufferView()
+				mesh->GetVertexBufferView()
 			};
 			mCommandList->IASetVertexBuffers(0, 1, VBVs);
-			mCommandList->IASetIndexBuffer(&meshPool->IndexBufferView());
-			mCommandList->IASetPrimitiveTopology(renderItem->PrimitiveTopology);
+			mCommandList->IASetIndexBuffer(&mesh->GetIndexBufferView());
+			mCommandList->IASetPrimitiveTopology(submesh.primitiveTopology);
 
 			// Draw Call
-			auto& submesh = meshPool->DrawArgs[renderItem->SubMesh];
 			mCommandList->DrawIndexedInstanced(
-				submesh.IndexCount, 
+				submesh.indexCount, 
 				1,
-				submesh.StartIndexLocation,
-				submesh.BaseVertexLocation,
+				submesh.startIndexLoc,
+				submesh.baseVertexLoc,
 				0
 			);
 
