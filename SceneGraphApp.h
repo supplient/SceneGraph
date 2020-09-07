@@ -15,14 +15,7 @@
 #include "Texture.h"
 #include "Material.h"
 #include "Mesh.h"
-
-// Type Define
-struct Vertex {
-	DirectX::XMFLOAT3 pos;
-	DirectX::XMFLOAT3 normal;
-	DirectX::XMFLOAT3 tangent;
-	DirectX::XMFLOAT2 tex;
-};
+#include "FbxLoader.h"
 
 class SceneGraphApp : public D3DApp
 {
