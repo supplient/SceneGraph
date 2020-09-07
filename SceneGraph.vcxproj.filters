@@ -90,6 +90,9 @@
     <ClCompile Include="FbxLoader.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="Texture.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="SceneGraphApp.h">
@@ -235,6 +238,9 @@
       <Filter>Shaders\Headers\BRDF</Filter>
     </None>
     <None Include="cpp.hint" />
+    <None Include="HelpFunctions.hlsli">
+      <Filter>Shaders\Headers</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Image Include="Resources\Textures\bricks.dds">

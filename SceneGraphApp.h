@@ -56,7 +56,7 @@ public:
 	void BuildPassConstantBuffers();
 	void UpdateLightsInPassConstantBuffers();
 	// void BuildGeos();
-	void BuildMaterials();
+	void BuildManualMaterials();
 	void BuildAndUpdateMaterialConstantBuffers();
 	
 	// Init Render Item Resources
@@ -152,10 +152,10 @@ private:
 	std::shared_ptr<Object> mRootObject;
 
 	// Materials
-	std::unordered_map<std::string, std::shared_ptr<Material>> mMaterials;
+	std::vector<std::shared_ptr<Material>> mMaterials;
 
 	// Meshs
-	std::unordered_map<std::string, std::shared_ptr<Mesh>> mMeshs;
+	std::vector<std::shared_ptr<Mesh>> mMeshs;
 
 	// Lights
 	std::vector<DirectionLight> mDirLights;
@@ -172,7 +172,7 @@ private:
 	D3D12_CPU_DESCRIPTOR_HANDLE mPointShadowTexCPUHandleStart;
 
 	// Textures
-	std::unordered_map<std::string, std::unique_ptr<ResourceTexture>> mResourceTextures;
+	std::unordered_map<std::string, std::shared_ptr<ResourceTexture>> mResourceTextures;
 	D3D12_GPU_DESCRIPTOR_HANDLE mTexGPUHandleStart;
 	D3D12_CPU_DESCRIPTOR_HANDLE mTexCPUHandleStart;
 

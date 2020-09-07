@@ -24,10 +24,12 @@ public:
 	std::vector<std::shared_ptr<Material>> GetMaterials();
 
 private:
+	std::shared_ptr<Material> LoadMaterial(
+		FbxNode* node, FbxSurfaceMaterial* mtl);
 	std::shared_ptr<Mesh> XM_CALLCONV LoadMesh(
 		FbxNode* node, FbxMesh* mesh, DirectX::CXMMATRIX axisTransMat);
 	std::shared_ptr<Object> XM_CALLCONV LoadObjectRecursively(
 		FbxNode* rootNode, DirectX::CXMMATRIX axisTransMat);
 	std::unordered_map<FbxMesh*, std::shared_ptr<Mesh>> mMeshMappings;
-	std::unordered_map<FbxMesh*, std::shared_ptr<Material>> mMtlMappings;
+	std::unordered_map<FbxSurfaceMaterial*, std::shared_ptr<Material>> mMtlMappings;
 };

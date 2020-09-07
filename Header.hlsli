@@ -48,17 +48,17 @@ struct RectLight
 
 struct VertexIn
 {
-    float3 posL : POSITION_LOCAL;
-    float3 normalL : NORMAL_LOCAL;
-    float3 tangentL : TANGENT_LOCAL;
+    float3 posL : POSITION;
+    float3 normalL : NORMAL;
+    float3 tangentL : TANGENT;
     float2 tex : TEXTURE;
 };
 
 struct VertexOut
 {
-    float4 posW : POSITION_WORLD;
-    float4 normalW : NORMAL_WORLD;
-    float4 tangentW : TANGENT_WORLD;
+    float4 posW : POSITION;
+    float4 normalW : NORMAL;
+    float4 tangentW : TANGENT;
     float2 tex : TEXTURE;
     float4 posH : SV_POSITION;
 };

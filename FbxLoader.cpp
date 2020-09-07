@@ -8,6 +8,44 @@ void XM_CALLCONV AxisTrans(FbxVector4 src, XMFLOAT3* dest, CXMMATRIX mat) {
 	XMStoreFloat3(dest, vec);
 }
 
+std::shared_ptr<Material> FbxLoader::LoadMaterial(FbxNode * node, FbxSurfaceMaterial * mtl)
+{
+	// Check if loaded
+	if (mMtlMappings.find(mtl) != mMtlMappings.end())
+		return mMtlMappings[mtl];
+
+	// Helper Functions
+	auto LoadDouble3 = [mtl](const char* propertyName, XMFLOAT4* dest) {
+		FbxProperty prop = mtl->FindProperty(propertyName);
+		if (prop.IsValid()) {
+			FbxDouble3 tmp = prop.Get<FbxDouble3>();
+			*dest = { (float)tmp[0], (float)tmp[1], (float)tmp[2], 1.0f };
+		}
+	};
+	auto LoadDouble = [mtl](const char* propertyName, FLOAT* dest) {
+		FbxProperty prop = mtl->FindProperty(propertyName);
+		if (prop.IsValid()) {
+			FbxDouble tmp = prop.Get<FbxDouble>();
+			*dest = tmp;
+		}
+	};
+
+	// Create Material
+	std::string mtlName = mtl->GetName();
+	std::shared_ptr<Material> nMtl = std::make_shared<Material>(mtlName);
+	mMtlMappings[mtl] = nMtl;
+
+	// Load properties
+	LoadDouble3("DiffuseColor", &nMtl->mDiffuse);
+	LoadDouble3("SpecularColor", &nMtl->mSpecular);
+	LoadDouble("roughness", &nMtl->mRoughness);
+
+	// DEBUG set some not included properties
+	// TODO, we do not have textures now
+
+	return nMtl;
+}
+
 std::shared_ptr<Mesh> XM_CALLCONV FbxLoader::LoadMesh(
 	FbxNode* node, FbxMesh* mesh, CXMMATRIX axisTransMat
 ) {
@@ -190,9 +228,18 @@ std::shared_ptr<Object> XM_CALLCONV FbxLoader::LoadObjectRecursively(
 	rootObj->SetScale((float)scaling[0], (float)scaling[1], (float)scaling[2]);
 	rootObj->SetRotation((float)rotation[0], (float)rotation[1], (float)rotation[2]);
 	rootObj->SetTranslation((float)translation[0], (float)translation[1], (float)translation[2]);
+
+	// Materials
+	std::vector<std::shared_ptr<Material>> mtlList;
+	for (int mi = 0; mi < rootNode->GetMaterialCount(); mi++) {
+		FbxSurfaceMaterial* mtl = rootNode->GetMaterial(mi);
+
+		// Load material
+		std::shared_ptr<Material> nMtl = LoadMaterial(rootNode, mtl);
+		mtlList.push_back(nMtl);
+	}
 	
 	// Attributes
-	std::vector<FbxMesh*> meshList;
 	for (int ai = 0; ai < rootNode->GetNodeAttributeCount(); ai++) {
 		FbxNodeAttribute* attr = rootNode->GetNodeAttributeByIndex(ai);
 
@@ -211,10 +258,17 @@ std::shared_ptr<Object> XM_CALLCONV FbxLoader::LoadObjectRecursively(
 			for (UINT submeshID = 0; submeshID < nMesh->GetSubMeshNum(); submeshID++) {
 				SubMesh submesh = nMesh->GetSubMesh(submeshID);
 
+				UINT locMtlID = submesh.materialID;
+				UINT glbMtlID;
+				if (locMtlID == -1)
+					glbMtlID = Material::GetDefaultMaterialID();
+				else
+					glbMtlID = mtlList[locMtlID]->GetID();
+
 				auto renderItem = std::make_shared<RenderItem>();
 				renderItem->MeshID = nMesh->GetID();
 				renderItem->SubMeshID = submeshID;
-				renderItem->MaterialID = 0; // TODO should look up submesh for material ID
+				renderItem->MaterialID = glbMtlID;
 				renderItem->PSO = "opaque";
 				Object::Link(rootObj, renderItem);
 			}

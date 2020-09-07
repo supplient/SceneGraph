@@ -41,7 +41,7 @@ public:
 		DirectX::XMFLOAT4 Direction = { 0.0f, 0.0f, 1.0f, 0.0f };
 		DirectX::XMFLOAT4X4 ViewMat = MathHelper::Identity4x4();
 		DirectX::XMFLOAT4X4 ProjMat = MathHelper::Identity4x4();
-		UINT ShadowSRVID = 0;
+		UINT ShadowSRVID = -1;
 		DirectX::XMFLOAT3  padding1;
 	};
 	Content ToContent()const {
@@ -132,7 +132,7 @@ public:
 	FLOAT FarPlane = 10.0f;
 
 	std::unique_ptr<SingleRenderTarget> ShadowRT = nullptr;
-	UINT ShadowSRVID = 0;
+	UINT ShadowSRVID = -1;
 	std::unique_ptr<ShadowPassConstants> PassConstants = nullptr;
 };
 
@@ -153,7 +153,7 @@ public:
 	struct Content {
 		DirectX::XMFLOAT4 Color = { 1.0f, 1.0f, 1.0f, 1.0f };
 		DirectX::XMFLOAT4 Pos = { 0.0f, 0.0f, 0.0f, 1.0f };
-		UINT ShadowSRVID = 0;
+		UINT ShadowSRVID = -1;
 		FLOAT RMin = 0.01f;
 		FLOAT R0 = 1.0f;
 		FLOAT padding1;
@@ -206,7 +206,7 @@ public:
 	FLOAT DistMax;
 
 	std::unique_ptr<CubeRenderTarget> ShadowRT = nullptr;
-	UINT ShadowSRVID = 0;
+	UINT ShadowSRVID = -1;
 	std::array<std::unique_ptr<ShadowPassConstants>, 6> PassConstantsArray;
 };
 
@@ -232,7 +232,7 @@ public:
 		DirectX::XMFLOAT4 Direction = { 0.0f, 0.0f, 1.0f, 0.0f };
 		DirectX::XMFLOAT4X4 ViewMat = MathHelper::Identity4x4();
 		DirectX::XMFLOAT4X4 ProjMat = MathHelper::Identity4x4();
-		UINT ShadowSRVID = 0; // 1
+		UINT ShadowSRVID = -1; // 1
 		FLOAT RMin = 0.01f; // 2
 		FLOAT R0 = 1.0f; // 3
 		float Penumbra = 0.9848f; // 4
@@ -292,7 +292,7 @@ public:
 	FLOAT Umbra;
 
 	std::unique_ptr<SingleRenderTarget> ShadowRT = nullptr;
-	UINT ShadowSRVID = 0;
+	UINT ShadowSRVID = -1;
 	std::unique_ptr<ShadowPassConstants> PassConstants = nullptr;
 };
 

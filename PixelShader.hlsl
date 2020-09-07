@@ -1,5 +1,6 @@
 #include "Header.hlsli"
 #include "Light.hlsli"
+#include "HelpFunctions.hlsli"
 
 float4 main(VertexOut pin) : SV_TARGET
 {
@@ -19,9 +20,9 @@ float4 main(VertexOut pin) : SV_TARGET
     float4 viewW = normalize(gEyePosW - pin.posW);
 
 #if TEXTURE_NUM > 0
-    if (gNormalTexID > 0)
+    if (IsValidTexID(gNormalTexID))
     {
-        float3 texNormal = gTexs[gNormalTexID - 1].Sample(bilinearWrap, uv).xyz;
+        float3 texNormal = gTexs[gNormalTexID].Sample(bilinearWrap, uv).xyz;
         texNormal.xyz = texNormal.xyz * 2 - 1.0f;
         normalW = normalize(mul(float4(texNormal, 0.0f), TBNTransMat));
     }
@@ -29,9 +30,9 @@ float4 main(VertexOut pin) : SV_TARGET
 
     float4 diffuseColor = gDiffuse;
 #if TEXTURE_NUM > 0
-    if (gDiffuseTexID > 0)
+    if (IsValidTexID(gDiffuseTexID))
     {
-        diffuseColor = gTexs[gDiffuseTexID - 1].Sample(bilinearWrap, uv);
+        diffuseColor = gTexs[gDiffuseTexID].Sample(bilinearWrap, uv);
     }
 #endif
 

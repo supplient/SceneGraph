@@ -1,4 +1,5 @@
 #include "Header.hlsli"
+#include "HelpFunctions.hlsli"
 
 [domain("tri")]
 VertexOut main(
@@ -14,9 +15,9 @@ VertexOut main(
     
     Output.posW = patch[0].posW * domain.x + patch[1].posW * domain.y + patch[2].posW * domain.z;
 #if TEXTURE_NUM > 0
-    if (gDispTexID > 0)
+    if (IsValidTexID(gDispTexID))
     {
-        float offsetHeight = gTexs[gDispTexID - 1].SampleLevel(bilinearWrap, Output.tex, 0.0f).x * gDispHeightScale;
+        float offsetHeight = gTexs[gDispTexID].SampleLevel(bilinearWrap, Output.tex, 0.0f).x * gDispHeightScale;
         float4 offsetVec = offsetHeight * Output.normalW;
         Output.posW -= offsetVec;
     }

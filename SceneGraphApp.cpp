@@ -61,8 +61,8 @@ bool SceneGraphApp::Initialize()
 
 	// Init Scene
 	BuildTextures();
+	BuildManualMaterials();
 	BuildManualMeshs();
-	BuildMaterials();
 	if(fromFile)
 		LoadScene();
 	else
@@ -123,8 +123,8 @@ void SceneGraphApp::BuildManualMeshs()
 		// Create Mesh
 		auto mesh = std::make_shared<Mesh>("background");
 
-		// Save mesh for reference
-		mMeshs[mesh->GetName()] = mesh;
+		// Save mesh
+		mMeshs.push_back(mesh);
 
 		// Generate Vertex Data
 		std::vector<Vertex_in> verts = {
@@ -156,19 +156,19 @@ void SceneGraphApp::BuildManualMeshs()
 void SceneGraphApp::LoadScene()
 {
 	FbxLoader loader;
-	mRootObject = loader.Load("teapot.fbx");
+	mRootObject = loader.Load("cube.fbx");
 	auto meshs = loader.GetMeshs();
 	auto mtls = loader.GetMaterials();
 
 	// Save & Upload meshs
 	for (auto mesh : meshs) {
-		mMeshs[mesh->GetName()] = mesh;
+		mMeshs.push_back(mesh);
 		mesh->UploadBuffer(md3dDevice, mCommandList);
 	}
 
 	// Save materials
 	for (auto mtl : mtls) {
-		mMaterials[mtl->GetName()] = mtl;
+		mMaterials.push_back(mtl);
 	}
 }
 
@@ -275,9 +275,9 @@ void SceneGraphApp::BuildManualObjects()
 		Object::Link(mRootObject, obj);
 		
 		auto renderItem = std::make_shared<RenderItem>();
-		renderItem->MeshID = mMeshs["background"]->GetID();
+		renderItem->MeshID = Mesh::FindMeshByName("background")->GetID();
 		renderItem->SubMeshID = 0;
-		renderItem->MaterialID = mMaterials["white"]->GetID();
+		renderItem->MaterialID = Material::GetDefaultMaterialID();
 		renderItem->ObjectID = obj->GetID();
 
 		// Save render items
@@ -374,12 +374,19 @@ void SceneGraphApp::BuildLightShadowConstantBuffers()
 
 void SceneGraphApp::BuildTextures()
 {
-	mResourceTextures["color"] = std::make_unique<ResourceTexture>(TEXTURE_PATH_HEAD + L"w_color.dds");
-	mResourceTextures["height"] = std::make_unique<ResourceTexture>(TEXTURE_PATH_HEAD + L"w_height.dds");
-	mResourceTextures["normal"] = std::make_unique<ResourceTexture>(TEXTURE_PATH_HEAD + L"w_normal.dds");
-	mResourceTextures["tree"] = std::make_unique<ResourceTexture>(TEXTURE_PATH_HEAD + L"tree.dds");
-	mResourceTextures["ggx_ltc_mat"] = std::make_unique<ResourceTexture>(TEXTURE_PATH_HEAD + L"ggx_ltc_mat.dds");
-	mResourceTextures["ggx_ltc_amp"] = std::make_unique<ResourceTexture>(TEXTURE_PATH_HEAD + L"ggx_ltc_amp.dds");
+	std::unordered_map<std::string, std::shared_ptr<ResourceTexture>> map;
+	auto CreateTex = [&map](std::string name, std::wstring filename) {
+		map[name] = std::make_shared<ResourceTexture>(name);
+		map[name]->SetFilePath(TEXTURE_PATH_HEAD + filename);
+	};
+	CreateTex("color", L"w_color.dds");
+	CreateTex("height", L"w_height.dds");
+	CreateTex("normal", L"w_normal.dds");
+	CreateTex("tree", L"tree.dds");
+	CreateTex("ggx_ltc_mat", L"ggx_ltc_mat.dds");
+	CreateTex("ggx_ltc_amp", L"ggx_ltc_amp.dds");
+
+	mResourceTextures = map;
 }
 
 void SceneGraphApp::BuildUABs() 
@@ -662,7 +669,7 @@ void SceneGraphApp::BuildDescriptorHeaps()
 		CD3DX12_GPU_DESCRIPTOR_HANDLE gpuHandle(mSpotShadowTexGPUHandleStart);
 		for (UINT i = 0; i < mSpotLights.size(); i++) {
 			auto& spotLight = mSpotLights[i];
-			spotLight.ShadowSRVID = i+1;
+			spotLight.ShadowSRVID = i;
 			spotLight.ShadowRT->SetSRVCPUHandle(cpuHandle);
 			spotLight.ShadowRT->SetSRVGPUHandle(gpuHandle);
 			cpuHandle.Offset(1, mCbvSrvUavDescriptorSize);
@@ -674,7 +681,7 @@ void SceneGraphApp::BuildDescriptorHeaps()
 		CD3DX12_GPU_DESCRIPTOR_HANDLE gpuHandle(mPointShadowTexGPUHandleStart);
 		for (UINT i = 0; i < mPointLights.size(); i++) {
 			auto& pointLight = mPointLights[i];
-			pointLight.ShadowSRVID = i+1;
+			pointLight.ShadowSRVID = i;
 			pointLight.ShadowRT->SetSRVCPUHandle(cpuHandle);
 			pointLight.ShadowRT->SetSRVGPUHandle(gpuHandle);
 			cpuHandle.Offset(1, mCbvSrvUavDescriptorSize);
@@ -686,7 +693,7 @@ void SceneGraphApp::BuildDescriptorHeaps()
 		CD3DX12_GPU_DESCRIPTOR_HANDLE gpuHandle(mDirShadowTexGPUHandleStart);
 		for (UINT i = 0; i < mDirLights.size(); i++) {
 			auto& dirLight = mDirLights[i];
-			dirLight.ShadowSRVID = i+1;
+			dirLight.ShadowSRVID = i;
 			dirLight.ShadowRT->SetSRVCPUHandle(cpuHandle);
 			dirLight.ShadowRT->SetSRVGPUHandle(gpuHandle);
 			cpuHandle.Offset(1, mCbvSrvUavDescriptorSize);
@@ -707,7 +714,7 @@ void SceneGraphApp::BuildInputLayout() {
 	*/
 		// Describe vertex input element
 		D3D12_INPUT_ELEMENT_DESC pos;
-		pos.SemanticName = "POSITION_LOCAL";
+		pos.SemanticName = "POSITION";
 		pos.SemanticIndex = 0;
 		pos.Format = DXGI_FORMAT_R32G32B32_FLOAT;
 		pos.AlignedByteOffset = 0;
@@ -716,11 +723,11 @@ void SceneGraphApp::BuildInputLayout() {
 		pos.InstanceDataStepRate = 0;
 
 		auto normal = pos;
-		normal.SemanticName = "NORMAL_LOCAL";
+		normal.SemanticName = "NORMAL";
 		normal.AlignedByteOffset += sizeof(XMFLOAT3);
 
 		auto tangent = normal;
-		tangent.SemanticName = "TANGENT_LOCAL";
+		tangent.SemanticName = "TANGENT";
 		tangent.AlignedByteOffset += sizeof(XMFLOAT3);
 
 		auto tex = tangent;
@@ -1251,30 +1258,10 @@ void SceneGraphApp::BuildPSOs()
 
 void SceneGraphApp::LoadTextures()
 {
-	UINT32 id = 0;
 	CD3DX12_CPU_DESCRIPTOR_HANDLE handle(mTexCPUHandleStart);
-	for (const auto& pair : mResourceTextures) {
-		const auto& tex = pair.second;
-		ThrowIfFailed(CreateDDSTextureFromFile12(
-			md3dDevice.Get(), mCommandList.Get(),
-			tex->Filename.data(),
-			tex->Resource, tex->UploadHeap
-		));
-		tex->ID = id;
-
-		D3D12_RESOURCE_DESC resourceDesc = tex->Resource->GetDesc();
-		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-		srvDesc.Format = resourceDesc.Format;
-		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-		srvDesc.Texture2D.MipLevels = -1;
-		srvDesc.Texture2D.MostDetailedMip = 0;
-		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-		md3dDevice->CreateShaderResourceView(
-			tex->Resource.Get(),
-			&srvDesc, handle
-		);
-
-		id++;
+	for (UINT i = 0; i < ResourceTexture::GetTotalNum(); i++) {
+		auto tex = ResourceTexture::FindResourceTextureByID(i);
+		tex->LoadAndCreateSRV(md3dDevice, mCommandList, handle);
 		handle.Offset(mCbvSrvUavDescriptorSize);
 	}
 }
@@ -1461,15 +1448,16 @@ void SceneGraphApp::BuildGeos()
 }
 */
 
-void SceneGraphApp::BuildMaterials()
+void SceneGraphApp::BuildManualMaterials()
 {
-	auto whiteMtl = std::make_shared<Material>("white");
-	whiteMtl->mDiffuse = { 0.0f, 0.0f, 0.0f, 0.0f };
-	whiteMtl->mSpecular = { 0.972f, 0.960f, 0.915f, 1.0f }; // silver
-	whiteMtl->mRoughness = 0.5f;
-	whiteMtl->mLTCMatTexID = mResourceTextures["ggx_ltc_mat"]->ID + 1;
-	whiteMtl->mLTCAmpTexID = mResourceTextures["ggx_ltc_amp"]->ID + 1;
-	mMaterials[whiteMtl->GetName()] = whiteMtl;
+	auto defaultMtl = std::make_shared<Material>("default");
+	defaultMtl->mDiffuse = { 0.0f, 0.0f, 0.0f, 0.0f };
+	defaultMtl->mSpecular = { 0.972f, 0.960f, 0.915f, 1.0f }; // silver
+	defaultMtl->mRoughness = 0.5f;
+	defaultMtl->mLTCMatTexID = mResourceTextures["ggx_ltc_mat"]->GetID();
+	defaultMtl->mLTCAmpTexID = mResourceTextures["ggx_ltc_amp"]->GetID();
+	mMaterials.push_back(defaultMtl);
+	Material::SetDefaultMaterialID(defaultMtl->GetID());
 
 /*
 	auto whiteMtl = std::make_shared<MaterialConstants>();

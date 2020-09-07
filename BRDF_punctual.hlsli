@@ -2,6 +2,7 @@
 #define BRDF_PUNCTUAL_HEADER
 
 #include "BRDF_common.hlsli"
+#include "HelpFunctions.hlsli"
 
 
 float3 calSpecularBRDFWithCos_punctual(
@@ -61,11 +62,11 @@ void calBRDF_punctual(out float3 out_specular, out float3 out_diffuse,
     )
 {
     // specular
-    if (gLTCAmpTexID > 0 && gLTCMatTexID > 0)
+    if (IsValidTexID(gLTCAmpTexID) && IsValidTexID(gLTCMatTexID))
     {
         out_specular = calSpecularBRDFWithCos_punctual(
             viewDir, normal,
-            gTexs[gLTCMatTexID - 1], gTexs[gLTCAmpTexID - 1],
+            gTexs[gLTCMatTexID], gTexs[gLTCAmpTexID],
             lightDir
         );
     }

@@ -34,6 +34,13 @@ public:
 			return nullptr;
 		return sIDMap[id];
 	}
+	static Mesh* FindMeshByName(std::string name) {
+		for (Mesh* mesh : sIDMap) {
+			if (mesh->GetName() == name)
+				return mesh;
+		}
+		return nullptr;
+	}
 	
 	template<class T, class U>
 	void SetBuffer(std::vector<T> verts, std::vector<U> indices, DXGI_FORMAT indexFormat);
