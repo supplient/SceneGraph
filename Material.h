@@ -52,6 +52,8 @@ public:
 		content.LTCMatTexID = mLTCMatTexID;
 		content.LTCAmpTexID = mLTCAmpTexID;
 
+		content.DiffuseTexID = mDiffuseTexID;
+
 		return content;
 	}
 
@@ -60,6 +62,7 @@ public:
 	FLOAT mRoughness = 0.5f;
 	UINT32 mLTCMatTexID = -1;
 	UINT32 mLTCAmpTexID = -1;
+	UINT32 mDiffuseTexID = -1;
 
 private:
 	UINT mID;

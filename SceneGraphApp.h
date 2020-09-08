@@ -29,6 +29,8 @@ public:
 
 	// Init Scene
 	// Init Scene's Meshs
+	void BuildManualTextures();
+	void BuildManualMaterials();
 	void BuildManualMeshs();
 	void LoadScene();
 	void BuildObjects();
@@ -37,7 +39,6 @@ public:
 	// Init Scene's others
 	void BuildLights();
 	void BuildLightShadowConstantBuffers();
-	void BuildTextures();
 
 	// Init DirectX
 	void BuildUABs();
@@ -56,7 +57,6 @@ public:
 	void BuildPassConstantBuffers();
 	void UpdateLightsInPassConstantBuffers();
 	// void BuildGeos();
-	void BuildManualMaterials();
 	void BuildAndUpdateMaterialConstantBuffers();
 	
 	// Init Render Item Resources
@@ -172,7 +172,7 @@ private:
 	D3D12_CPU_DESCRIPTOR_HANDLE mPointShadowTexCPUHandleStart;
 
 	// Textures
-	std::unordered_map<std::string, std::shared_ptr<ResourceTexture>> mResourceTextures;
+	std::vector<std::shared_ptr<Texture>> mTextures;
 	D3D12_GPU_DESCRIPTOR_HANDLE mTexGPUHandleStart;
 	D3D12_CPU_DESCRIPTOR_HANDLE mTexCPUHandleStart;
 

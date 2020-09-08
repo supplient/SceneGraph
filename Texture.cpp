@@ -1,13 +1,13 @@
 #include "Texture.h"
 #include "Common/DDSTextureLoader.h"
 
-UINT ResourceTexture::sIDCount = 0;
-std::vector<ResourceTexture*> ResourceTexture::sIDMap;
+UINT Texture::sIDCount = 0;
+std::vector<Texture*> Texture::sIDMap;
 
 using namespace DirectX;
 using Microsoft::WRL::ComPtr;
 
-void ResourceTexture::LoadAndCreateSRV(
+void Texture::LoadAndCreateSRV(
 	ComPtr<ID3D12Device> device, 
 	ComPtr<ID3D12GraphicsCommandList> commandList,
 	CD3DX12_CPU_DESCRIPTOR_HANDLE descHandle)

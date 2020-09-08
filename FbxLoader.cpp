@@ -1,4 +1,6 @@
 #include "FbxLoader.h"
+#include <locale>
+#include <codecvt>
 
 using namespace DirectX;
 
@@ -6,6 +8,27 @@ void XM_CALLCONV AxisTrans(FbxVector4 src, XMFLOAT3* dest, CXMMATRIX mat) {
 	XMVECTOR vec = { (float)src[0], (float)src[1], (float)src[2], 0.0f };
 	vec = XMVector3Transform(vec, mat);
 	XMStoreFloat3(dest, vec);
+}
+
+std::shared_ptr<Texture> FbxLoader::LoadTexture(FbxFileTexture * tex)
+{
+	// Check if loaded
+	if (mTexMappings.find(tex) != mTexMappings.end())
+		return mTexMappings[tex];
+
+	// Create Texture
+	std::string name = tex->GetName();
+	auto nTex = std::make_shared<Texture>(name);
+	mTexMappings[tex] = nTex;
+
+	// Load File Path
+	// TODO need check whether abs path exists 
+	//		& whether using rel path
+	//		& whether using other formats
+	std::wstring_convert<std::codecvt_utf8<wchar_t>> conv;
+	nTex->SetFilePath(conv.from_bytes(tex->GetFileName()));
+
+	return nTex;
 }
 
 std::shared_ptr<Material> FbxLoader::LoadMaterial(FbxNode * node, FbxSurfaceMaterial * mtl)
@@ -29,19 +52,37 @@ std::shared_ptr<Material> FbxLoader::LoadMaterial(FbxNode * node, FbxSurfaceMate
 			*dest = tmp;
 		}
 	};
+	auto LoadTex = [mtl, this](const char* propertyName, UINT32* dest) {
+		FbxProperty prop = mtl->FindProperty(propertyName);
+		int texCount = prop.GetSrcObjectCount<FbxFileTexture>();
+		if (texCount == 0)
+			return;
+		FbxFileTexture* tex = prop.GetSrcObject<FbxFileTexture>(0);
+		auto nTex = LoadTexture(tex);
+		*dest = nTex->GetID();
+	};
+
+	// Property Names
+	const char* sDiffuse = "DiffuseColor";
+	const char* sSpecular = "SpecularColor";
+	const char* sRoughness = "roughness";
 
 	// Create Material
 	std::string mtlName = mtl->GetName();
 	std::shared_ptr<Material> nMtl = std::make_shared<Material>(mtlName);
 	mMtlMappings[mtl] = nMtl;
 
+	// Load Textures
+	LoadTex(sDiffuse, &nMtl->mDiffuseTexID);
+
 	// Load properties
-	LoadDouble3("DiffuseColor", &nMtl->mDiffuse);
-	LoadDouble3("SpecularColor", &nMtl->mSpecular);
-	LoadDouble("roughness", &nMtl->mRoughness);
+	LoadDouble3(sDiffuse, &nMtl->mDiffuse);
+	LoadDouble3(sSpecular, &nMtl->mSpecular);
+	LoadDouble(sRoughness, &nMtl->mRoughness);
 
 	// DEBUG set some not included properties
-	// TODO, we do not have textures now
+	nMtl->mLTCAmpTexID = Texture::FindByName("ggx_ltc_amp")->GetID();
+	nMtl->mLTCMatTexID = Texture::FindByName("ggx_ltc_mat")->GetID();
 
 	return nMtl;
 }
@@ -293,6 +334,11 @@ std::shared_ptr<Object> XM_CALLCONV FbxLoader::LoadObjectRecursively(
 
 std::shared_ptr<Object> FbxLoader::Load(const char * filename)
 {
+	// Rest mappings
+	mTexMappings.clear();
+	mMtlMappings.clear();
+	mMeshMappings.clear();
+	
 	// Make Root
 	auto rootObject = std::make_shared<Object>("_root");
 
@@ -308,8 +354,11 @@ std::shared_ptr<Object> FbxLoader::Load(const char * filename)
 
 	// Use the first argument as the filename for the importer.
 	if(!lImporter->Initialize(filename, -1, lSdkManager->GetIOSettings())) {
-		printf("Call to FbxImporter::Initialize() failed.\n");
-		printf("Error returned: %s\n\n", lImporter->GetStatus().GetErrorString());
+		OutputDebugStringA("Call to FbxImporter::Initialize() failed.\n");
+		std::string errorStr = "Error returned: ";
+		errorStr += lImporter->GetStatus().GetErrorString();
+		errorStr += "\n\n";
+		OutputDebugStringA(errorStr.c_str());
 		exit(-1);
 	}
 
@@ -368,6 +417,14 @@ std::vector<std::shared_ptr<Material>> FbxLoader::GetMaterials()
 {
 	std::vector<std::shared_ptr<Material>> res;
 	for (auto& pair : mMtlMappings)
+		res.push_back(pair.second);
+	return res;
+}
+
+std::vector<std::shared_ptr<Texture>> FbxLoader::GetTextures()
+{
+	std::vector<std::shared_ptr<Texture>> res;
+	for (auto& pair : mTexMappings)
 		res.push_back(pair.second);
 	return res;
 }
