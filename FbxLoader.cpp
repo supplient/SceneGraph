@@ -274,9 +274,99 @@ std::shared_ptr<Object> XM_CALLCONV FbxLoader::LoadObjectRecursively(
 	FbxDouble3 scaling = rootNode->LclScaling.Get();
 	FbxDouble3 rotation = rootNode->LclRotation.Get();
 	FbxDouble3 translation = rootNode->LclTranslation.Get();
-	rootObj->SetScale((float)scaling[0], (float)scaling[1], (float)scaling[2]);
-	rootObj->SetRotation((float)rotation[0], (float)rotation[1], (float)rotation[2]);
-	rootObj->SetTranslation((float)translation[0], (float)translation[1], (float)translation[2]);
+	// Handle axis trans && Set
+	{
+		// Scale
+		{
+			float x, y, z;
+			// Determine each axis's responding
+			if (mUpAxis == 0) {
+				// X-up
+				x = scaling[1];
+				y = scaling[0];
+				z = scaling[2];
+			}
+			else if (mUpAxis == 1) {
+				// Y-up
+				x = scaling[0];
+				y = scaling[1];
+				z = scaling[2];
+			}
+			else if (mUpAxis == 2) {
+				// Z-up
+				x = scaling[0];
+				y = scaling[2];
+				z = scaling[1];
+			}
+			else
+				throw "Error";
+			rootObj->SetScale(x, y, z);
+		}
+		// Rotation
+		{
+			float mx = rotation[0], my = rotation[1], mz = rotation[2];
+			float x, y, z;
+			if (!mRightHanded && mUpAxis == 0) {
+				x = -my;
+				y = mx;
+				z = mz;
+			}
+			else if (!mRightHanded && mUpAxis == 1) {
+				x = mx;
+				y = my;
+				z = mz;
+			}
+			else if (!mRightHanded && mUpAxis == 2) {
+				x = mx;
+				y = mz;
+				z = -my;
+			}
+			else if (mRightHanded && mUpAxis == 0) {
+				x = my;
+				y = -mx;
+				z = mz;
+			}
+			else if (mRightHanded && mUpAxis == 1) {
+				x = -mx;
+				y = -my;
+				z = mz;
+			}
+			else if (mRightHanded && mUpAxis == 2) {
+				x = -mx;
+				y = -mz;
+				z = -my;
+			}
+			else
+				throw "Error";
+			rootObj->SetRotation_Degree(x, y, z);
+		}
+		// Translation
+		{
+			float mx = translation[0], my = translation[1], mz = translation[2];
+			float x, y, z;
+			if (mUpAxis == 0) {
+				x = -my;
+				y = mx;
+				z = mz;
+			}
+			else if (mUpAxis == 1) {
+				x = mx;
+				y = my;
+				z = mz;
+			}
+			else if (mUpAxis == 2) {
+				x = mx;
+				y = mz;
+				z = -my;
+			}
+			else
+				throw "Error";
+
+			if (mRightHanded)
+				z = -z;
+			rootObj->SetTranslation(x, y, z);
+		}
+	}
 
 	// Materials
 	std::vector<std::shared_ptr<Material>> mtlList;
@@ -388,6 +478,7 @@ std::shared_ptr<Object> FbxLoader::Load(const char * filename)
 			axisTransMat = XMMatrixRotationZ(MathHelper::Pi / 2.0f);
 		else if (upAxis == 2) // Z
 			axisTransMat = XMMatrixRotationX(-MathHelper::Pi / 2.0f);
+		mUpAxis = upAxis;
 		
 		auto axisSystem = globalSettings->GetAxisSystem();
 		if (axisSystem.GetCoorSystem() == FbxAxisSystem::eRightHanded) {

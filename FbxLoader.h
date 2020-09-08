@@ -40,4 +40,5 @@ private:
 	std::unordered_map<FbxSurfaceMaterial*, std::shared_ptr<Material>> mMtlMappings;
 
 	bool mRightHanded;
+	int mUpAxis; // X:0  Y:1  Z:2
 };
