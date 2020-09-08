@@ -61,6 +61,10 @@ void calBRDF_punctual(out float3 out_specular, out float3 out_diffuse,
     float3 ssAlbedo
     )
 {
+#if SIMPLEST_RENDER_EQUATION
+    out_specular = float3(0.0f, 0.0f, 0.0f);
+    out_diffuse = ssAlbedo * calLambCos(lightDir, normal);
+#else
     // specular
     if (IsValidTexID(gLTCAmpTexID) && IsValidTexID(gLTCMatTexID))
     {
@@ -75,6 +79,7 @@ void calBRDF_punctual(out float3 out_specular, out float3 out_diffuse,
 
     // diffuse
     out_diffuse = calDiffuseBRDFWithCos_punctual(viewDir, normal, lightDir, ssAlbedo);
+#endif
 }
 
 #endif//BRDF_PUNCTUAL_HEADER

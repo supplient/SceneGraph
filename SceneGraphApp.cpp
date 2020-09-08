@@ -325,30 +325,35 @@ void SceneGraphApp::BuildRenderItemQueueRecursively(std::shared_ptr<Object> root
 void SceneGraphApp::BuildLights()
 {
 	mDirLights.push_back({
-		{1.6f, 1.6f, 1.6f},
+		// {1.6f, 1.6f, 1.6f},
+		{0.4f, 0.4f, 0.4f},
 		{0.0f, 0.0f, 1.0f}
 	});
 
 	mPointLights.push_back({
-		{4.0f, 0.4f, 0.2f},
+		// {4.0f, 0.4f, 0.2f},
+		{0.4f, 0.4f, 0.4f},
 		{0.0f, 2.0f, 0.0f},
 		0.01f, 10.0f
 	});
 
 	mSpotLights.push_back({
-		{0.2f, 4.0f, 0.4f},
+		// {0.2f, 4.0f, 0.4f},
+		{0.4f, 0.4f, 0.4f},
 		{2.0f, 0.0f, 0.0f},
 		{-1.0f, 0.0f, 0.0f},
 		0.01f, 10.0f,
 		10.0f, 45.0f
 	});
 
+	/*
 	mRectLights.push_back({
 		{0.2f, 0.2f, 1.0f},
 		{-0.2f, 0.5f, 0.5f}, 
 		{-0.2f, 0.5f, -0.5f},
 		{-0.2f, -0.5f, -0.5f}
 	});
+	*/
 
 	// Cal shadow pass constants
 	for (auto& dirLight : mDirLights) {
@@ -2628,7 +2633,7 @@ signPI["dirShadowSR"], mDirShadowTexGPUHandleStart
 	}
 
 	// HBAO
-	bool hasHBAO = true; // DEBUG
+	bool hasHBAO = false; // DEBUG
 	nowColorRenderTarget = mRenderTargets["hbao"].get();
 	if(hasHBAO)
 	{
