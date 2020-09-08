@@ -38,4 +38,6 @@ private:
 	std::unordered_map<FbxFileTexture*, std::shared_ptr<Texture>> mTexMappings;
 	std::unordered_map<FbxMesh*, std::shared_ptr<Mesh>> mMeshMappings;
 	std::unordered_map<FbxSurfaceMaterial*, std::shared_ptr<Material>> mMtlMappings;
+
+	bool mRightHanded;
 };

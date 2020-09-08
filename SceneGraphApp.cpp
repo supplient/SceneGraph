@@ -738,6 +738,7 @@ void SceneGraphApp::BuildInputLayout() {
 		tangent.AlignedByteOffset += sizeof(XMFLOAT3);
 
 		auto tex = tangent;
+		tex.Format = DXGI_FORMAT_R32G32_FLOAT;
 		tex.SemanticName = "TEXTURE";
 		tex.AlignedByteOffset += sizeof(XMFLOAT3);
 

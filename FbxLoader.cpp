@@ -145,7 +145,9 @@ std::shared_ptr<Mesh> XM_CALLCONV FbxLoader::LoadMesh(
 	// Load each Polygon
 	int indexCount = 0;
 	for (int pi = 0; pi < mesh->GetPolygonCount(); pi++) {
-		for (int vi = 0; vi < mesh->GetPolygonSize(pi); vi++) {
+		int polygonSize = mesh->GetPolygonSize(pi);
+		int windingDelta = polygonSize-1;
+		for (int vi = 0; vi < polygonSize; vi++) {
 			// Coordinate
 			int ctlPointIndex = mesh->GetPolygonVertex(pi, vi);
 			FbxVector4 coordinate = ctlPoints[ctlPointIndex];
@@ -222,7 +224,13 @@ std::shared_ptr<Mesh> XM_CALLCONV FbxLoader::LoadMesh(
 
 			// Fill into buffer
 			verts.push_back(vert);
-			indices.push_back(indexCount); // TODO indices now do not allow share the vertex
+			if (!mRightHanded) // Handle the winding
+				indices.push_back(indexCount);
+			else {
+				indices.push_back(indexCount + windingDelta);
+				windingDelta -= 2;
+			}
+			// TODO indices now do not allow share the vertex
 
 			indexCount++;
 		} // PolygonSize
@@ -382,8 +390,12 @@ std::shared_ptr<Object> FbxLoader::Load(const char * filename)
 			axisTransMat = XMMatrixRotationX(-MathHelper::Pi / 2.0f);
 		
 		auto axisSystem = globalSettings->GetAxisSystem();
-		if (axisSystem.GetCoorSystem() == FbxAxisSystem::eRightHanded)
+		if (axisSystem.GetCoorSystem() == FbxAxisSystem::eRightHanded) {
 			axisTransMat *= XMMatrixScaling(1.0f, 1.0f, -1.0f);
+			mRightHanded = true;
+		}
+		else
+			mRightHanded = false;
 	}
 
 	// Recursively process the nodes of the scene and their attributes.
