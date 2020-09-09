@@ -38,22 +38,19 @@ std::shared_ptr<Material> FbxLoader::LoadMaterial(FbxNode * node, FbxSurfaceMate
 		return mMtlMappings[mtl];
 
 	// Helper Functions
-	auto LoadDouble3 = [mtl](const char* propertyName, XMFLOAT4* dest) {
-		FbxProperty prop = mtl->FindProperty(propertyName);
-		if (prop.IsValid()) {
-			FbxDouble3 tmp = prop.Get<FbxDouble3>();
-			*dest = { (float)tmp[0], (float)tmp[1], (float)tmp[2], 1.0f };
-		}
+	auto LoadDouble4 = [mtl](FbxProperty prop, XMFLOAT4* dest) {
+		FbxColor tmp = prop.Get<FbxColor>();
+		*dest = { (float)tmp.mRed, (float)tmp.mGreen, (float)tmp.mBlue, (float)tmp.mAlpha };
 	};
-	auto LoadDouble = [mtl](const char* propertyName, FLOAT* dest) {
-		FbxProperty prop = mtl->FindProperty(propertyName);
-		if (prop.IsValid()) {
-			FbxDouble tmp = prop.Get<FbxDouble>();
-			*dest = tmp;
-		}
+	auto LoadDouble = [mtl](FbxProperty prop, FLOAT* dest) {
+		FbxDouble tmp = prop.Get<FbxDouble>();
+		*dest = tmp;
 	};
-	auto LoadTex = [mtl, this](const char* propertyName, UINT32* dest) {
-		FbxProperty prop = mtl->FindProperty(propertyName);
+	auto LoadBool = [mtl](FbxProperty prop, bool* dest) {
+		FbxBool tmp = prop.Get<FbxBool>();
+		*dest = tmp;
+	};
+	auto LoadTex = [mtl, this](FbxProperty prop, UINT32* dest) {
 		int texCount = prop.GetSrcObjectCount<FbxFileTexture>();
 		if (texCount == 0)
 			return;
@@ -63,22 +60,42 @@ std::shared_ptr<Material> FbxLoader::LoadMaterial(FbxNode * node, FbxSurfaceMate
 	};
 
 	// Property Names
-	const char* sDiffuse = "DiffuseColor";
-	const char* sSpecular = "SpecularColor";
+	const char* sBaseColor = "base_color";
+	const char* sMetalness = "metalness";
+	const char* sIOR = "trans_ior";
 	const char* sRoughness = "roughness";
+	const char* sRoughnessInv = "roughness_inv";
+	const char* sBaseColorTex = "DiffuseColor";
 
 	// Create Material
 	std::string mtlName = mtl->GetName();
 	std::shared_ptr<Material> nMtl = std::make_shared<Material>(mtlName);
 	mMtlMappings[mtl] = nMtl;
 
-	// Load Textures
-	LoadTex(sDiffuse, &nMtl->mDiffuseTexID);
+	bool roughnessInv = false;
+	FbxProperty prop = mtl->GetFirstProperty();
+	while (prop.IsValid()) {
+		FbxString propName = prop.GetName();
+		auto is = [&propName](const char *name) { return propName == name; };
 
-	// Load properties
-	LoadDouble3(sDiffuse, &nMtl->mDiffuse);
-	LoadDouble3(sSpecular, &nMtl->mSpecular);
-	LoadDouble(sRoughness, &nMtl->mRoughness);
+		if (is(sBaseColor))
+			LoadDouble4(prop, &nMtl->mBaseColor);
+		else if (is(sMetalness))
+			LoadDouble(prop, &nMtl->mMetalness);
+		else if (is(sIOR))
+			LoadDouble(prop, &nMtl->mIOR);
+		else if (is(sRoughness))
+			LoadDouble(prop, &nMtl->mRoughness);
+		else if (is(sRoughnessInv))
+			LoadBool(prop, &roughnessInv);
+		else if (is(sBaseColorTex))
+			LoadTex(prop, &nMtl->mBaseColorTexID);
+
+		prop = mtl->GetNextProperty(prop);
+	}
+
+	if (roughnessInv)
+		nMtl->mRoughness = 1.0f - nMtl->mRoughness;
 
 	// DEBUG set some not included properties
 	nMtl->mLTCAmpTexID = Texture::FindByName("ggx_ltc_amp")->GetID();

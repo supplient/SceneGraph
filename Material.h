@@ -31,12 +31,15 @@ public:
 	std::string GetName() { return mName; }
 
 	struct Content {
-		DirectX::XMFLOAT4 Diffuse = { 1.0f, 1.0f, 1.0f, 1.0f }; // subsurface albedo
-		DirectX::XMFLOAT4 Specular = { 0.04f, 0.04f, 0.04f, 0.04f }; // normal incidence Fersnel reflectance, F0
+		DirectX::XMFLOAT4 BaseColor = { 1.0f, 1.0f, 1.0f, 1.0f }; // subsurface albedo
+		FLOAT Metalness;
+		FLOAT IOR;
 		FLOAT Roughness = 0.5f; 
+
 		UINT32 LTCMatTexID = -1; // TexID -1 means not using this texture
 		UINT32 LTCAmpTexID = -1;
-		UINT32 DiffuseTexID = -1;
+
+		UINT32 BaseColorTexID = -1;
 		UINT32 DispTexID = -1;
 		FLOAT DispHeightScale = 1.0f; // grey value in DispTex(0.0f, 1.0f) * DispHeightScale = height in world space
 		UINT32 NormalTexID = -1;
@@ -45,24 +48,29 @@ public:
 	Content ToContent()const {
 		Content content;
 
-		content.Diffuse = mDiffuse;
-		content.Specular = mSpecular;
+		content.BaseColor = mBaseColor;
+
+		content.Metalness = mMetalness;
+		content.IOR = mIOR;
 		content.Roughness = mRoughness;
 
 		content.LTCMatTexID = mLTCMatTexID;
 		content.LTCAmpTexID = mLTCAmpTexID;
 
-		content.DiffuseTexID = mDiffuseTexID;
+		content.BaseColorTexID = mBaseColorTexID;
 
 		return content;
 	}
 
-	DirectX::XMFLOAT4 mDiffuse = { 1.0f, 1.0f, 1.0f, 1.0f }; // subsurface albedo;
-	DirectX::XMFLOAT4 mSpecular = { 0.04f, 0.04f, 0.04f, 0.04f }; // normal incidence Fersnel reflectance, F0
+	DirectX::XMFLOAT4 mBaseColor = { 1.0f, 1.0f, 1.0f, 1.0f }; // subsurface albedo;
+	FLOAT mMetalness = 0.0f;
+	FLOAT mIOR = 1.51f;
 	FLOAT mRoughness = 0.5f;
+
 	UINT32 mLTCMatTexID = -1;
 	UINT32 mLTCAmpTexID = -1;
-	UINT32 mDiffuseTexID = -1;
+
+	UINT32 mBaseColorTexID = -1;
 
 private:
 	UINT mID;

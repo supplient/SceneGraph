@@ -79,12 +79,16 @@ cbuffer cbPerObject: register(b0)
 
 cbuffer cbPerMaterial : register(b1)
 {
-    float4 gDiffuse;
-    float4 gSpecular;
+    float4 gBaseColor;
+
+    float gMetalness;
+    float gIOR;
     float gRoughness;
+
     uint gLTCMatTexID;
     uint gLTCAmpTexID;
-    uint gDiffuseTexID;
+
+    uint gBaseColorTexID;
     uint gDispTexID;
     float gDispHeightScale;
     uint gNormalTexID;

@@ -174,7 +174,7 @@ void SceneGraphApp::BuildManualMeshs()
 void SceneGraphApp::LoadScene()
 {
 	FbxLoader loader;
-	mRootObject = loader.Load("cubeTex.fbx");
+	mRootObject = loader.Load("bear.fbx");
 	auto meshs = loader.GetMeshs();
 	auto mtls = loader.GetMaterials();
 	auto texs = loader.GetTextures();
@@ -1464,8 +1464,8 @@ void SceneGraphApp::BuildGeos()
 void SceneGraphApp::BuildManualMaterials()
 {
 	auto defaultMtl = std::make_shared<Material>("default");
-	defaultMtl->mDiffuse = { 0.0f, 0.0f, 0.0f, 0.0f };
-	defaultMtl->mSpecular = { 0.972f, 0.960f, 0.915f, 1.0f }; // silver
+	defaultMtl->mBaseColor = { 0.972f, 0.960f, 0.915f, 1.0f }; // silver
+	defaultMtl->mMetalness = 1.0f;
 	defaultMtl->mRoughness = 0.5f;
 	defaultMtl->mLTCMatTexID = Texture::FindByName("ggx_ltc_mat")->GetID();
 	defaultMtl->mLTCAmpTexID = Texture::FindByName("ggx_ltc_amp")->GetID();

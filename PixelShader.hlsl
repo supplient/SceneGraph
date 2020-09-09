@@ -28,20 +28,25 @@ float4 main(VertexOut pin) : SV_TARGET
     }
 #endif
 
-    float4 diffuseColor = gDiffuse;
+    float4 baseColor = gBaseColor;
 #if TEXTURE_NUM > 0
-    if (IsValidTexID(gDiffuseTexID))
+    if (IsValidTexID(gBaseColorTexID))
     {
-        diffuseColor = gTexs[gDiffuseTexID].Sample(bilinearWrap, uv);
+        baseColor = gTexs[gBaseColorTexID].Sample(bilinearWrap, uv);
     }
 #endif
 
     if (gAlphaTestTheta < 0.999)
     {
-        clip(diffuseColor.a - gAlphaTestTheta);
+        clip(baseColor.a - gAlphaTestTheta);
     }
 
-    float4 lightColor = float4(calLights(pin.posW, normalW, viewW, diffuseColor), 1.0f);
+    float4 ambientColor = float4(0.2f, 0.2f, 0.2f, 1.0f);
+    float4 lightColor = float4(calLights(
+        pin.posW, normalW, viewW, 
+        ambientColor, baseColor,
+        gMetalness, gIOR, gRoughness
+    ), 1.0f);
 
     float3 unlightColor = { 0.2f, 0.2f, 0.2f };
     float4 color = float4(unlightColor, 0.0f) + lightColor;

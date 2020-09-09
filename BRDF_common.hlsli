@@ -11,10 +11,9 @@ float calLambCos(float3 dir, float3 normal)
     return clamp(lambCos, 0.0f, 1.0f);
 }
 
-float3 calFresnelReflectance(float3 normal, float3 lightDir)
+float3 calFresnelReflectance(float3 normal, float3 lightDir, float3 fresnel0)
 {
-    float3 fresnel = gSpecular.xyz;
-    fresnel = fresnel + (1 - fresnel) * pow(1 - max(0, dot(normal, lightDir)), 5);
+    float3 fresnel = fresnel0 + (1 - fresnel0) * pow(1 - max(0, dot(normal, lightDir)), 5);
     return fresnel;
 }
 

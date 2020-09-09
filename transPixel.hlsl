@@ -18,10 +18,15 @@ float4 main(VertexOut pin, uint sampleIndex: SV_SampleIndex) : SV_TARGET
     
     float4 normalW = normalize(pin.normalW);
 
-    float3 lightColor = calLights(pin.posW, normalW, viewW, gDiffuse);
+    float4 ambientColor = float4(0.2f, 0.2f, 0.2f, 1.0f);
+    float4 lightColor = float4(calLights(
+        pin.posW, normalW, viewW, 
+        ambientColor, gBaseColor,
+        gMetalness, gIOR, gRoughness
+    ), 1.0f);
 
     float3 unlightColor = { 0.2f, 0.2f, 0.2f };
-    float3 color = unlightColor + lightColor;
+    float3 color = unlightColor + lightColor.xyz;
 
-    return float4(color, gDiffuse.a);
+    return float4(color, gBaseColor.a);
 }

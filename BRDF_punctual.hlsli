@@ -8,7 +8,8 @@
 float3 calSpecularBRDFWithCos_punctual(
     float3 viewDir, float3 normal,
     Texture2D ltcMatTex, Texture2D ltcAmpTex,
-    float3 lightDir
+    float3 lightDir,
+    float3 fresnel0
     )
 {
     // cal TBNMat
@@ -36,7 +37,7 @@ float3 calSpecularBRDFWithCos_punctual(
     cosLobe *= ltcAmp;
 
     // Calculate Fresnel reflectance, using Schlick approximation
-    float3 fresnel = calFresnelReflectance(normalize(lightDir+normal), lightDir);
+    float3 fresnel = calFresnelReflectance(normalize(lightDir+normal), lightDir, fresnel0);
 
     // Multiple Fresnel reflectance
     return cosLobe * fresnel;
@@ -44,11 +45,11 @@ float3 calSpecularBRDFWithCos_punctual(
 
 float3 calDiffuseBRDFWithCos_punctual(
     float3 viewDir, float3 normal, float3 lightDir, 
-    float3 ssAlbedo
+    float3 ssAlbedo, float3 fresnel0
     )
 {
     // Using Shirley approximation
-    float3 res = ssAlbedo * (1 - gSpecular.xyz);
+    float3 res = ssAlbedo * (1 - fresnel0);
     res *= 1 - pow(1 - max(0, dot(normal, lightDir)), 5);
     res *= 1 - pow(1 - max(0, dot(normal, viewDir)), 5);
     res *= 21.0f / 20.0f / 3.14159;
@@ -58,28 +59,24 @@ float3 calDiffuseBRDFWithCos_punctual(
 
 void calBRDF_punctual(out float3 out_specular, out float3 out_diffuse, 
     float3 viewDir, float3 normal, float3 lightDir, 
-    float3 ssAlbedo
+    float3 ssAlbedo, float3 fresnel0
     )
 {
-#if SIMPLEST_RENDER_EQUATION
-    out_specular = float3(0.0f, 0.0f, 0.0f);
-    out_diffuse = ssAlbedo * calLambCos(lightDir, normal);
-#else
     // specular
     if (IsValidTexID(gLTCAmpTexID) && IsValidTexID(gLTCMatTexID))
     {
         out_specular = calSpecularBRDFWithCos_punctual(
             viewDir, normal,
             gTexs[gLTCMatTexID], gTexs[gLTCAmpTexID],
-            lightDir
+            lightDir,
+            fresnel0
         );
     }
     else
-        out_specular = calFresnelReflectance(normal, lightDir) * calLambCos(lightDir, normal);
+        out_specular = calFresnelReflectance(normal, lightDir, fresnel0) * calLambCos(lightDir, normal);
 
     // diffuse
-    out_diffuse = calDiffuseBRDFWithCos_punctual(viewDir, normal, lightDir, ssAlbedo);
-#endif
+    out_diffuse = calDiffuseBRDFWithCos_punctual(viewDir, normal, lightDir, ssAlbedo, fresnel0);
 }
 
 #endif//BRDF_PUNCTUAL_HEADER

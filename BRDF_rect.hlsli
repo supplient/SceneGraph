@@ -262,7 +262,7 @@ float3 calSpecularBRDFWithCos_rect(
     centerDir = normalize(centerDir);
 
     // Calculate Fresnel reflectance, using Schlick approximation
-    float3 fresnel = calFresnelReflectance(normal, centerDir);
+    float3 fresnel = calFresnelReflectance(normal, centerDir, gSpecular.xyz);
 
     // Multiple Fresnel reflectance
     return cosLobe * fresnel;
@@ -292,7 +292,7 @@ float3 calDiffuseBRDFWithCos_rect(
     centerDir = normalize(centerDir);
 
     // Calculate Fresnel reflectance, using Schlick approximation
-    float3 fresnel = calFresnelReflectance(normal, centerDir);
+    float3 fresnel = calFresnelReflectance(normal, centerDir, gSpecular.xyz);
 
     // Calculate diffuse brdf, using Lambertian term
     float3 res = 1 - fresnel;
@@ -341,7 +341,7 @@ void calBRDF_rect(out float3 out_specular, out float3 out_diffuse,
         centerDir = normalize(centerDir);
 
         // Calculate Fresnel reflectance, using Schlick approximation
-        float3 fresnel = calFresnelReflectance(normal, centerDir);
+        float3 fresnel = calFresnelReflectance(normal, centerDir, gSpecular.xyz);
 
         // Multiple Fresnel reflectance
         out_specular = cosLobe * fresnel;

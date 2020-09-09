@@ -36,8 +36,11 @@
 #ifndef RECT_LIGHT_ON
     #define RECT_LIGHT_ON 0
 #endif
-#ifndef SIMPLEST_RENDER_EQUATION
-    #define SIMPLEST_RENDER_EQUATION 1
+#ifndef SHADING_MODEL
+    #define SHADING_MODEL 1
+// 0: Simplest Diffuse
+// 1: Phong Model
+// 2: LTC
 #endif
 #ifndef HBAO_DEBUG
     #define HBAO_DEBUG 0
