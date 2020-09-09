@@ -44,11 +44,11 @@ std::shared_ptr<Material> FbxLoader::LoadMaterial(FbxNode * node, FbxSurfaceMate
 	};
 	auto LoadDouble = [mtl](FbxProperty prop, FLOAT* dest) {
 		FbxDouble tmp = prop.Get<FbxDouble>();
-		*dest = tmp;
+		*dest = (float)tmp;
 	};
 	auto LoadBool = [mtl](FbxProperty prop, bool* dest) {
 		FbxBool tmp = prop.Get<FbxBool>();
-		*dest = tmp;
+		*dest = (float)tmp;
 	};
 	auto LoadTex = [mtl, this](FbxProperty prop, UINT32* dest) {
 		int texCount = prop.GetSrcObjectCount<FbxFileTexture>();
@@ -264,8 +264,8 @@ std::shared_ptr<Mesh> XM_CALLCONV FbxLoader::LoadMesh(
 				nowSubMesh.indexCount = indexCount;
 				nMesh->AddSubMesh(nowSubMesh);
 				
-				nowSubMesh.startIndexLoc = indices.size();
-				nowSubMesh.baseVertexLoc = verts.size();
+				nowSubMesh.startIndexLoc = static_cast<UINT>(indices.size());
+				nowSubMesh.baseVertexLoc = static_cast<UINT>(verts.size());
 				indexCount = 0;
 			}
 		}
@@ -295,7 +295,7 @@ std::shared_ptr<Object> XM_CALLCONV FbxLoader::LoadObjectRecursively(
 	{
 		// Scale
 		{
-			float x, y, z;
+			double x, y, z;
 			// Determine each axis's responding
 			if (mUpAxis == 0) {
 				// X-up
@@ -317,12 +317,12 @@ std::shared_ptr<Object> XM_CALLCONV FbxLoader::LoadObjectRecursively(
 			}
 			else
 				throw "Error";
-			rootObj->SetScale(x, y, z);
+			rootObj->SetScale((float)x, (float)y, (float)z);
 		}
 		// Rotation
 		{
-			float mx = rotation[0], my = rotation[1], mz = rotation[2];
-			float x, y, z;
+			double mx = rotation[0], my = rotation[1], mz = rotation[2];
+			double x, y, z;
 			if (!mRightHanded && mUpAxis == 0) {
 				x = -my;
 				y = mx;
@@ -355,12 +355,12 @@ std::shared_ptr<Object> XM_CALLCONV FbxLoader::LoadObjectRecursively(
 			}
 			else
 				throw "Error";
-			rootObj->SetRotation_Degree(x, y, z);
+			rootObj->SetRotation_Degree((float)x, (float)y, (float)z);
 		}
 		// Translation
 		{
-			float mx = translation[0], my = translation[1], mz = translation[2];
-			float x, y, z;
+			double mx = translation[0], my = translation[1], mz = translation[2];
+			double x, y, z;
 			if (mUpAxis == 0) {
 				x = -my;
 				y = mx;
@@ -381,7 +381,7 @@ std::shared_ptr<Object> XM_CALLCONV FbxLoader::LoadObjectRecursively(
 
 			if (mRightHanded)
 				z = -z;
-			rootObj->SetTranslation(x, y, z);
+			rootObj->SetTranslation((float)x, (float)y, (float)z);
 		}
 	}
 

@@ -69,6 +69,17 @@ struct HullConstant
 	float InsideTessFactor			: SV_InsideTessFactor; // 例如，对于四象限域，将为 Inside[2]
 };
 
+struct RenderParams
+{
+    float3 normalW;
+    float3 viewW;
+    float3 ambient;
+    float3 baseColor;
+    float metalness;
+    float ior;
+    float roughness;
+};
+
 #define NUM_CONTROL_POINTS 3
 
 cbuffer cbPerObject: register(b0)

@@ -11,45 +11,60 @@ float3 calFresnel0(float ior)
     return float3(k, k, k);
 }
 
-float3 calShadingEquation(
-    float3 view, float3 normal, float3 lightDir, 
-    float3 ambient, float3 baseColor, 
-    float metalness, float ior, float roughness,
-    float3 lightColor)
+float3 calPhongModel(float3 lightDir, float3 lightColor, RenderParams rps)
 {
-#if SHADING_MODEL == 2
-    // BRDF calculation
-    float3 specularBRDF, diffuseBRDF;
-    calBRDF_punctual(specularBRDF, diffuseBRDF, 
-        view, normal, lightDir, 
-        diffuse, specular
-    );
-    return lightColor * (specularBRDF + diffuseBRDF);
-
-#elif SHADING_MODEL == 1
-    float lambCos = calLambCos(lightDir, normal);
-    float3 halfVec = normalize(lightDir + view);
-    float m = (1 - roughness) * 512.0;
-    float roughnessFactor = (m + 8.0f) / 8.0f * pow(max(dot(normal, halfVec), 0.0f), m);
+    float lambCos = calLambCos(lightDir, rps.normalW);
+    float3 halfVec = normalize(lightDir + rps.viewW);
+    float m = (1 - rps.roughness) * 1024.0;
+    float roughnessFactor = (m + 8.0f) / 8.0f * pow(max(dot(rps.normalW, halfVec), 0.0f), m);
 
     // metal
     float3 metalPart = 0.0f;
-    metalPart += ambient * baseColor;
+    metalPart += rps.ambient * rps.baseColor;
 
-    float3 metalFresnel = calFresnelReflectance(normal, lightDir, baseColor);
+    float3 metalFresnel = calFresnelReflectance(rps.normalW, lightDir, rps.baseColor);
     metalPart += lightColor * lambCos * metalFresnel * roughnessFactor;
 
     // nonmetal
     float3 nonmetalPart = 0.0f;
-    nonmetalPart += ambient * baseColor;
+    nonmetalPart += rps.ambient * rps.baseColor;
 
-    float3 nonmetalF0 = calFresnel0(ior);
-    float3 nonmetalFresenl = calFresnelReflectance(normal, lightDir, nonmetalF0);
-    nonmetalPart += lambCos * lightColor * (baseColor + nonmetalFresenl * roughnessFactor);
+    float3 nonmetalF0 = calFresnel0(rps.ior);
+    float3 nonmetalFresenl = calFresnelReflectance(rps.normalW, lightDir, nonmetalF0);
+    nonmetalPart += lambCos * lightColor * (rps.baseColor + nonmetalFresenl * roughnessFactor);
     
-    return metalness * metalPart + (1.0f - metalness) * nonmetalPart;
+    return rps.metalness * metalPart + (1.0f - rps.metalness) * nonmetalPart;
+}
+
+float3 calShadingEquation(
+    float3 lightDir, float3 lightColor, RenderParams rps)
+{
+#if SHADING_MODEL == 2
+    if (IsValidTexID(gLTCAmpTexID) && IsValidTexID(gLTCMatTexID))
+    {
+        // This model needs a light scale-up
+        lightColor *= 8.0f;
+    
+        // BRDF calculation
+        float3 nonmetalF0 = calFresnel0(rps.ior);
+        float3 ssAlbedo = rps.metalness * float3(0.0f, 0.0f, 0.0f) + (1 - rps.metalness) * rps.baseColor;
+        float3 fresnel0 = rps.metalness * rps.baseColor + (1.0f - rps.metalness) * nonmetalF0;
+
+        float3 specularBRDF, diffuseBRDF;
+        calBRDF_punctual(specularBRDF, diffuseBRDF,
+            lightDir, rps,
+            ssAlbedo, fresnel0
+        );
+        return rps.ambient * rps.baseColor + lightColor * (specularBRDF + diffuseBRDF);
+    }
+    else
+        return calPhongModel(lightDir, lightColor, rps);
+
+#elif SHADING_MODEL == 1
+    return calPhongModel(lightDir, lightColor, rps);
+
 #else
-    return lightColor * diffuse * calLambCos(lightDir, normal);
+    return rps.ambient*rps.baseColor + lightColor * rps.baseColor * calLambCos(lightDir, rps.normalW);
 
 #endif
 }
@@ -68,9 +83,7 @@ float calDirAttenuation(float4 defDir, float4 dir, float penumbra, float umbra)
 }
 
 float3 calLights(
-    float4 posW, float4 normalW, float4 viewW, 
-    float4 ambientColor, float4 baseColor,
-    float metalness, float ior, float roughness
+    float4 posW, RenderParams rps
 )
 {
     float3 sum = { 0.0f, 0.0f, 0.0f };
@@ -99,10 +112,9 @@ float3 calLights(
         float3 lightColor = shadowFactor * gDirLights[i].color.xyz;
         
         sum += calShadingEquation(
-            viewW.xyz, normalW.xyz, gDirLights[i].direction.xyz,
-            ambientColor.xyz, baseColor.xyz,
-            metalness, ior, roughness,
-            lightColor
+            gDirLights[i].direction.xyz,
+            lightColor,
+            rps
         );
     }
 
@@ -131,10 +143,9 @@ float3 calLights(
         float3 lightColor = shadowFactor * distAtte * gPointLights[i].color.xyz;
 
         sum += calShadingEquation(
-            viewW.xyz, normalW.xyz, dir.xyz, 
-            ambientColor.xyz, baseColor.xyz,
-            metalness, ior, roughness,
-            lightColor
+            dir.xyz,
+            lightColor,
+            rps
         );
     }
 
@@ -173,10 +184,9 @@ float3 calLights(
         float3 lightColor = shadowFactor * dirAtte * distAtte * gSpotLights[i].color.xyz;
 
         sum += calShadingEquation(
-            viewW.xyz, normalW.xyz, dir.xyz, 
-            ambientColor.xyz, baseColor.xyz,
-            metalness, ior, roughness,
-            lightColor
+            dir.xyz,
+            lightColor,
+            rps
         );
     }
     

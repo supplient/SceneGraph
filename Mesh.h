@@ -58,7 +58,7 @@ public:
 			throw "Out of bound";
 		return mSubMeshs[i];
 	}
-	UINT GetSubMeshNum() { return mSubMeshs.size(); }
+	UINT GetSubMeshNum() { return static_cast<UINT>(mSubMeshs.size()); }
 
 private:
 	// Note: We left UINT32_MAX as an invalid ID.

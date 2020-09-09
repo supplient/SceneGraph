@@ -44,6 +44,6 @@ D3D12_INDEX_BUFFER_VIEW Mesh::GetIndexBufferView()const
 	D3D12_INDEX_BUFFER_VIEW ibv;
 	ibv.BufferLocation = mIndexBufferGPU->GetGPUVirtualAddress();
 	ibv.Format = mIndexFormat;
-	ibv.SizeInBytes = mVertexBufferByteSize;
+	ibv.SizeInBytes = mIndexBufferByteSize;
 	return ibv;
 }

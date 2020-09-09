@@ -174,7 +174,7 @@ void SceneGraphApp::BuildManualMeshs()
 void SceneGraphApp::LoadScene()
 {
 	FbxLoader loader;
-	mRootObject = loader.Load("bear.fbx");
+	mRootObject = loader.Load("cubeTex.fbx");
 	auto meshs = loader.GetMeshs();
 	auto mtls = loader.GetMaterials();
 	auto texs = loader.GetTextures();

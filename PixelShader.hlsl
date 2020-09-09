@@ -41,14 +41,18 @@ float4 main(VertexOut pin) : SV_TARGET
         clip(baseColor.a - gAlphaTestTheta);
     }
 
-    float4 ambientColor = float4(0.2f, 0.2f, 0.2f, 1.0f);
+    RenderParams rps;
+    rps.normalW = normalW.xyz;
+    rps.viewW = viewW.xyz;
+    rps.ambient = float3(0.2f, 0.2f, 0.2f);
+    rps.baseColor = baseColor.xyz;
+    rps.metalness = gMetalness;
+    rps.ior = gIOR;
+    rps.roughness = gRoughness;
     float4 lightColor = float4(calLights(
-        pin.posW, normalW, viewW, 
-        ambientColor, baseColor,
-        gMetalness, gIOR, gRoughness
+        pin.posW, rps
     ), 1.0f);
 
-    float3 unlightColor = { 0.2f, 0.2f, 0.2f };
-    float4 color = float4(unlightColor, 0.0f) + lightColor;
+    float4 color = lightColor;
     return color;
 }
