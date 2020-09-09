@@ -78,6 +78,21 @@
     <ClCompile Include="Common\MathHelper.cpp">
       <Filter>Common\Source</Filter>
     </ClCompile>
+    <ClCompile Include="Object.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="Material.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="Mesh.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="FbxLoader.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="Texture.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="SceneGraphApp.h">
@@ -131,10 +146,19 @@
     <ClInclude Include="Texture.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="UnorderedAccessBuffer.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
     <ClInclude Include="Object.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="UnorderedAccessBuffer.h">
+    <ClInclude Include="Material.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Mesh.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="FbxLoader.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
@@ -212,6 +236,10 @@
     </None>
     <None Include="LTC.hlsli">
       <Filter>Shaders\Headers\BRDF</Filter>
+    </None>
+    <None Include="cpp.hint" />
+    <None Include="HelpFunctions.hlsli">
+      <Filter>Shaders\Headers</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

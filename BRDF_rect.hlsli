@@ -2,6 +2,7 @@
 #define BRDF_RECT_HEADER
 
 #include "BRDF_common.hlsli"
+#include "HelpFunctions.hlsli"
 
 
 float3 clipLineAtHorizon(float3 up, float3 down)
@@ -261,7 +262,7 @@ float3 calSpecularBRDFWithCos_rect(
     centerDir = normalize(centerDir);
 
     // Calculate Fresnel reflectance, using Schlick approximation
-    float3 fresnel = calFresnelReflectance(normal, centerDir);
+    float3 fresnel = calFresnelReflectance(normal, centerDir, gSpecular.xyz);
 
     // Multiple Fresnel reflectance
     return cosLobe * fresnel;
@@ -291,7 +292,7 @@ float3 calDiffuseBRDFWithCos_rect(
     centerDir = normalize(centerDir);
 
     // Calculate Fresnel reflectance, using Schlick approximation
-    float3 fresnel = calFresnelReflectance(normal, centerDir);
+    float3 fresnel = calFresnelReflectance(normal, centerDir, gSpecular.xyz);
 
     // Calculate diffuse brdf, using Lambertian term
     float3 res = 1 - fresnel;
@@ -312,11 +313,11 @@ void calBRDF_rect(out float3 out_specular, out float3 out_diffuse,
     float3x3 TBNMat = calTBNofVirtualNormal(viewDir, normal);
 
     // specular
-    if (gLTCAmpTexID > 0 && gLTCMatTexID > 0)
+    if (IsValidTexID(gLTCAmpTexID) && IsValidTexID(gLTCMatTexID))
     {
         out_specular = calSpecularBRDFWithCos_rect(
             viewDir, normal,
-            gTexs[gLTCMatTexID - 1], gTexs[gLTCAmpTexID - 1],
+            gTexs[gLTCMatTexID], gTexs[gLTCAmpTexID],
             vertDirs, TBNMat
         );
     }
@@ -340,7 +341,7 @@ void calBRDF_rect(out float3 out_specular, out float3 out_diffuse,
         centerDir = normalize(centerDir);
 
         // Calculate Fresnel reflectance, using Schlick approximation
-        float3 fresnel = calFresnelReflectance(normal, centerDir);
+        float3 fresnel = calFresnelReflectance(normal, centerDir, gSpecular.xyz);
 
         // Multiple Fresnel reflectance
         out_specular = cosLobe * fresnel;

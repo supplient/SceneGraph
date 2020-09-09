@@ -1,3 +1,5 @@
+【NOTE】该文档已过时
+
 # 一、出射光线的计算
 假设物体表面都是Lambertian Surface，即满足
 

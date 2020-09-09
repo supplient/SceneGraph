@@ -48,17 +48,17 @@ struct RectLight
 
 struct VertexIn
 {
-    float3 posL : POSITION_LOCAL;
-    float3 normalL : NORMAL_LOCAL;
-    float3 tangentL : TANGENT_LOCAL;
+    float3 posL : POSITION;
+    float3 normalL : NORMAL;
+    float3 tangentL : TANGENT;
     float2 tex : TEXTURE;
 };
 
 struct VertexOut
 {
-    float4 posW : POSITION_WORLD;
-    float4 normalW : NORMAL_WORLD;
-    float4 tangentW : TANGENT_WORLD;
+    float4 posW : POSITION;
+    float4 normalW : NORMAL;
+    float4 tangentW : TANGENT;
     float2 tex : TEXTURE;
     float4 posH : SV_POSITION;
 };
@@ -67,6 +67,17 @@ struct HullConstant
 {
 	float EdgeTessFactor[3]			: SV_TessFactor; // 例如，对于四象限域，将为 [4]
 	float InsideTessFactor			: SV_InsideTessFactor; // 例如，对于四象限域，将为 Inside[2]
+};
+
+struct RenderParams
+{
+    float3 normalW;
+    float3 viewW;
+    float3 ambient;
+    float3 baseColor;
+    float metalness;
+    float ior;
+    float roughness;
 };
 
 #define NUM_CONTROL_POINTS 3
@@ -79,12 +90,16 @@ cbuffer cbPerObject: register(b0)
 
 cbuffer cbPerMaterial : register(b1)
 {
-    float4 gDiffuse;
-    float4 gSpecular;
+    float4 gBaseColor;
+
+    float gMetalness;
+    float gIOR;
     float gRoughness;
+
     uint gLTCMatTexID;
     uint gLTCAmpTexID;
-    uint gDiffuseTexID;
+
+    uint gBaseColorTexID;
     uint gDispTexID;
     float gDispHeightScale;
     uint gNormalTexID;

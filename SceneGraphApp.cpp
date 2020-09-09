@@ -13,6 +13,33 @@
 using namespace DirectX;
 using Microsoft::WRL::ComPtr;
 
+template <class T, class U>
+void FillBufferInfoAndUpload(
+		ComPtr<ID3D12Device> device, ComPtr<ID3D12GraphicsCommandList> commandList,
+		std::shared_ptr<MeshGeometry> geo, 
+		std::vector<T> verts, std::vector<U> indices, 
+		DXGI_FORMAT indexFormat) {
+	// Fill buffer info
+	UINT vertByteSize = static_cast<UINT>(verts.size() * sizeof(T));
+	UINT indexByteSize = static_cast<UINT>(indices.size() * sizeof(U));
+	geo->VertexByteStride = sizeof(T);
+	geo->VertexBufferByteSize = vertByteSize;
+	geo->IndexFormat = indexFormat;
+	geo->IndexBufferByteSize = indexByteSize;
+
+	// Upload to GPU
+	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(
+		device.Get(), commandList.Get(),
+		(const void*)verts.data(), vertByteSize,
+		geo->VertexBufferUploader
+	);
+	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(
+		device.Get(), commandList.Get(),
+		(const void*)indices.data(), indexByteSize,
+		geo->IndexBufferUploader
+	);
+}
+
 SceneGraphApp::SceneGraphApp(HINSTANCE hInstance)
 	: D3DApp(hInstance)
 {
@@ -30,10 +57,20 @@ bool SceneGraphApp::Initialize()
 	ThrowIfFailed(mDirectCmdListAlloc->Reset());
 	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
+	bool fromFile = true;
+
 	// Init Scene
+	BuildManualTextures();
+	BuildManualMaterials();
+	BuildManualMeshs();
+	if(fromFile)
+		LoadScene();
+	else
+		BuildObjects();
+	BuildManualObjects();
+	BuildRenderItemQueueRecursively(mRootObject);
 	BuildLights();
 	BuildLightShadowConstantBuffers();
-	BuildTextures();
 
 	// Init DirectX
 	BuildUABs();
@@ -51,12 +88,8 @@ bool SceneGraphApp::Initialize()
 	BuildPassConstants();
 	BuildPassConstantBuffers();
 	UpdateLightsInPassConstantBuffers();
-	BuildGeos();
-	BuildMaterialConstants();
+	// BuildGeos();
 	BuildAndUpdateMaterialConstantBuffers();
-
-	// Init Render Items
-	BuildRenderItems();
 
 	// Init Render Item Resources
 	BuildObjectConstantBuffers();
@@ -79,33 +112,248 @@ bool SceneGraphApp::Initialize()
 	return true;
 }
 
+void SceneGraphApp::BuildManualTextures()
+{
+	std::vector<std::shared_ptr<Texture>> texs;
+	auto CreateTex = [&texs](std::string name, std::wstring filename) {
+		auto tex = std::make_shared<Texture>(name);
+		tex->SetFilePath(TEXTURE_PATH_HEAD + filename);
+		texs.push_back(tex);
+	};
+	CreateTex("color", L"w_color.dds");
+	CreateTex("height", L"w_height.dds");
+	CreateTex("normal", L"w_normal.dds");
+	CreateTex("tree", L"tree.dds");
+	CreateTex("ggx_ltc_mat", L"ggx_ltc_mat.dds");
+	CreateTex("ggx_ltc_amp", L"ggx_ltc_amp.dds");
+
+	mTextures.insert(mTextures.end(), texs.begin(), texs.end());
+}
+
+void SceneGraphApp::BuildManualMeshs()
+{
+	// Background
+	{
+		struct Vertex_in {
+			XMFLOAT3 pos;
+		};
+
+		// Create Mesh
+		auto mesh = std::make_shared<Mesh>("background");
+
+		// Save mesh
+		mMeshs.push_back(mesh);
+
+		// Generate Vertex Data
+		std::vector<Vertex_in> verts = {
+			{{-1.0f, -1.0f, 0.0f}},
+			{{+1.0f, -1.0f, 0.0f}},
+			{{+1.0f, +1.0f, 0.0f}},
+			{{-1.0f, +1.0f, 0.0f}},
+		};
+		std::vector<UINT32> indices = {
+			0, 2, 1,
+			0, 3, 2,
+		};
+
+		// Create submesh
+		SubMesh submesh;
+		submesh.baseVertexLoc = 0;
+		submesh.startIndexLoc = 0;
+		submesh.indexCount = static_cast<UINT>(indices.size());
+		mesh->AddSubMesh(submesh);
+
+		// Pass Vertex Data into Mesh
+		mesh->SetBuffer(verts, indices, DXGI_FORMAT_R32_UINT);
+
+		// Upload mesh
+		mesh->UploadBuffer(md3dDevice, mCommandList);
+	}
+}
+
+void SceneGraphApp::LoadScene()
+{
+	FbxLoader loader;
+	mRootObject = loader.Load("cubeTex.fbx");
+	auto meshs = loader.GetMeshs();
+	auto mtls = loader.GetMaterials();
+	auto texs = loader.GetTextures();
+
+	// Save & Upload meshs
+	for (auto mesh : meshs) {
+		mMeshs.push_back(mesh);
+		mesh->UploadBuffer(md3dDevice, mCommandList);
+	}
+
+	// Save materials
+	for (auto mtl : mtls) {
+		mMaterials.push_back(mtl);
+	}
+
+	// Save Textures
+	for (auto tex : texs) {
+		mTextures.push_back(tex);
+	}
+}
+
+void SceneGraphApp::BuildObjects()
+{
+	// Make Root
+	mRootObject = std::make_shared<Object>("_root");
+
+	// Cube
+	/*
+	{
+		// mid
+		{
+			// Create Object
+			auto obj = std::make_shared<Object>("midCube");
+			obj->SetScale(0.1f, 0.1f, 0.1f);
+			Object::Link(mRootObject, obj);
+
+			// Create render item
+			auto renderItem = std::make_shared<RenderItem>();
+			renderItem->MeshPool = "triangle";
+			renderItem->SubMesh = "triangle";
+			renderItem->PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+			renderItem->Material = "white";
+			renderItem->PSO = "opaque";
+			renderItem->ObjectID = obj->GetID();
+
+			// Save render item
+			mOpaqueRenderItemQueue.push_back(std::move(renderItem));
+		}
+
+		// bottom
+		{
+			// Create Object
+			auto obj = std::make_shared<Object>("bottomCube");
+			obj->SetScale(2.0f, 0.1f, 2.0f);
+			obj->SetTranslation(0.0f, -1.05f, 0.0f);
+			Object::Link(mRootObject, obj);
+
+			// Create render item
+			auto renderItem = std::make_shared<RenderItem>();
+			renderItem->MeshPool = "triangle";
+			renderItem->SubMesh = "triangle";
+			renderItem->PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+			renderItem->Material = "white";
+			renderItem->PSO = "opaque";
+			renderItem->ObjectID = obj->GetID();
+
+			// Save render item
+			mOpaqueRenderItemQueue.push_back(std::move(renderItem));
+		}
+
+		// left
+		{
+			// Create Object
+			auto obj = std::make_shared<Object>("leftCube");
+			obj->SetScale(0.1f, 2.0f, 2.0f);
+			obj->SetTranslation(-1.05f, 0.0f, 0.0f);
+			Object::Link(mRootObject, obj);
+
+			// Create render item
+			auto renderItem = std::make_shared<RenderItem>();
+			renderItem->MeshPool = "triangle";
+			renderItem->SubMesh = "triangle";
+			renderItem->PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+			renderItem->Material = "white";
+			renderItem->PSO = "opaque";
+			renderItem->ObjectID = obj->GetID();
+
+			// Save render item
+			mOpaqueRenderItemQueue.push_back(std::move(renderItem));
+		}
+
+		// back
+		{
+			// Create Object
+			auto obj = std::make_shared<Object>("backCube");
+			obj->SetScale(2.0f, 2.0f, 0.1f);
+			obj->SetTranslation(0.0f, 0.0f, 1.05f);
+			Object::Link(mRootObject, obj);
+
+			// Create render item
+			auto renderItem = std::make_shared<RenderItem>();
+			renderItem->MeshPool = "triangle";
+			renderItem->SubMesh = "triangle";
+			renderItem->PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+			renderItem->Material = "white";
+			renderItem->PSO = "opaque";
+			renderItem->ObjectID = obj->GetID();
+
+			// Save render item
+			mOpaqueRenderItemQueue.push_back(std::move(renderItem));
+		}
+	}
+	*/
+
+}
+
+void SceneGraphApp::BuildManualObjects()
+{
+	// Post
+	{
+		auto obj = std::make_shared<Object>("background");
+		Object::Link(mRootObject, obj);
+		
+		auto renderItem = std::make_shared<RenderItem>();
+		renderItem->MeshID = Mesh::FindMeshByName("background")->GetID();
+		renderItem->SubMeshID = 0;
+		renderItem->MaterialID = Material::GetDefaultMaterialID();
+		renderItem->ObjectID = obj->GetID();
+
+		// Save render items
+		mBackgroundRenderItem = std::move(renderItem);
+	}
+}
+
+void SceneGraphApp::BuildRenderItemQueueRecursively(std::shared_ptr<Object> root)
+{
+	for (auto renderItem : root->GetRenderItems()) {
+		Mesh* mesh = Mesh::FindObjectByID(renderItem->MeshID);
+		if (mesh->GetName() == "background")
+			continue;
+		// TODO now we just push all renderItems into opaqueQueue
+		mOpaqueRenderItemQueue.push_back(renderItem);
+	}
+	for (auto child : root->GetChilds())
+		BuildRenderItemQueueRecursively(child);
+}
+
 void SceneGraphApp::BuildLights()
 {
 	mDirLights.push_back({
-		{1.6f, 1.6f, 1.6f},
+		// {1.6f, 1.6f, 1.6f},
+		{0.4f, 0.4f, 0.4f},
 		{0.0f, 0.0f, 1.0f}
 	});
 
 	mPointLights.push_back({
-		{4.0f, 0.4f, 0.2f},
+		// {4.0f, 0.4f, 0.2f},
+		{0.4f, 0.4f, 0.4f},
 		{0.0f, 2.0f, 0.0f},
 		0.01f, 10.0f
 	});
 
 	mSpotLights.push_back({
-		{0.2f, 4.0f, 0.4f},
+		// {0.2f, 4.0f, 0.4f},
+		{0.4f, 0.4f, 0.4f},
 		{2.0f, 0.0f, 0.0f},
 		{-1.0f, 0.0f, 0.0f},
 		0.01f, 10.0f,
 		10.0f, 45.0f
 	});
 
+	/*
 	mRectLights.push_back({
 		{0.2f, 0.2f, 1.0f},
 		{-0.2f, 0.5f, 0.5f}, 
 		{-0.2f, 0.5f, -0.5f},
 		{-0.2f, -0.5f, -0.5f}
 	});
+	*/
 
 	// Cal shadow pass constants
 	for (auto& dirLight : mDirLights) {
@@ -151,16 +399,6 @@ void SceneGraphApp::BuildLightShadowConstantBuffers()
 		max(ShadowPassConstants::getTotalNum(), 1), 
 		true
 	);
-}
-
-void SceneGraphApp::BuildTextures()
-{
-	mResourceTextures["color"] = std::make_unique<ResourceTexture>(TEXTURE_PATH_HEAD + L"w_color.dds");
-	mResourceTextures["height"] = std::make_unique<ResourceTexture>(TEXTURE_PATH_HEAD + L"w_height.dds");
-	mResourceTextures["normal"] = std::make_unique<ResourceTexture>(TEXTURE_PATH_HEAD + L"w_normal.dds");
-	mResourceTextures["tree"] = std::make_unique<ResourceTexture>(TEXTURE_PATH_HEAD + L"tree.dds");
-	mResourceTextures["ggx_ltc_mat"] = std::make_unique<ResourceTexture>(TEXTURE_PATH_HEAD + L"ggx_ltc_mat.dds");
-	mResourceTextures["ggx_ltc_amp"] = std::make_unique<ResourceTexture>(TEXTURE_PATH_HEAD + L"ggx_ltc_amp.dds");
 }
 
 void SceneGraphApp::BuildUABs() 
@@ -366,7 +604,7 @@ void SceneGraphApp::BuildDescriptorHeaps()
 			+ (UINT)mUABs.size()
 			+ (UINT)mRenderTargets.size() 
 			+ mSwapChain->GetSwapChainBufferCount() 
-			+ (UINT)mResourceTextures.size() 
+			+ (UINT)mTextures.size() 
 			+ (UINT)mSpotLights.size()
 			+ (UINT)mDirLights.size()
 			+ (UINT)mPointLights.size();
@@ -400,7 +638,7 @@ void SceneGraphApp::BuildDescriptorHeaps()
 			uab->SetGPUHandle(mCBVSRVUAVHeap->GetGPUHandle(index));
 		}
 
-		index = mCBVSRVUAVHeap->Alloc((UINT)mResourceTextures.size());
+		index = mCBVSRVUAVHeap->Alloc((UINT)mTextures.size());
 		mTexGPUHandleStart = mCBVSRVUAVHeap->GetGPUHandle(index);
 		mTexCPUHandleStart = mCBVSRVUAVHeap->GetCPUHandle(index);
 
@@ -443,7 +681,7 @@ void SceneGraphApp::BuildDescriptorHeaps()
 		CD3DX12_GPU_DESCRIPTOR_HANDLE gpuHandle(mSpotShadowTexGPUHandleStart);
 		for (UINT i = 0; i < mSpotLights.size(); i++) {
 			auto& spotLight = mSpotLights[i];
-			spotLight.ShadowSRVID = i+1;
+			spotLight.ShadowSRVID = i;
 			spotLight.ShadowRT->SetSRVCPUHandle(cpuHandle);
 			spotLight.ShadowRT->SetSRVGPUHandle(gpuHandle);
 			cpuHandle.Offset(1, mCbvSrvUavDescriptorSize);
@@ -455,7 +693,7 @@ void SceneGraphApp::BuildDescriptorHeaps()
 		CD3DX12_GPU_DESCRIPTOR_HANDLE gpuHandle(mPointShadowTexGPUHandleStart);
 		for (UINT i = 0; i < mPointLights.size(); i++) {
 			auto& pointLight = mPointLights[i];
-			pointLight.ShadowSRVID = i+1;
+			pointLight.ShadowSRVID = i;
 			pointLight.ShadowRT->SetSRVCPUHandle(cpuHandle);
 			pointLight.ShadowRT->SetSRVGPUHandle(gpuHandle);
 			cpuHandle.Offset(1, mCbvSrvUavDescriptorSize);
@@ -467,7 +705,7 @@ void SceneGraphApp::BuildDescriptorHeaps()
 		CD3DX12_GPU_DESCRIPTOR_HANDLE gpuHandle(mDirShadowTexGPUHandleStart);
 		for (UINT i = 0; i < mDirLights.size(); i++) {
 			auto& dirLight = mDirLights[i];
-			dirLight.ShadowSRVID = i+1;
+			dirLight.ShadowSRVID = i;
 			dirLight.ShadowRT->SetSRVCPUHandle(cpuHandle);
 			dirLight.ShadowRT->SetSRVGPUHandle(gpuHandle);
 			cpuHandle.Offset(1, mCbvSrvUavDescriptorSize);
@@ -488,7 +726,7 @@ void SceneGraphApp::BuildInputLayout() {
 	*/
 		// Describe vertex input element
 		D3D12_INPUT_ELEMENT_DESC pos;
-		pos.SemanticName = "POSITION_LOCAL";
+		pos.SemanticName = "POSITION";
 		pos.SemanticIndex = 0;
 		pos.Format = DXGI_FORMAT_R32G32B32_FLOAT;
 		pos.AlignedByteOffset = 0;
@@ -497,14 +735,15 @@ void SceneGraphApp::BuildInputLayout() {
 		pos.InstanceDataStepRate = 0;
 
 		auto normal = pos;
-		normal.SemanticName = "NORMAL_LOCAL";
+		normal.SemanticName = "NORMAL";
 		normal.AlignedByteOffset += sizeof(XMFLOAT3);
 
 		auto tangent = normal;
-		tangent.SemanticName = "TANGENT_LOCAL";
+		tangent.SemanticName = "TANGENT";
 		tangent.AlignedByteOffset += sizeof(XMFLOAT3);
 
 		auto tex = tangent;
+		tex.Format = DXGI_FORMAT_R32G32_FLOAT;
 		tex.SemanticName = "TEXTURE";
 		tex.AlignedByteOffset += sizeof(XMFLOAT3);
 
@@ -623,10 +862,10 @@ void SceneGraphApp::BuildRootSignature()
 			0, 0U
 		));
 		std::vector<D3D12_DESCRIPTOR_RANGE> texSRVranges;
-		if (mResourceTextures.size()) {
+		if (mTextures.size()) {
 			texSRVranges.push_back(CD3DX12_DESCRIPTOR_RANGE(
 				D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
-				(UINT)mResourceTextures.size(),
+				(UINT)mTextures.size(),
 				1, 0, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND
 			));
 		}
@@ -831,7 +1070,7 @@ void SceneGraphApp::BuildShaders()
 	std::string maxPointLightNumStr = std::to_string(MAX_POINT_LIGHT_NUM);
 	std::string maxSpotLightNumStr = std::to_string(MAX_SPOT_LIGHT_NUM);
 	std::string maxRectLightNumStr = std::to_string(MAX_RECT_LIGHT_NUM);
-	std::string textureNumStr = std::to_string(mResourceTextures.size());
+	std::string textureNumStr = std::to_string(mTextures.size());
 	std::string spotShadowTexNumStr = std::to_string(mSpotLights.size());
 	std::string dirShadowTexNumStr = std::to_string(mDirLights.size());
 	std::string pointShadowTexNumStr = std::to_string(mPointLights.size());
@@ -1032,30 +1271,10 @@ void SceneGraphApp::BuildPSOs()
 
 void SceneGraphApp::LoadTextures()
 {
-	UINT32 id = 0;
 	CD3DX12_CPU_DESCRIPTOR_HANDLE handle(mTexCPUHandleStart);
-	for (const auto& pair : mResourceTextures) {
-		const auto& tex = pair.second;
-		ThrowIfFailed(CreateDDSTextureFromFile12(
-			md3dDevice.Get(), mCommandList.Get(),
-			tex->Filename.data(),
-			tex->Resource, tex->UploadHeap
-		));
-		tex->ID = id;
-
-		D3D12_RESOURCE_DESC resourceDesc = tex->Resource->GetDesc();
-		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-		srvDesc.Format = resourceDesc.Format;
-		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-		srvDesc.Texture2D.MipLevels = -1;
-		srvDesc.Texture2D.MostDetailedMip = 0;
-		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-		md3dDevice->CreateShaderResourceView(
-			tex->Resource.Get(),
-			&srvDesc, handle
-		);
-
-		id++;
+	for (UINT i = 0; i < Texture::GetTotalNum(); i++) {
+		auto tex = Texture::FindByID(i);
+		tex->LoadAndCreateSRV(md3dDevice, mCommandList, handle);
 		handle.Offset(mCbvSrvUavDescriptorSize);
 	}
 }
@@ -1106,37 +1325,11 @@ void SceneGraphApp::UpdateLightsInPassConstantBuffers()
 	content.LightPerTypeNum.w = static_cast<UINT32>(mRectLights.size());
 }
 
-template <class T, class U>
-void FillBufferInfoAndUpload(
-		ComPtr<ID3D12Device> device, ComPtr<ID3D12GraphicsCommandList> commandList,
-		std::shared_ptr<MeshGeometry> geo, 
-		std::vector<T> verts, std::vector<U> indices, 
-		DXGI_FORMAT indiceFormat) {
-	// Fill buffer info
-	UINT vertByteSize = static_cast<UINT>(verts.size() * sizeof(T));
-	UINT indexByteSize = static_cast<UINT>(indices.size() * sizeof(U));
-	geo->VertexByteStride = sizeof(T);
-	geo->VertexBufferByteSize = vertByteSize;
-	geo->IndexFormat = indiceFormat;
-	geo->IndexBufferByteSize = indexByteSize;
-
-	// Upload to GPU
-	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(
-		device.Get(), commandList.Get(),
-		(const void*)verts.data(), vertByteSize,
-		geo->VertexBufferUploader
-	);
-	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(
-		device.Get(), commandList.Get(),
-		(const void*)indices.data(), indexByteSize,
-		geo->IndexBufferUploader
-	);
-}
-
+/*
 void SceneGraphApp::BuildGeos()
 {
 	{
-		struct Vertex {
+		struct Vertex_in {
 			XMFLOAT3 pos;
 			XMFLOAT3 normal;
 			XMFLOAT3 tangent;
@@ -1150,7 +1343,7 @@ void SceneGraphApp::BuildGeos()
 		// Generate Vertex Info
 		GeometryGenerator geoGenerator;
 		std::vector<UINT32> indices;
-		std::vector<Vertex> verts;
+		std::vector<Vertex_in> verts;
 		{
 			// Box
 			GeometryGenerator::MeshData boxMesh = geoGenerator.CreateBox(1.0, 1.0, 1.0, 1);
@@ -1265,49 +1458,21 @@ void SceneGraphApp::BuildGeos()
 		mGeos[geo->Name] = std::move(geo);
 	}
 
-	{
-		struct Vertex {
-			XMFLOAT3 pos;
-		};
-
-		// Create Geo
-		auto geo = std::make_shared<MeshGeometry>();
-		geo->Name = "background";
-
-		// Generate Vertex Info
-		std::vector<Vertex> verts = {
-			{{-1.0f, -1.0f, 0.0f}},
-			{{+1.0f, -1.0f, 0.0f}},
-			{{+1.0f, +1.0f, 0.0f}},
-			{{-1.0f, +1.0f, 0.0f}},
-		};
-		std::vector<UINT32> indices = {
-			0, 2, 1,
-			0, 3, 2,
-		};
-
-		// Create submesh
-		SubmeshGeometry submesh;
-		submesh.BaseVertexLocation = 0;
-		submesh.StartIndexLocation = 0;
-		submesh.IndexCount = static_cast<UINT>(indices.size());
-		geo->DrawArgs["background"] = submesh;
-
-		// Fill buffer info & Upload
-		FillBufferInfoAndUpload(
-			md3dDevice, mCommandList,
-			geo, 
-			verts, indices,
-			DXGI_FORMAT_R32_UINT
-		);
-
-		// Save geo
-		mGeos[geo->Name] = std::move(geo);
-	}
 }
+*/
 
-void SceneGraphApp::BuildMaterialConstants()
+void SceneGraphApp::BuildManualMaterials()
 {
+	auto defaultMtl = std::make_shared<Material>("default");
+	defaultMtl->mBaseColor = { 0.972f, 0.960f, 0.915f, 1.0f }; // silver
+	defaultMtl->mMetalness = 1.0f;
+	defaultMtl->mRoughness = 0.5f;
+	defaultMtl->mLTCMatTexID = Texture::FindByName("ggx_ltc_mat")->GetID();
+	defaultMtl->mLTCAmpTexID = Texture::FindByName("ggx_ltc_amp")->GetID();
+	mMaterials.push_back(defaultMtl);
+	Material::SetDefaultMaterialID(defaultMtl->GetID());
+
+/*
 	auto whiteMtl = std::make_shared<MaterialConstants>();
 	// whiteMtl->content.Diffuse = { 0.9f, 0.8f, 0.9f, 1.0f };
 	// whiteMtl->content.Specular = { 0.04f, 0.04f, 0.04f, 0.04f }; // default dielectrics
@@ -1320,7 +1485,8 @@ void SceneGraphApp::BuildMaterialConstants()
 	// whiteMtl->content.DispHeightScale = 0.7f;
 	// whiteMtl->content.NormalTexID = mResourceTextures["normal"]->ID + 1;
 	mMtlConsts["white"] = whiteMtl;
-
+*/
+/*
 	auto blueMtl = std::make_shared<MaterialConstants>();
 	blueMtl->content.Diffuse = { 0.0f, 0.0f, 1.0f, 1.0f };
 	mMtlConsts["blue"] = blueMtl;
@@ -1341,29 +1507,30 @@ void SceneGraphApp::BuildMaterialConstants()
 	cutoutTreeMtl->content.DiffuseTexID = mResourceTextures["tree"]->ID + 1;
 	cutoutTreeMtl->content.AlphaTestTheta = 0.2f;
 	mMtlConsts["cutoutTree"] = cutoutTreeMtl;
+*/
 }
 
 void SceneGraphApp::BuildAndUpdateMaterialConstantBuffers()
 {
 	// Build Buffers
-	mMaterialConstantsBuffers = std::make_unique<UploadBuffer<MaterialConstants::Content>>(
+	mMaterialConstantsBuffers = std::make_unique<UploadBuffer<Material::Content>>(
 		md3dDevice.Get(), 
-		MaterialConstants::getTotalNum(), true
+		Material::GetTotalNum(), true
 	);
 	
 	// Update Buffers
-	for (auto mtl_pair : mMtlConsts) {
-		auto mtl = mtl_pair.second;
+	for (UINT id = 0; id < Material::GetTotalNum(); id++) {
+		auto mtl = Material::FindObjectByID(id);
 		mMaterialConstantsBuffers->CopyData(
-			mtl->getID(),
-			mtl->content
+			id,
+			mtl->ToContent()
 		);
 	}
 }
 
+/*
 void SceneGraphApp::BuildRenderItems()
 {
-	/*
 	// Test
 	{
 		// blue
@@ -1380,12 +1547,12 @@ void SceneGraphApp::BuildRenderItems()
 
 			// Create render items
 			auto renderItem = std::make_shared<RenderItem>();
-			renderItem->Geo = mGeos["triangle"];
-			renderItem->Submesh = mGeos["triangle"]->DrawArgs["board"];
+			renderItem->MeshPool = "triangle"
+			renderItem->SubMesh = "board";
 			renderItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-			renderItem->MtlConsts = mMtlConsts["blue"];
+				renderItem->Material = "white";
 			renderItem->PSO = "opaque";
-			renderItem->ObjConsts = mObjConsts["blueBoard"];
+			renderItem->ObjectID = mObjConsts["blueBoard"]->getID();
 
 			// Save render items
 			mRenderItemQueue.push_back(std::move(renderItem));
@@ -1405,23 +1572,21 @@ void SceneGraphApp::BuildRenderItems()
 
 			// Create render items
 			auto renderItem = std::make_shared<RenderItem>();
-			renderItem->Geo = mGeos["triangle"];
-			renderItem->Submesh = mGeos["triangle"]->DrawArgs["board"];
+			renderItem->MeshPool = "triangle"
+			renderItem->SubMesh = "board";
 			renderItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-			renderItem->MtlConsts = mMtlConsts["red"];
+				renderItem->Material = "white";
 			renderItem->PSO = "opaque";
-			renderItem->ObjConsts = mObjConsts["redBoard"];
+			renderItem->ObjectID = mObjConsts["redBoard"]->getID();
 
 			// Save render items
 			mRenderItemQueue.push_back(std::move(renderItem));
 		}
 	}
-	*/
 
 	// Opaque
 	{
 		// Tree
-		/*
 		{
 			// Hor
 			{
@@ -1431,12 +1596,12 @@ void SceneGraphApp::BuildRenderItems()
 
 				// Create render items
 				auto horItem = std::make_shared<RenderItem>();
-				horItem->Geo = mGeos["triangle"];
-				horItem->Submesh = mGeos["triangle"]->DrawArgs["board"];
+			horItem->MeshPool = "triangle"
+			horItem->SubMesh = "board";
 				horItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-				horItem->MtlConsts = mMtlConsts["cutoutTree"];
+				renderItem->Material = "white";
 				horItem->PSO = "opaque";
-				horItem->ObjConsts = mObjConsts["horTree"];
+				horItem->ObjectID = mObjConsts["horTree"]->getID();
 
 				// Save render items
 				mOpaqueRenderItemQueue.push_back(std::move(horItem));
@@ -1454,127 +1619,21 @@ void SceneGraphApp::BuildRenderItems()
 
 				// Create render items
 				auto verItem = std::make_shared<RenderItem>();
-				verItem->Geo = mGeos["triangle"];
-				verItem->Submesh = mGeos["triangle"]->DrawArgs["board"];
+			verItem->MeshPool = "triangle"
+			verItem->SubMesh = "board";
 				verItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-				verItem->MtlConsts = mMtlConsts["cutoutTree"];
+				renderItem->Material = "white";
 				verItem->PSO = "opaque";
-				verItem->ObjConsts = mObjConsts["verTree"];
+				verItem->ObjectID = mObjConsts["verTree"]->getID();
 
 				// Save render items
 				mOpaqueRenderItemQueue.push_back(std::move(verItem));
 			}
 
 		}
-		*/
 
-		// Cube
-		{
-			// mid
-			{
-				// Create Object constants
-				auto consts = std::make_shared<ObjectConstants>();
-				auto modelMat = XMMatrixScaling(0.1f, 0.1f, 0.1f);
-				// modelMat = XMMatrixMultiply(modelMat, XMMatrixRotationY(MathHelper::AngleToRadius(45)));
-				// modelMat = XMMatrixMultiply(modelMat, XMMatrixRotationX(MathHelper::AngleToRadius(45)));
-				modelMat = XMMatrixMultiply(modelMat, XMMatrixTranslation(0.0f, 0.0f, 0.0f));
-				XMStoreFloat4x4(
-					&consts->content.ModelMat, 
-					XMMatrixTranspose(modelMat)
-				);
-				mObjConsts["midCube"] = consts;
-
-				// Create render items
-				auto renderItem = std::make_shared<RenderItem>();
-				renderItem->Geo = mGeos["triangle"];
-				renderItem->Submesh = mGeos["triangle"]->DrawArgs["triangle"];
-				renderItem->PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-				renderItem->MtlConsts = mMtlConsts["white"];
-				renderItem->PSO = "opaque";
-				renderItem->ObjConsts = mObjConsts["midCube"];
-
-				// Save render items
-				mOpaqueRenderItemQueue.push_back(std::move(renderItem));
-			}
-
-			// bottom
-			{
-				// Create Object constants
-				auto consts = std::make_shared<ObjectConstants>();
-				auto modelMat = XMMatrixScaling(2.0f, 0.1f, 2.0f);
-				modelMat = XMMatrixMultiply(modelMat, XMMatrixTranslation(0.0f, -1.05f, 0.0f));
-				XMStoreFloat4x4(
-					&consts->content.ModelMat, 
-					XMMatrixTranspose(modelMat)
-				);
-				mObjConsts["bottomCube"] = consts;
-
-				// Create render items
-				auto renderItem = std::make_shared<RenderItem>();
-				renderItem->Geo = mGeos["triangle"];
-				renderItem->Submesh = mGeos["triangle"]->DrawArgs["triangle"];
-				renderItem->PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-				renderItem->MtlConsts = mMtlConsts["white"];
-				renderItem->PSO = "opaque";
-				renderItem->ObjConsts = mObjConsts["bottomCube"];
-
-				// Save render items
-				mOpaqueRenderItemQueue.push_back(std::move(renderItem));
-			}
-
-			// left
-			{
-				// Create Object constants
-				auto consts = std::make_shared<ObjectConstants>();
-				auto modelMat = XMMatrixScaling(0.1f, 2.0f, 2.0f);
-				modelMat = XMMatrixMultiply(modelMat, XMMatrixTranslation(-1.05f, 0.0f, 0.0f));
-				XMStoreFloat4x4(
-					&consts->content.ModelMat, 
-					XMMatrixTranspose(modelMat)
-				);
-				mObjConsts["leftCube"] = consts;
-
-				// Create render items
-				auto renderItem = std::make_shared<RenderItem>();
-				renderItem->Geo = mGeos["triangle"];
-				renderItem->Submesh = mGeos["triangle"]->DrawArgs["triangle"];
-				renderItem->PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-				renderItem->MtlConsts = mMtlConsts["white"];
-				renderItem->PSO = "opaque";
-				renderItem->ObjConsts = mObjConsts["leftCube"];
-
-				// Save render items
-				mOpaqueRenderItemQueue.push_back(std::move(renderItem));
-			}
-
-			// back
-			{
-				// Create Object constants
-				auto consts = std::make_shared<ObjectConstants>();
-				auto modelMat = XMMatrixScaling(2.0f, 2.0f, 0.1f);
-				modelMat = XMMatrixMultiply(modelMat, XMMatrixTranslation(0.0f, 0.0f, 1.05f));
-				XMStoreFloat4x4(
-					&consts->content.ModelMat, 
-					XMMatrixTranspose(modelMat)
-				);
-				mObjConsts["backCube"] = consts;
-
-				// Create render items
-				auto renderItem = std::make_shared<RenderItem>();
-				renderItem->Geo = mGeos["triangle"];
-				renderItem->Submesh = mGeos["triangle"]->DrawArgs["triangle"];
-				renderItem->PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-				renderItem->MtlConsts = mMtlConsts["white"];
-				renderItem->PSO = "opaque";
-				renderItem->ObjConsts = mObjConsts["backCube"];
-
-				// Save render items
-				mOpaqueRenderItemQueue.push_back(std::move(renderItem));
-			}
-		}
 
 		// Displacement Cube
-		/*
 		{
 			// Create Object constants
 			auto triConsts = std::make_shared<ObjectConstants>();
@@ -1583,22 +1642,20 @@ void SceneGraphApp::BuildRenderItems()
 
 			// Create render items
 			auto renderItem = std::make_shared<RenderItem>();
-			renderItem->Geo = mGeos["triangle"];
-			renderItem->Submesh = mGeos["triangle"]->DrawArgs["triangle"];
+				renderItem->MeshPool = "triangle";
+				renderItem->SubMesh = "triangle";
 			renderItem->PrimitiveTopology = D3D_PRIMITIVE_TOPOLOGY_3_CONTROL_POINT_PATCHLIST;
-			renderItem->MtlConsts = mMtlConsts["white"];
+				renderItem->Material = "white";
 			renderItem->PSO = "dispOpaque";
-			renderItem->ObjConsts = mObjConsts["triangle"];
+				renderItem->ObjectID = mObjConsts["triangle"]->getID();
 
 			// Save render items
 			mRenderItemQueue.push_back(std::move(renderItem));
 		}
-		*/
 
 	}
 
 	// Transparent
-	/*
 	{
 		// transBlue
 		{
@@ -1613,12 +1670,12 @@ void SceneGraphApp::BuildRenderItems()
 
 			// Create render items
 			auto renderItem = std::make_shared<RenderItem>();
-			renderItem->Geo = mGeos["triangle"];
-			renderItem->Submesh = mGeos["triangle"]->DrawArgs["board"];
+				renderItem->MeshPool = "triangle";
+				renderItem->SubMesh = "board";
 			renderItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-			renderItem->MtlConsts = mMtlConsts["transBlue"];
+				renderItem->Material = "white";
 			renderItem->PSO = "trans";
-			renderItem->ObjConsts = mObjConsts["transBlueBoard"];
+				renderItem->ObjectID = mObjConsts["transBlueBoard"]->getID();
 
 			// Save render items
 			mTransRenderItemQueue.push_back(std::move(renderItem));
@@ -1637,44 +1694,25 @@ void SceneGraphApp::BuildRenderItems()
 
 			// Create render items
 			auto renderItem = std::make_shared<RenderItem>();
-			renderItem->Geo = mGeos["triangle"];
-			renderItem->Submesh = mGeos["triangle"]->DrawArgs["board"];
+				renderItem->MeshPool = "triangle";
+				renderItem->SubMesh = "board";
 			renderItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-			renderItem->MtlConsts = mMtlConsts["transRed"];
+				renderItem->Material = "white";
 			renderItem->PSO = "trans";
-			renderItem->ObjConsts = mObjConsts["transRedBoard"];
+				renderItem->ObjectID = mObjConsts["transRedBoard"]->getID();
 
 			// Save render items
 			mTransRenderItemQueue.push_back(std::move(renderItem));
 		}
 	}
-	*/
-
-	// Post
-	{
-		// Create Object constants
-		auto consts = std::make_shared<ObjectConstants>();
-		consts->content.ModelMat = MathHelper::Identity4x4();
-		mObjConsts["background"] = consts;
-
-		// Create render items
-		auto renderItem = std::make_shared<RenderItem>();
-		renderItem->Geo = mGeos["background"];
-		renderItem->Submesh = mGeos["background"]->DrawArgs["background"];
-		renderItem->PrimitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-		renderItem->MtlConsts = mMtlConsts["white"];
-		renderItem->ObjConsts = mObjConsts["background"];
-
-		// Save render items
-		mBackgroundRenderItem = std::move(renderItem);
-	}
 }
+*/
 
 void SceneGraphApp::BuildObjectConstantBuffers()
 {
-	mObjectConstantsBuffers = std::make_unique<UploadBuffer<ObjectConstants::Content>>(
+	mObjectConstantsBuffers = std::make_unique<UploadBuffer<Object::Content>>(
 		md3dDevice.Get(), 
-		ObjectConstants::getTotalNum(), true
+		Object::GetTotalNum(), true
 	);
 }
 
@@ -1957,29 +1995,34 @@ void SceneGraphApp::DrawRenderItems(
 		}
 
 		// Set IA
+		Mesh* mesh = Mesh::FindObjectByID(renderItem->MeshID);
+		SubMesh submesh = mesh->GetSubMesh(renderItem->SubMeshID);
 		D3D12_VERTEX_BUFFER_VIEW VBVs[1] = {
-			renderItem->Geo->VertexBufferView()
+			mesh->GetVertexBufferView()
 		};
 		mCommandList->IASetVertexBuffers(0, 1, VBVs);
-		mCommandList->IASetIndexBuffer(&renderItem->Geo->IndexBufferView());
-		mCommandList->IASetPrimitiveTopology(renderItem->PrimitiveTopology);
+		mCommandList->IASetIndexBuffer(&mesh->GetIndexBufferView());
+		mCommandList->IASetPrimitiveTopology(submesh.primitiveTopology);
 
 		// Assign Material Constants Buffer
+		UINT mtlID = renderItem->MaterialID;
 		mCommandList->SetGraphicsRootConstantBufferView(
-			rootSignParamIndices["materialCB"], mtlCBGPUAddr + renderItem->MtlConsts->getID() * mtlCBElementByteSize
+			rootSignParamIndices["materialCB"], 
+			mtlCBGPUAddr + mtlID * mtlCBElementByteSize
 		);
 
 		// Assign Object Constants Buffer
 		mCommandList->SetGraphicsRootConstantBufferView(
-			rootSignParamIndices["objectCB"], objCBGPUAddr + renderItem->ObjConsts->getID()*objCBElementByteSize
+			rootSignParamIndices["objectCB"], 
+			objCBGPUAddr + renderItem->ObjectID*objCBElementByteSize
 		);
 
 		// Draw Call
 		mCommandList->DrawIndexedInstanced(
-			renderItem->Submesh.IndexCount, 
+			submesh.indexCount, 
 			1,
-			renderItem->Submesh.StartIndexLocation,
-			renderItem->Submesh.BaseVertexLocation,
+			submesh.startIndexLoc,
+			submesh.baseVertexLoc,
 			0
 		);
 	}
@@ -2082,16 +2125,6 @@ void SceneGraphApp::Update(const GameTimer& gt)
 		content.ClientHeight = mClientHeight;
 	}
 
-	// Update Object Constants
-	{
-		// Cal All NormalModelMat
-		for (auto& pair : mObjConsts) {
-			auto consts = pair.second;
-			XMMATRIX normalModelMat = MathHelper::GenNormalMat(consts->content.ModelMat);
-			XMStoreFloat4x4(&consts->content.NormalModelMat, normalModelMat);
-		}
-	}
-
 	// Upload Pass Constant
 	{
 		mPassConstantsBuffers->CopyData(
@@ -2126,22 +2159,19 @@ void SceneGraphApp::Update(const GameTimer& gt)
 
 	// Upload Object Constant
 	{
-		for (auto renderItem : mOpaqueRenderItemQueue) {
-			mObjectConstantsBuffers->CopyData(
-				renderItem->ObjConsts->getID(),
-				renderItem->ObjConsts->content
+		auto buffer = mObjectConstantsBuffers.get();
+		std::function<void(std::shared_ptr<Object>)> iterFunc;
+		iterFunc = [buffer, &iterFunc](std::shared_ptr<Object> root) {
+			buffer->CopyData(
+				root->GetID(),
+				root->ToContent()
 			);
-		}
-		for (auto renderItem : mTransRenderItemQueue) {
-			mObjectConstantsBuffers->CopyData(
-				renderItem->ObjConsts->getID(),
-				renderItem->ObjConsts->content
-			);
-		}
-		mObjectConstantsBuffers->CopyData(
-			mBackgroundRenderItem->ObjConsts->getID(),
-			mBackgroundRenderItem->ObjConsts->content
-		);
+			for (auto& child : root->GetChilds())
+				iterFunc(child);
+		};
+
+		mRootObject->UpdateGlobalModelMatRecursively();
+		iterFunc(mRootObject);
 	}
 
 	// Upload Hbao Constant
@@ -2290,24 +2320,26 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 			for(auto renderItem: mOpaqueRenderItemQueue)
 			{
 				// Set IA
+				Mesh* mesh = Mesh::FindObjectByID(renderItem->MeshID);
+				SubMesh submesh = mesh->GetSubMesh(renderItem->SubMeshID);
 				D3D12_VERTEX_BUFFER_VIEW VBVs[1] = {
-					renderItem->Geo->VertexBufferView()
+					mesh->GetVertexBufferView()
 				};
 				mCommandList->IASetVertexBuffers(0, 1, VBVs);
-				mCommandList->IASetIndexBuffer(&renderItem->Geo->IndexBufferView());
-				mCommandList->IASetPrimitiveTopology(renderItem->PrimitiveTopology);
+				mCommandList->IASetIndexBuffer(&mesh->GetIndexBufferView());
+				mCommandList->IASetPrimitiveTopology(submesh.primitiveTopology);
 
 				// Assign Object Constants Buffer
 				mCommandList->SetGraphicsRootConstantBufferView(
-					0, objCBGPUAddr + renderItem->ObjConsts->getID()*objCBElementByteSize
+					0, objCBGPUAddr + renderItem->ObjectID*objCBElementByteSize
 				);
 
 				// Draw Call
 				mCommandList->DrawIndexedInstanced(
-					renderItem->Submesh.IndexCount, 
+					submesh.indexCount, 
 					1,
-					renderItem->Submesh.StartIndexLocation,
-					renderItem->Submesh.BaseVertexLocation,
+					submesh.startIndexLoc,
+					submesh.baseVertexLoc,
 					0
 				);
 			}
@@ -2346,24 +2378,26 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 			for(auto renderItem: mOpaqueRenderItemQueue)
 			{
 				// Set IA
+				Mesh* mesh = Mesh::FindObjectByID(renderItem->MeshID);
+				SubMesh submesh = mesh->GetSubMesh(renderItem->SubMeshID);
 				D3D12_VERTEX_BUFFER_VIEW VBVs[1] = {
-					renderItem->Geo->VertexBufferView()
+					mesh->GetVertexBufferView()
 				};
 				mCommandList->IASetVertexBuffers(0, 1, VBVs);
-				mCommandList->IASetIndexBuffer(&renderItem->Geo->IndexBufferView());
-				mCommandList->IASetPrimitiveTopology(renderItem->PrimitiveTopology);
+				mCommandList->IASetIndexBuffer(&mesh->GetIndexBufferView());
+				mCommandList->IASetPrimitiveTopology(submesh.primitiveTopology);
 
 				// Assign Object Constants Buffer
 				mCommandList->SetGraphicsRootConstantBufferView(
-					0, objCBGPUAddr + renderItem->ObjConsts->getID()*objCBElementByteSize
+					0, objCBGPUAddr + renderItem->ObjectID*objCBElementByteSize
 				);
 
 				// Draw Call
 				mCommandList->DrawIndexedInstanced(
-					renderItem->Submesh.IndexCount, 
+					submesh.indexCount, 
 					1,
-					renderItem->Submesh.StartIndexLocation,
-					renderItem->Submesh.BaseVertexLocation,
+					submesh.startIndexLoc,
+					submesh.baseVertexLoc,
 					0
 				);
 			}
@@ -2409,24 +2443,26 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 				for(auto renderItem: mOpaqueRenderItemQueue)
 				{
 					// Set IA
+					Mesh* mesh = Mesh::FindObjectByID(renderItem->MeshID);
+					SubMesh submesh = mesh->GetSubMesh(renderItem->SubMeshID);
 					D3D12_VERTEX_BUFFER_VIEW VBVs[1] = {
-						renderItem->Geo->VertexBufferView()
+						mesh->GetVertexBufferView()
 					};
 					mCommandList->IASetVertexBuffers(0, 1, VBVs);
-					mCommandList->IASetIndexBuffer(&renderItem->Geo->IndexBufferView());
-					mCommandList->IASetPrimitiveTopology(renderItem->PrimitiveTopology);
+					mCommandList->IASetIndexBuffer(&mesh->GetIndexBufferView());
+					mCommandList->IASetPrimitiveTopology(submesh.primitiveTopology);
 
 					// Assign Object Constants Buffer
 					mCommandList->SetGraphicsRootConstantBufferView(
-						0, objCBGPUAddr + renderItem->ObjConsts->getID()*objCBElementByteSize
+						0, objCBGPUAddr + renderItem->ObjectID*objCBElementByteSize
 					);
 
 					// Draw Call
 					mCommandList->DrawIndexedInstanced(
-						renderItem->Submesh.IndexCount, 
+						submesh.indexCount, 
 						1,
-						renderItem->Submesh.StartIndexLocation,
-						renderItem->Submesh.BaseVertexLocation,
+						submesh.startIndexLoc,
+						submesh.baseVertexLoc,
 						0
 					);
 				}
@@ -2597,7 +2633,7 @@ signPI["dirShadowSR"], mDirShadowTexGPUHandleStart
 	}
 
 	// HBAO
-	bool hasHBAO = true; // DEBUG
+	bool hasHBAO = false; // DEBUG
 	nowColorRenderTarget = mRenderTargets["hbao"].get();
 	if(hasHBAO)
 	{
@@ -2654,19 +2690,21 @@ signPI["dirShadowSR"], mDirShadowTexGPUHandleStart
 		mCommandList->SetPipelineState(mPSOs["hbao"].Get());
 
 		// Set IA
+		Mesh* mesh = Mesh::FindObjectByID(renderItem->MeshID);
+		SubMesh submesh = mesh->GetSubMesh(renderItem->SubMeshID);
 		D3D12_VERTEX_BUFFER_VIEW VBVs[1] = {
-			renderItem->Geo->VertexBufferView()
+			mesh->GetVertexBufferView()
 		};
 		mCommandList->IASetVertexBuffers(0, 1, VBVs);
-		mCommandList->IASetIndexBuffer(&renderItem->Geo->IndexBufferView());
-		mCommandList->IASetPrimitiveTopology(renderItem->PrimitiveTopology);
+		mCommandList->IASetIndexBuffer(&mesh->GetIndexBufferView());
+		mCommandList->IASetPrimitiveTopology(submesh.primitiveTopology);
 
 		// Draw Call
 		mCommandList->DrawIndexedInstanced(
-			renderItem->Submesh.IndexCount, 
+			submesh.indexCount, 
 			1,
-			renderItem->Submesh.StartIndexLocation,
-			renderItem->Submesh.BaseVertexLocation,
+			submesh.startIndexLoc,
+			submesh.baseVertexLoc,
 			0
 		);
 
@@ -2732,19 +2770,21 @@ signPI["dirShadowSR"], mDirShadowTexGPUHandleStart
 		mCommandList->SetPipelineState(mPSOs["transBlend"].Get());
 
 		// Set IA
+		Mesh* mesh = Mesh::FindObjectByID(renderItem->MeshID);
+		SubMesh submesh = mesh->GetSubMesh(renderItem->SubMeshID);
 		D3D12_VERTEX_BUFFER_VIEW VBVs[1] = {
-			renderItem->Geo->VertexBufferView()
+			mesh->GetVertexBufferView()
 		};
 		mCommandList->IASetVertexBuffers(0, 1, VBVs);
-		mCommandList->IASetIndexBuffer(&renderItem->Geo->IndexBufferView());
-		mCommandList->IASetPrimitiveTopology(renderItem->PrimitiveTopology);
+		mCommandList->IASetIndexBuffer(&mesh->GetIndexBufferView());
+		mCommandList->IASetPrimitiveTopology(submesh.primitiveTopology);
 
 		// Draw Call
 		mCommandList->DrawIndexedInstanced(
-			renderItem->Submesh.IndexCount, 
+			submesh.indexCount, 
 			1,
-			renderItem->Submesh.StartIndexLocation,
-			renderItem->Submesh.BaseVertexLocation,
+			submesh.startIndexLoc,
+			submesh.baseVertexLoc,
 			0
 		);
 
@@ -2834,19 +2874,21 @@ signPI["dirShadowSR"], mDirShadowTexGPUHandleStart
 			mCommandList->SetPipelineState(mPSOs["fxaa"].Get());
 
 			// Set IA
+			Mesh* mesh = Mesh::FindObjectByID(renderItem->MeshID);
+			SubMesh submesh = mesh->GetSubMesh(renderItem->SubMeshID);
 			D3D12_VERTEX_BUFFER_VIEW VBVs[1] = {
-				renderItem->Geo->VertexBufferView()
+				mesh->GetVertexBufferView()
 			};
 			mCommandList->IASetVertexBuffers(0, 1, VBVs);
-			mCommandList->IASetIndexBuffer(&renderItem->Geo->IndexBufferView());
-			mCommandList->IASetPrimitiveTopology(renderItem->PrimitiveTopology);
+			mCommandList->IASetIndexBuffer(&mesh->GetIndexBufferView());
+			mCommandList->IASetPrimitiveTopology(submesh.primitiveTopology);
 
 			// Draw Call
 			mCommandList->DrawIndexedInstanced(
-				renderItem->Submesh.IndexCount, 
+				submesh.indexCount, 
 				1,
-				renderItem->Submesh.StartIndexLocation,
-				renderItem->Submesh.BaseVertexLocation,
+				submesh.startIndexLoc,
+				submesh.baseVertexLoc,
 				0
 			);
 

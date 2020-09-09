@@ -1,8 +1,11 @@
 #pragma once
 #include <DirectXColors.h>
+#include <functional>
+#include <fbxsdk.h>
 
 #include "Common/d3dApp.h"
 #include "Common/UploadBuffer.h"
+#include "Object.h"
 #include "Light.h"
 #include "RenderItem.h"
 #include "Camera.h"
@@ -10,6 +13,9 @@
 #include "RenderTarget.h"
 #include "UnorderedAccessBuffer.h"
 #include "Texture.h"
+#include "Material.h"
+#include "Mesh.h"
+#include "FbxLoader.h"
 
 class SceneGraphApp : public D3DApp
 {
@@ -22,16 +28,21 @@ public:
 	// Initialize
 
 	// Init Scene
+	// Init Scene's Meshs
+	void BuildManualTextures();
+	void BuildManualMaterials();
+	void BuildManualMeshs();
+	void LoadScene();
+	void BuildObjects();
+	void BuildManualObjects();
+	void BuildRenderItemQueueRecursively(std::shared_ptr<Object> root);
+	// Init Scene's others
 	void BuildLights();
 	void BuildLightShadowConstantBuffers();
-	void BuildTextures();
 
 	// Init DirectX
 	void BuildUABs();
-	/// <summary>
-	/// 仅仅初始化RenderTarget，不建立资源，也不建立描述符
-	/// </summary>
-	void BuildRenderTargets();
+	void BuildRenderTargets(); // 仅仅初始化RenderTarget，不建立资源，也不建立描述符
 	void BuildDescriptorHeaps();
 
 	// Init PSOs
@@ -45,12 +56,8 @@ public:
 	void BuildPassConstants();
 	void BuildPassConstantBuffers();
 	void UpdateLightsInPassConstantBuffers();
-	void BuildGeos();
-	void BuildMaterialConstants();
+	// void BuildGeos();
 	void BuildAndUpdateMaterialConstantBuffers();
-
-	// Init Render Items
-	void BuildRenderItems();
 	
 	// Init Render Item Resources
 	void BuildObjectConstantBuffers();
@@ -141,6 +148,15 @@ private:
 	// PSOs
 	std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3D12PipelineState>> mPSOs;
 
+	// Objects
+	std::shared_ptr<Object> mRootObject;
+
+	// Materials
+	std::vector<std::shared_ptr<Material>> mMaterials;
+
+	// Meshs
+	std::vector<std::shared_ptr<Mesh>> mMeshs;
+
 	// Lights
 	std::vector<DirectionLight> mDirLights;
 	std::vector<PointLight> mPointLights;
@@ -156,7 +172,7 @@ private:
 	D3D12_CPU_DESCRIPTOR_HANDLE mPointShadowTexCPUHandleStart;
 
 	// Textures
-	std::unordered_map<std::string, std::unique_ptr<ResourceTexture>> mResourceTextures;
+	std::vector<std::shared_ptr<Texture>> mTextures;
 	D3D12_GPU_DESCRIPTOR_HANDLE mTexGPUHandleStart;
 	D3D12_CPU_DESCRIPTOR_HANDLE mTexCPUHandleStart;
 
@@ -164,13 +180,10 @@ private:
 	std::unique_ptr<PassConstants> mPassConstants;
 
 	// Geometries
-	std::unordered_map<std::string, std::shared_ptr<MeshGeometry>> mGeos;
+	// std::unordered_map<std::string, std::shared_ptr<MeshGeometry>> mGeos; // TODO discard
 
 	// Material Constants
-	std::unordered_map<std::string, std::shared_ptr<MaterialConstants>> mMtlConsts;
-
-	// Object Constants
-	std::unordered_map<std::string, std::shared_ptr<ObjectConstants>> mObjConsts;
+	// std::unordered_map<std::string, std::shared_ptr<MaterialConstants>> mMtlConsts;
 
 	// PostProcess Constants
 	std::unique_ptr<HbaoConstants> mHbaoConstants;
@@ -182,8 +195,8 @@ private:
 	std::shared_ptr<RenderItem> mBackgroundRenderItem = nullptr;
 
 	// Constant Buffers
-	std::unique_ptr<UploadBuffer<MaterialConstants::Content>> mMaterialConstantsBuffers;
-	std::unique_ptr<UploadBuffer<ObjectConstants::Content>> mObjectConstantsBuffers;
+	std::unique_ptr<UploadBuffer<Material::Content>> mMaterialConstantsBuffers;
+	std::unique_ptr<UploadBuffer<Object::Content>> mObjectConstantsBuffers;
 	std::unique_ptr<UploadBuffer<PassConstants::Content>> mPassConstantsBuffers;
 	std::unique_ptr<UploadBuffer<HbaoConstants::Content>> mHbaoConstantsBuffers;
 	std::unique_ptr<UploadBuffer<FxaaConstants::Content>> mFxaaConstantsBuffers;

@@ -1,5 +1,6 @@
 #include "Header.hlsli"
 #include "Light.hlsli"
+#include "HelpFunctions.hlsli"
 
 float4 main(VertexOut pin) : SV_TARGET
 {
@@ -19,30 +20,39 @@ float4 main(VertexOut pin) : SV_TARGET
     float4 viewW = normalize(gEyePosW - pin.posW);
 
 #if TEXTURE_NUM > 0
-    if (gNormalTexID > 0)
+    if (IsValidTexID(gNormalTexID))
     {
-        float3 texNormal = gTexs[gNormalTexID - 1].Sample(bilinearWrap, uv).xyz;
+        float3 texNormal = gTexs[gNormalTexID].Sample(bilinearWrap, uv).xyz;
         texNormal.xyz = texNormal.xyz * 2 - 1.0f;
         normalW = normalize(mul(float4(texNormal, 0.0f), TBNTransMat));
     }
 #endif
 
-    float4 diffuseColor = gDiffuse;
+    float4 baseColor = gBaseColor;
 #if TEXTURE_NUM > 0
-    if (gDiffuseTexID > 0)
+    if (IsValidTexID(gBaseColorTexID))
     {
-        diffuseColor = gTexs[gDiffuseTexID - 1].Sample(bilinearWrap, uv);
+        baseColor = gTexs[gBaseColorTexID].Sample(bilinearWrap, uv);
     }
 #endif
 
     if (gAlphaTestTheta < 0.999)
     {
-        clip(diffuseColor.a - gAlphaTestTheta);
+        clip(baseColor.a - gAlphaTestTheta);
     }
 
-    float4 lightColor = float4(calLights(pin.posW, normalW, viewW, diffuseColor), 1.0f);
+    RenderParams rps;
+    rps.normalW = normalW.xyz;
+    rps.viewW = viewW.xyz;
+    rps.ambient = float3(0.2f, 0.2f, 0.2f);
+    rps.baseColor = baseColor.xyz;
+    rps.metalness = gMetalness;
+    rps.ior = gIOR;
+    rps.roughness = gRoughness;
+    float4 lightColor = float4(calLights(
+        pin.posW, rps
+    ), 1.0f);
 
-    float3 unlightColor = { 0.2f, 0.2f, 0.2f };
-    float4 color = float4(unlightColor, 0.0f) + lightColor;
+    float4 color = lightColor;
     return color;
 }

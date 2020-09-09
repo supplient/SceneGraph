@@ -2,19 +2,21 @@
 #include "Common/d3dUtil.h"
 #include "Constants.h"
 
+const UINT INVALID_OBJECT_ID = -1;
+const UINT INVALID_MATERIAL_ID = -1;
+
 class RenderItem {
 public:
 	// Mesh concerned
-	std::shared_ptr<MeshGeometry> Geo;
-	SubmeshGeometry Submesh;
-	D3D_PRIMITIVE_TOPOLOGY PrimitiveTopology;
+	UINT MeshID;
+	UINT SubMeshID;
 
 	// Material concerned
-	std::shared_ptr<MaterialConstants> MtlConsts = nullptr;
+	UINT MaterialID = INVALID_MATERIAL_ID;
 
 	// Shader concerned
 	std::string PSO;
 
 	// Object Constants concerned
-	std::shared_ptr<ObjectConstants> ObjConsts = nullptr;
+	UINT ObjectID = INVALID_OBJECT_ID;
 };

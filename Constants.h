@@ -3,6 +3,7 @@
 #include "Predefine.h"
 #include "Light.h"
 
+/*
 class ObjectConstants {
 public:
 	ObjectConstants() {
@@ -48,6 +49,7 @@ private:
 	UINT mID;
 	static UINT sIDCount;
 };
+*/
 
 class PassConstants {
 public:

@@ -5,6 +5,54 @@
 #include "Header.hlsli"
 #include "BRDF.hlsli"
 
+float3 calPhongModel(float3 lightDir, float3 lightColor, RenderParams rps, float3 fresnel0, float3 ssAlbedo)
+{
+    float lambCos = calLambCos(lightDir, rps.normalW);
+    float3 halfVec = normalize(lightDir + rps.viewW);
+    float m = (1 - rps.roughness) * 1024.0;
+    float roughnessFactor = (m + 8.0f) / 8.0f * pow(max(dot(rps.normalW, halfVec), 0.0f), m);
+
+    // diffuse
+    float3 diffuseBRDF = ssAlbedo;
+
+    // specular
+    float3 specularBRDF = calFresnelReflectance(rps.normalW, lightDir, fresnel0) * roughnessFactor;
+    
+    return rps.ambient * rps.baseColor + lightColor * lambCos * (diffuseBRDF + specularBRDF);
+}
+
+float3 calShadingEquation(
+    float3 lightDir, float3 lightColor, RenderParams rps)
+{
+    float3 nonmetalF0 = calFresnel0(rps.ior);
+    float3 fresnel0 = rps.metalness * rps.baseColor + (1.0f - rps.metalness) * nonmetalF0;
+    float3 ssAlbedo = rps.metalness * float3(0.0f, 0.0f, 0.0f) + (1 - rps.metalness) * rps.baseColor;
+#if SHADING_MODEL == 2
+    if (IsValidTexID(gLTCAmpTexID) && IsValidTexID(gLTCMatTexID))
+    {
+        // This model needs a light scale-up
+        lightColor *= 8.0f;
+    
+        // BRDF calculation
+        float3 specularBRDF, diffuseBRDF;
+        calBRDF_punctual(specularBRDF, diffuseBRDF,
+            lightDir, rps,
+            ssAlbedo, fresnel0
+        );
+        return rps.ambient * rps.baseColor + lightColor * (specularBRDF + diffuseBRDF);
+    }
+    else
+        return calPhongModel(lightDir, lightColor, rps, fresnel0, ssAlbedo);
+
+#elif SHADING_MODEL == 1
+    return calPhongModel(lightDir, lightColor, rps, fresnel0, ssAlbedo);
+
+#else
+    return rps.ambient*rps.baseColor + lightColor * rps.baseColor * calLambCos(lightDir, rps.normalW);
+
+#endif
+}
+
 
 float calDistAttenuation(float dist, float r0, float rmin)
 {
@@ -18,7 +66,9 @@ float calDirAttenuation(float4 defDir, float4 dir, float penumbra, float umbra)
     return smoothstep(0.0f, 1.0f, t);
 }
 
-float3 calLights(float4 posW, float4 normalW, float4 viewW, float4 diffuseColor)
+float3 calLights(
+    float4 posW, RenderParams rps
+)
 {
     float3 sum = { 0.0f, 0.0f, 0.0f };
     uint i = 0;
@@ -26,25 +76,18 @@ float3 calLights(float4 posW, float4 normalW, float4 viewW, float4 diffuseColor)
     // direction lights
     for (i = 0; i < gLightPerTypeNum.x; i++)
     {
-        // BRDF calculation
-        float3 specularBRDF, diffuseBRDF;
-        calBRDF_punctual(specularBRDF, diffuseBRDF, 
-            viewW.xyz, normalW.xyz, gDirLights[i].direction.xyz, 
-            diffuseColor.xyz
-        );
-
         // Cal Light Color
         // Shadow Test
         float shadowFactor = 1.0f;
 #if DIR_SHADOW_TEX_NUM > 0
-        if (gDirLights[i].id > 0)
+        if (IsValidLightID(gDirLights[i].id))
         {
             float4 posLi = mul(mul(posW, gDirLights[i].viewMat), gDirLights[i].projMat);
             posLi.xyz = posLi.xyz / posLi.w;
             posLi.w = 1.0f;
             float2 shadowUV = (posLi.xy + 1.0f) / 2.0f;
             shadowUV.y = 1.0f - shadowUV.y;
-            float occluderDepth = gDirShadowTexs[gDirLights[i].id - 1].Sample(nearestBorder, shadowUV).r;
+            float occluderDepth = gDirShadowTexs[gDirLights[i].id].Sample(nearestBorder, shadowUV).r;
             float receiverDepth = posLi.z;
             if(receiverDepth > occluderDepth)
                 shadowFactor = 0.0f;
@@ -52,7 +95,11 @@ float3 calLights(float4 posW, float4 normalW, float4 viewW, float4 diffuseColor)
 #endif
         float3 lightColor = shadowFactor * gDirLights[i].color.xyz;
         
-        sum += lightColor * specularBRDF + lightColor * diffuseBRDF;
+        sum += calShadingEquation(
+            gDirLights[i].direction.xyz,
+            lightColor,
+            rps
+        );
     }
 
     // point lights
@@ -62,21 +109,14 @@ float3 calLights(float4 posW, float4 normalW, float4 viewW, float4 diffuseColor)
         float dist = length(dir);
         dir = normalize(dir);
 
-        // BRDF calculation
-        float3 specularBRDF, diffuseBRDF;
-        calBRDF_punctual(specularBRDF, diffuseBRDF, 
-            viewW.xyz, normalW.xyz, dir.xyz, 
-            diffuseColor.xyz
-        );
-
         // Cal Light Color
         // Shadow Test
         float shadowFactor = 1.0f;
 #if POINT_SHADOW_TEX_NUM > 0
-        if (gPointLights[i].id > 0)
+        if (IsValidLightID(gPointLights[i].id))
         {
             float3 shadowUVW = (posW - gPointLights[i].pos).xyz;
-            float occluderDepth = gPointShadowTexs[gPointLights[i].id - 1].Sample(nearestBorder, shadowUVW).r;
+            float occluderDepth = gPointShadowTexs[gPointLights[i].id].Sample(nearestBorder, shadowUVW).r;
             float receiverDepth = length(shadowUVW);
             if(receiverDepth > occluderDepth)
                 shadowFactor = 0.0f;
@@ -86,7 +126,11 @@ float3 calLights(float4 posW, float4 normalW, float4 viewW, float4 diffuseColor)
         float distAtte = calDistAttenuation(dist, gPointLights[i].r0, gPointLights[i].rmin);
         float3 lightColor = shadowFactor * distAtte * gPointLights[i].color.xyz;
 
-        sum += lightColor * specularBRDF + lightColor * diffuseBRDF;
+        sum += calShadingEquation(
+            dir.xyz,
+            lightColor,
+            rps
+        );
     }
 
     // spot lights
@@ -96,25 +140,18 @@ float3 calLights(float4 posW, float4 normalW, float4 viewW, float4 diffuseColor)
         float dist = length(dir);
         dir = normalize(dir);
 
-        // BRDF calculation
-        float3 specularBRDF, diffuseBRDF;
-        calBRDF_punctual(specularBRDF, diffuseBRDF, 
-            viewW.xyz, normalW.xyz, dir.xyz, 
-            diffuseColor.xyz
-        );
-
         // Cal Light Color
         // Shadow Test
         float shadowFactor = 1.0f;
 #if SPOT_SHADOW_TEX_NUM > 0
-        if (gSpotLights[i].id > 0)
+        if (IsValidLightID(gSpotLights[i].id))
         {
             float4 posLi = mul(mul(posW, gSpotLights[i].viewMat), gSpotLights[i].projMat);
             posLi.xyz = posLi.xyz / posLi.w;
             posLi.w = 1.0f;
             float2 shadowUV = (posLi.xy + 1.0f) / 2.0f;
             shadowUV.y = 1.0f - shadowUV.y;
-            float occluderDepth = gSpotShadowTexs[gSpotLights[i].id - 1].Sample(nearestBorder, shadowUV).r;
+            float occluderDepth = gSpotShadowTexs[gSpotLights[i].id].Sample(nearestBorder, shadowUV).r;
             float receiverDepth = posLi.z;
             if(receiverDepth > occluderDepth)
                 shadowFactor = 0.0f;
@@ -130,7 +167,11 @@ float3 calLights(float4 posW, float4 normalW, float4 viewW, float4 diffuseColor)
         );
         float3 lightColor = shadowFactor * dirAtte * distAtte * gSpotLights[i].color.xyz;
 
-        sum += lightColor * specularBRDF + lightColor * diffuseBRDF;
+        sum += calShadingEquation(
+            dir.xyz,
+            lightColor,
+            rps
+        );
     }
     
     // rect lights
