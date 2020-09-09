@@ -5,40 +5,28 @@
 #include "Header.hlsli"
 #include "BRDF.hlsli"
 
-float3 calFresnel0(float ior)
-{
-    float k = pow((ior - 1) / (ior + 1), 2);
-    return float3(k, k, k);
-}
-
-float3 calPhongModel(float3 lightDir, float3 lightColor, RenderParams rps)
+float3 calPhongModel(float3 lightDir, float3 lightColor, RenderParams rps, float3 fresnel0, float3 ssAlbedo)
 {
     float lambCos = calLambCos(lightDir, rps.normalW);
     float3 halfVec = normalize(lightDir + rps.viewW);
     float m = (1 - rps.roughness) * 1024.0;
     float roughnessFactor = (m + 8.0f) / 8.0f * pow(max(dot(rps.normalW, halfVec), 0.0f), m);
 
-    // metal
-    float3 metalPart = 0.0f;
-    metalPart += rps.ambient * rps.baseColor;
+    // diffuse
+    float3 diffuseBRDF = ssAlbedo;
 
-    float3 metalFresnel = calFresnelReflectance(rps.normalW, lightDir, rps.baseColor);
-    metalPart += lightColor * lambCos * metalFresnel * roughnessFactor;
-
-    // nonmetal
-    float3 nonmetalPart = 0.0f;
-    nonmetalPart += rps.ambient * rps.baseColor;
-
-    float3 nonmetalF0 = calFresnel0(rps.ior);
-    float3 nonmetalFresenl = calFresnelReflectance(rps.normalW, lightDir, nonmetalF0);
-    nonmetalPart += lambCos * lightColor * (rps.baseColor + nonmetalFresenl * roughnessFactor);
+    // specular
+    float3 specularBRDF = calFresnelReflectance(rps.normalW, lightDir, fresnel0) * roughnessFactor;
     
-    return rps.metalness * metalPart + (1.0f - rps.metalness) * nonmetalPart;
+    return rps.ambient * rps.baseColor + lightColor * lambCos * (diffuseBRDF + specularBRDF);
 }
 
 float3 calShadingEquation(
     float3 lightDir, float3 lightColor, RenderParams rps)
 {
+    float3 nonmetalF0 = calFresnel0(rps.ior);
+    float3 fresnel0 = rps.metalness * rps.baseColor + (1.0f - rps.metalness) * nonmetalF0;
+    float3 ssAlbedo = rps.metalness * float3(0.0f, 0.0f, 0.0f) + (1 - rps.metalness) * rps.baseColor;
 #if SHADING_MODEL == 2
     if (IsValidTexID(gLTCAmpTexID) && IsValidTexID(gLTCMatTexID))
     {
@@ -46,10 +34,6 @@ float3 calShadingEquation(
         lightColor *= 8.0f;
     
         // BRDF calculation
-        float3 nonmetalF0 = calFresnel0(rps.ior);
-        float3 ssAlbedo = rps.metalness * float3(0.0f, 0.0f, 0.0f) + (1 - rps.metalness) * rps.baseColor;
-        float3 fresnel0 = rps.metalness * rps.baseColor + (1.0f - rps.metalness) * nonmetalF0;
-
         float3 specularBRDF, diffuseBRDF;
         calBRDF_punctual(specularBRDF, diffuseBRDF,
             lightDir, rps,
@@ -58,10 +42,10 @@ float3 calShadingEquation(
         return rps.ambient * rps.baseColor + lightColor * (specularBRDF + diffuseBRDF);
     }
     else
-        return calPhongModel(lightDir, lightColor, rps);
+        return calPhongModel(lightDir, lightColor, rps, fresnel0, ssAlbedo);
 
 #elif SHADING_MODEL == 1
-    return calPhongModel(lightDir, lightColor, rps);
+    return calPhongModel(lightDir, lightColor, rps, fresnel0, ssAlbedo);
 
 #else
     return rps.ambient*rps.baseColor + lightColor * rps.baseColor * calLambCos(lightDir, rps.normalW);

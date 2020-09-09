@@ -5,6 +5,12 @@
 #include "LTC.hlsli"
 
 
+float3 calFresnel0(float ior)
+{
+    float k = pow((ior - 1) / (ior + 1), 2);
+    return float3(k, k, k);
+}
+
 float calLambCos(float3 dir, float3 normal)
 {
     float lambCos = dot(dir, normal);
