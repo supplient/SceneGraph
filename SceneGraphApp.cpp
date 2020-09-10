@@ -438,6 +438,7 @@ void SceneGraphApp::BuildRenderTargets()
 		L"opaque", DXGI_FORMAT_R8G8B8A8_UNORM, whiteClearValue,
 		true, L"opaque depth", DXGI_FORMAT_R32_TYPELESS, DXGI_FORMAT_D32_FLOAT
 		);
+	/*
 	mRenderTargets["hbao"] = std::make_shared<SingleRenderTarget>(
 		L"hbao", DXGI_FORMAT_R8G8B8A8_UNORM, whiteClearValue
 		);
@@ -446,6 +447,7 @@ void SceneGraphApp::BuildRenderTargets()
 		);
 	mRenderTargets["transBlend"] = std::make_shared<SingleRenderTarget>(
 		L"transparent blend", DXGI_FORMAT_R8G8B8A8_UNORM, whiteClearValue);
+	*/
 	mRenderTargets["afterResolve"] = std::make_shared<SingleRenderTarget>(
 		L"afterResolve", DXGI_FORMAT_R8G8B8A8_UNORM, whiteClearValue);
 	mRenderTargets["fxaa"] = std::make_shared<SingleRenderTarget>(
@@ -947,6 +949,7 @@ void SceneGraphApp::BuildRootSignature()
 		mRootSignParamIndices["standard"] = paramIndices;
 	}
 
+	/* Not using
 	// HBAO
 	{
 		std::vector<D3D12_DESCRIPTOR_RANGE> depthSRVranges;
@@ -987,12 +990,11 @@ void SceneGraphApp::BuildRootSignature()
 		mRootSigns["hbao"] = SerializeAndCreateRootSignature(md3dDevice, &rootSignDesc);
 		mRootSignParamIndices["hbao"] = paramIndices;
 	}
+	*/
 
+	/* Not using
 	// transBlend
 	{ 
-	/*
-		uab<uint8> testUA;
-	*/
 		// Descriptor ranges
 		std::vector<D3D12_DESCRIPTOR_RANGE> opaqueSRVRanges;
 		opaqueSRVRanges.push_back(CD3DX12_DESCRIPTOR_RANGE(
@@ -1027,6 +1029,7 @@ void SceneGraphApp::BuildRootSignature()
 		// Serialize And Create RootSignature
 		mRootSigns["transBlend"] = SerializeAndCreateRootSignature(md3dDevice, &rootSignDesc);
 	}
+	*/
 
 	// FXAA
 	{ 
@@ -1103,14 +1106,8 @@ void SceneGraphApp::BuildShaders()
 	mShaders["ps"] = d3dUtil::CompileShader(
 		L"PixelShader.hlsl", defines.data(), "main", PS_TARGET
 	);
-	mShaders["transPS"] = d3dUtil::CompileShader(
-		L"transPixel.hlsl", defines.data(), "main", PS_TARGET
-	);
 	mShaders["simpleVS"] = d3dUtil::CompileShader(
 		L"simpleVertex.hlsl", defines.data(), "main", VS_TARGET
-	);
-	mShaders["transBlendPS"] = d3dUtil::CompileShader(
-		L"transBlendPixel.hlsl", defines.data(), "main", PS_TARGET
 	);
 	mShaders["fxaaPS"] = d3dUtil::CompileShader(
 		L"fxaaPixel.hlsl", defines.data(), "main", PS_TARGET
@@ -1133,9 +1130,17 @@ void SceneGraphApp::BuildShaders()
 	mShaders["pointShadowPS"] = d3dUtil::CompileShader(
 		L"pointShadowPixel.hlsl", defines.data(), "main", PS_TARGET
 	);
+	/*
+	mShaders["transPS"] = d3dUtil::CompileShader(
+		L"transPixel.hlsl", defines.data(), "main", PS_TARGET
+	);
+	mShaders["transBlendPS"] = d3dUtil::CompileShader(
+		L"transBlendPixel.hlsl", defines.data(), "main", PS_TARGET
+	);
 	mShaders["hbaoPS"] = d3dUtil::CompileShader(
 		L"hbaoPixel.hlsl", defines.data(), "main", PS_TARGET
 	);
+	*/
 }
 
 void SceneGraphApp::BuildPSOs()
@@ -1188,6 +1193,7 @@ void SceneGraphApp::BuildPSOs()
 	dispOpaquePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_PATCH;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&dispOpaquePsoDesc, IID_PPV_ARGS(&mPSOs["dispOpaque"])));
 
+	/*
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC transPsoDesc = opaquePsoDesc;
 	transPsoDesc.PS =
 	{
@@ -1235,14 +1241,25 @@ void SceneGraphApp::BuildPSOs()
 	};
 	hbaoPsoDesc.RTVFormats[0] = mRenderTargets["hbao"]->GetColorViewFormat();
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&hbaoPsoDesc, IID_PPV_ARGS(&mPSOs["hbao"])));
+	*/
 
-	D3D12_GRAPHICS_PIPELINE_STATE_DESC fxaaPsoDesc = transBlendPsoDesc;
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC fxaaPsoDesc = opaquePsoDesc;
+	fxaaPsoDesc.InputLayout = { 
+		mInputLayouts["onlyPos"].data(), 
+		(UINT)mInputLayouts["onlyPos"].size() 
+	};
 	fxaaPsoDesc.pRootSignature = mRootSigns["fxaa"].Get();
+	fxaaPsoDesc.VS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["simpleVS"]->GetBufferPointer()),
+		mShaders["simpleVS"]->GetBufferSize()
+	};
 	fxaaPsoDesc.PS =
 	{
 		reinterpret_cast<BYTE*>(mShaders["fxaaPS"]->GetBufferPointer()),
 		mShaders["fxaaPS"]->GetBufferSize()
 	};
+	fxaaPsoDesc.DepthStencilState.DepthEnable = false;
 	fxaaPsoDesc.RTVFormats[0] = mRenderTargets["fxaa"]->GetColorViewFormat();
 	fxaaPsoDesc.SampleDesc.Count = 1;
 	fxaaPsoDesc.SampleDesc.Quality = 0;
@@ -1856,6 +1873,7 @@ void SceneGraphApp::ResizeRenderTargets()
 		&opaqueDSDesc
 	);
 
+	/*
 	// Transparent Rendering
 	D3D12_RESOURCE_DESC transDesc = opaqueDesc;
 	transDesc.Format = mRenderTargets["trans"]->GetColorViewFormat();
@@ -1882,9 +1900,10 @@ void SceneGraphApp::ResizeRenderTargets()
 		md3dDevice,
 		&hbaoDesc
 	);
+	*/
 
 	// After Resolve
-	D3D12_RESOURCE_DESC afterResolveDesc = transBlendDesc;
+	D3D12_RESOURCE_DESC afterResolveDesc = opaqueDesc;
 	afterResolveDesc.Format = mRenderTargets["afterResolve"]->GetColorViewFormat();
 	afterResolveDesc.SampleDesc.Count = 1;
 	afterResolveDesc.SampleDesc.Quality = 0;
