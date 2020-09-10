@@ -72,16 +72,6 @@ public:
 	void ResizeShadowRenderTargets();
 	void ResizeFxaa();
 
-	/// <summary>
-	/// 把renderItemQueue中的RenderItem逐个绘制。不设置RenderTarget、RootSignature。会自动设置PSO。
-	/// </summary>
-	/// <param name="renderItemQueue">RenderItem队列</param>
-	/// <param name="rootSignParamIndices">用于标识各个根参数的序号</param>
-	void DrawRenderItems(
-		const std::vector<std::shared_ptr<RenderItem>>& renderItemQueue,
-		std::unordered_map<std::string, UINT>& rootSignParamIndices
-	);
-
 private:
 
 	virtual void OnMsaaStateChange()override;
@@ -122,7 +112,7 @@ private:
 	std::unique_ptr<StaticDescriptorHeap> mCBVSRVUAVCPUHeap = nullptr;
 
 	// Render Targets
-	std::unordered_map<std::string, std::unique_ptr<SingleRenderTarget>> mRenderTargets;
+	std::unordered_map<std::string, std::shared_ptr<SingleRenderTarget>> mRenderTargets;
 	std::unique_ptr<SwapChainRenderTarget> mSwapChain;
 
 	// Unordered Access Buffers

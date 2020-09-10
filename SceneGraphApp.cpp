@@ -9,6 +9,7 @@
 #include "SceneGraphApp.h"
 #include "Common/GeometryGenerator.h"
 #include "Predefine.h"
+#include "PIXHelper.h"
 
 using namespace DirectX;
 using Microsoft::WRL::ComPtr;
@@ -174,7 +175,7 @@ void SceneGraphApp::BuildManualMeshs()
 void SceneGraphApp::LoadScene()
 {
 	FbxLoader loader;
-	mRootObject = loader.Load("cubeTex.fbx");
+	mRootObject = loader.Load("bear.fbx");
 	auto meshs = loader.GetMeshs();
 	auto mtls = loader.GetMaterials();
 	auto texs = loader.GetTextures();
@@ -433,20 +434,21 @@ void SceneGraphApp::BuildRenderTargets()
 	maxClearValue[3] = D3D12_FLOAT32_MAX;
 
 	// Build Single Render Targets
-	mRenderTargets["opaque"] = std::make_unique<SingleRenderTarget>(
+	mRenderTargets["opaque"] = std::make_shared<SingleRenderTarget>(
 		L"opaque", DXGI_FORMAT_R8G8B8A8_UNORM, whiteClearValue,
-		true, L"render depth", DXGI_FORMAT_R32_TYPELESS, DXGI_FORMAT_D32_FLOAT
+		true, L"opaque depth", DXGI_FORMAT_R32_TYPELESS, DXGI_FORMAT_D32_FLOAT
 		);
-	mRenderTargets["hbao"] = std::make_unique<SingleRenderTarget>(
+	mRenderTargets["hbao"] = std::make_shared<SingleRenderTarget>(
 		L"hbao", DXGI_FORMAT_R8G8B8A8_UNORM, whiteClearValue
 		);
-	mRenderTargets["trans"] = std::make_unique<SingleRenderTarget>(
-		L"transparent", DXGI_FORMAT_R32G32B32A32_FLOAT, whiteClearValue);
-	mRenderTargets["transBlend"] = std::make_unique<SingleRenderTarget>(
+	mRenderTargets["trans"] = std::make_shared<SingleRenderTarget>(
+		L"transparent", DXGI_FORMAT_R32G32B32A32_FLOAT, whiteClearValue
+		);
+	mRenderTargets["transBlend"] = std::make_shared<SingleRenderTarget>(
 		L"transparent blend", DXGI_FORMAT_R8G8B8A8_UNORM, whiteClearValue);
-	mRenderTargets["afterResolve"] = std::make_unique<SingleRenderTarget>(
+	mRenderTargets["afterResolve"] = std::make_shared<SingleRenderTarget>(
 		L"afterResolve", DXGI_FORMAT_R8G8B8A8_UNORM, whiteClearValue);
-	mRenderTargets["fxaa"] = std::make_unique<SingleRenderTarget>(
+	mRenderTargets["fxaa"] = std::make_shared<SingleRenderTarget>(
 		L"fxaa", DXGI_FORMAT_R8G8B8A8_UNORM, whiteClearValue,
 		true, L"fxaa depth"
 		);
@@ -818,9 +820,13 @@ void SceneGraphApp::BuildRootSignature()
 		cb perPass;
 	*/
 		// Describe root parameters
+		UINT index = 0;
+		std::unordered_map<std::string, UINT> paramIndices;
 		std::vector<CD3DX12_ROOT_PARAMETER> rootParams;
 		rootParams.push_back(GetCBVParam(0)); // 0
-		rootParams.push_back(GetCBVParam(1)); // 0
+		paramIndices["objectCB"] = index++;
+		rootParams.push_back(GetCBVParam(1)); // 1
+		paramIndices["passCB"] = index++;
 
 		// Create desc for root signature
 		CD3DX12_ROOT_SIGNATURE_DESC rootSignDesc;
@@ -834,6 +840,7 @@ void SceneGraphApp::BuildRootSignature()
 
 		// Serialize And Create RootSignature
 		mRootSigns["shadow"] = SerializeAndCreateRootSignature(md3dDevice, &rootSignDesc);
+		mRootSignParamIndices["shadow"] = paramIndices;
 	}
 
 	// Standard
@@ -1035,10 +1042,14 @@ void SceneGraphApp::BuildRootSignature()
 			0, 0U
 		));
 
-		// Describe root parameters
+		// Describe root parametes
+		int index = 0;
+		std::unordered_map<std::string, UINT> paramIndices;
 		std::vector<D3D12_ROOT_PARAMETER> rootParams;
 		rootParams.push_back(GetCBVParam(0));
+		paramIndices["passCB"] = index++;
 		rootParams.push_back(GetTableParam(texSRVRanges));
+		paramIndices["texSR"] = index++;
 
 		// Create desc for root signature
 		CD3DX12_ROOT_SIGNATURE_DESC rootSignDesc;
@@ -1052,6 +1063,7 @@ void SceneGraphApp::BuildRootSignature()
 
 		// Serialize And Create RootSignature
 		mRootSigns["fxaa"] = SerializeAndCreateRootSignature(md3dDevice, &rootSignDesc);
+		mRootSignParamIndices["fxaa"] = paramIndices;
 	}
 }
 
@@ -1975,59 +1987,6 @@ void SceneGraphApp::ResizeFxaa()
 	content.Console360RcpFrameOpt2.w = -4.0f / mClientHeight;
 }
 
-void SceneGraphApp::DrawRenderItems(
-	const std::vector<std::shared_ptr<RenderItem>>& renderItemQueue,
-	std::unordered_map<std::string, UINT>& rootSignParamIndices
-)
-{
-	Microsoft::WRL::ComPtr<ID3D12PipelineState> nowPSO = nullptr;
-
-	auto objCBGPUAddr = mObjectConstantsBuffers->Resource()->GetGPUVirtualAddress();
-	UINT64 objCBElementByteSize = mObjectConstantsBuffers->getElementByteSize();
-	auto mtlCBGPUAddr = mMaterialConstantsBuffers->Resource()->GetGPUVirtualAddress();
-	UINT64 mtlCBElementByteSize = mMaterialConstantsBuffers->getElementByteSize();
-
-	for (auto renderItem : renderItemQueue) {
-		// Change PSO if needed
-		if (!nowPSO || nowPSO.Get() != mPSOs[renderItem->PSO].Get()) {
-			nowPSO = mPSOs[renderItem->PSO];
-			mCommandList->SetPipelineState(nowPSO.Get());
-		}
-
-		// Set IA
-		Mesh* mesh = Mesh::FindObjectByID(renderItem->MeshID);
-		SubMesh submesh = mesh->GetSubMesh(renderItem->SubMeshID);
-		D3D12_VERTEX_BUFFER_VIEW VBVs[1] = {
-			mesh->GetVertexBufferView()
-		};
-		mCommandList->IASetVertexBuffers(0, 1, VBVs);
-		mCommandList->IASetIndexBuffer(&mesh->GetIndexBufferView());
-		mCommandList->IASetPrimitiveTopology(submesh.primitiveTopology);
-
-		// Assign Material Constants Buffer
-		UINT mtlID = renderItem->MaterialID;
-		mCommandList->SetGraphicsRootConstantBufferView(
-			rootSignParamIndices["materialCB"], 
-			mtlCBGPUAddr + mtlID * mtlCBElementByteSize
-		);
-
-		// Assign Object Constants Buffer
-		mCommandList->SetGraphicsRootConstantBufferView(
-			rootSignParamIndices["objectCB"], 
-			objCBGPUAddr + renderItem->ObjectID*objCBElementByteSize
-		);
-
-		// Draw Call
-		mCommandList->DrawIndexedInstanced(
-			submesh.indexCount, 
-			1,
-			submesh.startIndexLoc,
-			submesh.baseVertexLoc,
-			0
-		);
-	}
-}
-
 void SceneGraphApp::OnMsaaStateChange()
 {
 	D3DApp::OnMsaaStateChange();
@@ -2189,753 +2148,6 @@ void SceneGraphApp::Update(const GameTimer& gt)
 			mFxaaConstants->content
 		);
 	}
-}
-
-void TransResourceState(
-	ComPtr<ID3D12GraphicsCommandList> commandList,
-	std::vector<ID3D12Resource*> resources,
-	std::vector<D3D12_RESOURCE_STATES> fromStates,
-	std::vector<D3D12_RESOURCE_STATES> toStates
-) {
-	if (resources.size() != fromStates.size() || fromStates.size() != toStates.size())
-		throw "Size does not match.";
-	if (!resources.size())
-		return;
-	std::vector<CD3DX12_RESOURCE_BARRIER> barriers;
-	for (UINT i = 0; i < resources.size(); i++) {
-		barriers.push_back(CD3DX12_RESOURCE_BARRIER::Transition(
-			resources[i],
-			fromStates[i], toStates[i]
-		));
-	}
-	commandList->ResourceBarrier(static_cast<UINT>(barriers.size()), barriers.data());
-}
-
-void CopyResource(
-	ComPtr<ID3D12GraphicsCommandList> commandList,
-	ID3D12Resource* dst,
-	D3D12_RESOURCE_STATES dstFromState, D3D12_RESOURCE_STATES dstToState,
-	ID3D12Resource* src,
-	D3D12_RESOURCE_STATES srcFromState, D3D12_RESOURCE_STATES srcToState
-) {
-	TransResourceState(
-		commandList,
-		{ src, dst },
-		{ srcFromState, dstFromState },
-		{ D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_COPY_DEST }
-	);
-
-	commandList->CopyResource(dst, src);
-
-	TransResourceState(
-		commandList,
-		{ src, dst },
-		{ D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_COPY_DEST },
-		{ srcToState, dstToState }
-	);
-};
-
-void SceneGraphApp::Draw(const GameTimer& gt)
-{
-	// CommandList Start Recoding
-	{
-		// Reuse the memory associated with command recording.
-		// We can only reset when the associated command lists have finished execution on the GPU.
-		ThrowIfFailed(mDirectCmdListAlloc->Reset());
-
-		// A command list can be reset after it has been added to the command queue via ExecuteCommandList.
-		// Reusing the command list reuses memory.
-		ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
-	}
-
-	// Set Descriptor Heaps
-	{
-		ID3D12DescriptorHeap* descHeaps[] = { mCBVSRVUAVHeap->GetHeap() };
-		mCommandList->SetDescriptorHeaps(1, descHeaps);
-	}
-
-	// Refresh Frame Shared Data
-	{
-		mCommandList->ClearUnorderedAccessViewUint(
-			mUABs["nCount"]->GetGPUHandle(), 
-			mUABs["nCount"]->GetCPUHandle_CPUHeap(),
-			mUABs["nCount"]->GetResource(),
-			(UINT*)mUABs["nCount"]->GetClearValue(),
-			0, nullptr
-		);
-	}
-
-	// Set Viewports & ScissorRects
-	{
-		// Set the viewport and scissor rect.  This needs to be reset whenever the command list is reset.
-		mCommandList->RSSetViewports(1, &mShadowScreenViewport);
-		mCommandList->RSSetScissorRects(1, &mShadowScissorRect);
-	}
-
-	// Draw Shadows
-	{
-		// Set Root Signature
-		mCommandList->SetGraphicsRootSignature(mRootSigns["shadow"].Get());
-
-		// Set PSOs
-		mCommandList->SetPipelineState(mPSOs["shadow"].Get());
-
-		auto objCBGPUAddr = mObjectConstantsBuffers->Resource()->GetGPUVirtualAddress();
-		UINT64 objCBElementByteSize = mObjectConstantsBuffers->getElementByteSize();
-		auto passCBGPUAddr = mShadowPassConstantsBuffers->Resource()->GetGPUVirtualAddress();
-		UINT64 passCBElementByteSize = mShadowPassConstantsBuffers->getElementByteSize();
-
-		// Direction Lights
-		// Here, for dir lights, we just copy from spot lights
-		// But further we may use different way to draw shadows for different types of lights
-		for (auto& dirLight : mDirLights) {
-			// Assign Pass Constants
-			mCommandList->SetGraphicsRootConstantBufferView(
-				1, passCBGPUAddr + dirLight.PassConstants->getID() * passCBElementByteSize
-			);
-
-			// Set RenderTarget
-			mCommandList->OMSetRenderTargets(
-				1, &dirLight.ShadowRT->GetRTVCPUHandle(),
-				true, &dirLight.ShadowRT->GetDSVCPUHandle()
-			);
-
-			// Clear RenderTarget
-			mCommandList->ClearRenderTargetView(
-				dirLight.ShadowRT->GetRTVCPUHandle(),
-				dirLight.ShadowRT->GetColorClearValue(),
-				0, nullptr
-			);
-			mCommandList->ClearDepthStencilView(
-				dirLight.ShadowRT->GetDSVCPUHandle(),
-				D3D12_CLEAR_FLAG_DEPTH,
-				dirLight.ShadowRT->GetDepthClearValue(),
-				dirLight.ShadowRT->GetStencilClearValue(),
-				0, nullptr
-			);
-
-
-			// Draw Render Items
-			// TODO Note, now we only draw opaque items' shadow
-			for(auto renderItem: mOpaqueRenderItemQueue)
-			{
-				// Set IA
-				Mesh* mesh = Mesh::FindObjectByID(renderItem->MeshID);
-				SubMesh submesh = mesh->GetSubMesh(renderItem->SubMeshID);
-				D3D12_VERTEX_BUFFER_VIEW VBVs[1] = {
-					mesh->GetVertexBufferView()
-				};
-				mCommandList->IASetVertexBuffers(0, 1, VBVs);
-				mCommandList->IASetIndexBuffer(&mesh->GetIndexBufferView());
-				mCommandList->IASetPrimitiveTopology(submesh.primitiveTopology);
-
-				// Assign Object Constants Buffer
-				mCommandList->SetGraphicsRootConstantBufferView(
-					0, objCBGPUAddr + renderItem->ObjectID*objCBElementByteSize
-				);
-
-				// Draw Call
-				mCommandList->DrawIndexedInstanced(
-					submesh.indexCount, 
-					1,
-					submesh.startIndexLoc,
-					submesh.baseVertexLoc,
-					0
-				);
-			}
-		}
-
-		// Spot Lights
-		for (auto& spotLight : mSpotLights) {
-			// Assign Pass Constants
-			mCommandList->SetGraphicsRootConstantBufferView(
-				1, passCBGPUAddr + spotLight.PassConstants->getID() * passCBElementByteSize
-			);
-
-			// Set RenderTarget
-			mCommandList->OMSetRenderTargets(
-				1, &spotLight.ShadowRT->GetRTVCPUHandle(),
-				true, &spotLight.ShadowRT->GetDSVCPUHandle()
-			);
-
-			// Clear RenderTarget
-			mCommandList->ClearRenderTargetView(
-				spotLight.ShadowRT->GetRTVCPUHandle(),
-				spotLight.ShadowRT->GetColorClearValue(),
-				0, nullptr
-			);
-			mCommandList->ClearDepthStencilView(
-				spotLight.ShadowRT->GetDSVCPUHandle(),
-				D3D12_CLEAR_FLAG_DEPTH,
-				spotLight.ShadowRT->GetDepthClearValue(),
-				spotLight.ShadowRT->GetStencilClearValue(),
-				0, nullptr
-			);
-
-
-			// Draw Render Items
-			// TODO Note, now we only draw opaque items' shadow
-			for(auto renderItem: mOpaqueRenderItemQueue)
-			{
-				// Set IA
-				Mesh* mesh = Mesh::FindObjectByID(renderItem->MeshID);
-				SubMesh submesh = mesh->GetSubMesh(renderItem->SubMeshID);
-				D3D12_VERTEX_BUFFER_VIEW VBVs[1] = {
-					mesh->GetVertexBufferView()
-				};
-				mCommandList->IASetVertexBuffers(0, 1, VBVs);
-				mCommandList->IASetIndexBuffer(&mesh->GetIndexBufferView());
-				mCommandList->IASetPrimitiveTopology(submesh.primitiveTopology);
-
-				// Assign Object Constants Buffer
-				mCommandList->SetGraphicsRootConstantBufferView(
-					0, objCBGPUAddr + renderItem->ObjectID*objCBElementByteSize
-				);
-
-				// Draw Call
-				mCommandList->DrawIndexedInstanced(
-					submesh.indexCount, 
-					1,
-					submesh.startIndexLoc,
-					submesh.baseVertexLoc,
-					0
-				);
-			}
-		}
-
-		// Point Lights
-		// Set PSOs
-		mCommandList->SetPipelineState(mPSOs["pointShadow"].Get());
-		for (auto& pointLight : mPointLights) {
-			CD3DX12_CPU_DESCRIPTOR_HANDLE RTVCPUHandle(pointLight.ShadowRT->GetRTVCPUHandle());
-			auto DSVCPUHandle = pointLight.ShadowRT->GetDSVCPUHandle();
-
-			for (int i = 0; i < PointLight::RTVNum; i++) {
-				// Assign Pass Constants
-				mCommandList->SetGraphicsRootConstantBufferView(
-					1, passCBGPUAddr 
-					+ pointLight.PassConstantsArray[i]->getID() * passCBElementByteSize
-				);
-
-				// Set RenderTarget
-				mCommandList->OMSetRenderTargets(
-					1, &RTVCPUHandle,
-					true, &pointLight.ShadowRT->GetDSVCPUHandle()
-				);
-
-				// Clear RenderTarget
-				mCommandList->ClearRenderTargetView(
-					RTVCPUHandle,
-					pointLight.ShadowRT->GetColorClearValue(),
-					0, nullptr
-				);
-				mCommandList->ClearDepthStencilView(
-					DSVCPUHandle,
-					D3D12_CLEAR_FLAG_DEPTH,
-					pointLight.ShadowRT->GetDepthClearValue(),
-					pointLight.ShadowRT->GetStencilClearValue(),
-					0, nullptr
-				);
-
-
-				// Draw Render Items
-				// TODO Note, now we only draw opaque items' shadow
-				for(auto renderItem: mOpaqueRenderItemQueue)
-				{
-					// Set IA
-					Mesh* mesh = Mesh::FindObjectByID(renderItem->MeshID);
-					SubMesh submesh = mesh->GetSubMesh(renderItem->SubMeshID);
-					D3D12_VERTEX_BUFFER_VIEW VBVs[1] = {
-						mesh->GetVertexBufferView()
-					};
-					mCommandList->IASetVertexBuffers(0, 1, VBVs);
-					mCommandList->IASetIndexBuffer(&mesh->GetIndexBufferView());
-					mCommandList->IASetPrimitiveTopology(submesh.primitiveTopology);
-
-					// Assign Object Constants Buffer
-					mCommandList->SetGraphicsRootConstantBufferView(
-						0, objCBGPUAddr + renderItem->ObjectID*objCBElementByteSize
-					);
-
-					// Draw Call
-					mCommandList->DrawIndexedInstanced(
-						submesh.indexCount, 
-						1,
-						submesh.startIndexLoc,
-						submesh.baseVertexLoc,
-						0
-					);
-				}
-
-				RTVCPUHandle.Offset(1, mCbvSrvUavDescriptorSize);
-			}
-		}
-	}
-
-	// Set Viewports & ScissorRects
-	{
-		// Set the viewport and scissor rect.  This needs to be reset whenever the command list is reset.
-		mCommandList->RSSetViewports(1, &mScreenViewport);
-		mCommandList->RSSetScissorRects(1, &mScissorRect);
-	}
-
-	// Vars for convenience. Note, do not alloc or free for these vars, only referece.
-	RenderTarget* nowColorRenderTarget = nullptr;
-	RenderTarget* nowDSRenderTarget = nullptr;
-
-	// Switch shadow resources' states to pixel shader resource
-	std::vector<ID3D12Resource*> shadowResources;
-	for (const auto& light : mDirLights)
-		shadowResources.push_back(light.ShadowRT->GetColorResource());
-	for (const auto& light : mPointLights)
-		shadowResources.push_back(light.ShadowRT->GetColorResource());
-	for (const auto& light : mSpotLights)
-		shadowResources.push_back(light.ShadowRT->GetColorResource());
-	std::vector<D3D12_RESOURCE_STATES> shadowRenderTargetStates(shadowResources.size(), D3D12_RESOURCE_STATE_RENDER_TARGET);
-	std::vector<D3D12_RESOURCE_STATES> shadowPixelResourceStates(shadowResources.size(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-	{
-		TransResourceState(
-			mCommandList,
-			shadowResources,
-			shadowRenderTargetStates,
-			shadowPixelResourceStates
-		);
-	}
-
-	// Draw Scene
-	{
-		// Set Root Signature
-		mCommandList->SetGraphicsRootSignature(mRootSigns["standard"].Get());
-		auto& signPI = mRootSignParamIndices["standard"]; // root sign param indices
-
-		// Assign Textures
-		if (signPI.find("texSR") != signPI.end()) {
-			mCommandList->SetGraphicsRootDescriptorTable(
-				signPI["texSR"], mTexGPUHandleStart
-			);
-		}
-
-		// Assign Light Shadow Textures
-		if (signPI.find("spotShadowSR") != signPI.end()) {
-			mCommandList->SetGraphicsRootDescriptorTable(
-				signPI["spotShadowSR"], mSpotShadowTexGPUHandleStart
-			);
-		}
-		if (signPI.find("dirShadowSR") != signPI.end()) {
-			mCommandList->SetGraphicsRootDescriptorTable(
-signPI["dirShadowSR"], mDirShadowTexGPUHandleStart
-);
-		}
-		if (signPI.find("pointShadowSR") != signPI.end()) {
-			mCommandList->SetGraphicsRootDescriptorTable(
-				signPI["pointShadowSR"], mPointShadowTexGPUHandleStart
-			);
-		}
-
-		// Assign Pass Constants Buffer
-		auto passCBGPUAddr = mPassConstantsBuffers->Resource()->GetGPUVirtualAddress();
-		UINT64 passCBElementByteSize = mPassConstantsBuffers->getElementByteSize();
-		mCommandList->SetGraphicsRootConstantBufferView(
-			signPI["passCB"], passCBGPUAddr + mPassConstants->getID() * passCBElementByteSize
-		);
-
-		// Assign UAV
-		mCommandList->SetGraphicsRootDescriptorTable(
-			signPI["ncountUA"], mUABs["nCount"]->GetGPUHandle()
-		);
-
-		// Assign ZBuffer for reference
-		mCommandList->SetGraphicsRootDescriptorTable(
-			signPI["zbufferSR"], mZBufferSRVGPUHandle
-		);
-
-		// Opaque
-		nowColorRenderTarget = mRenderTargets["opaque"].get();
-		nowDSRenderTarget = mRenderTargets["opaque"].get();
-		{
-			// Specify the buffers we are going to render to.
-			mCommandList->OMSetRenderTargets(
-				1, &nowColorRenderTarget->GetRTVCPUHandle(),
-				true, &nowDSRenderTarget->GetDSVCPUHandle()
-			);
-
-			// Clear the back buffer and depth buffer.
-			mCommandList->ClearRenderTargetView(
-				nowColorRenderTarget->GetRTVCPUHandle(),
-				nowColorRenderTarget->GetColorClearValue(),
-				0, nullptr
-			);
-			mCommandList->ClearDepthStencilView(
-				nowDSRenderTarget->GetDSVCPUHandle(),
-				D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL,
-				nowDSRenderTarget->GetDepthClearValue(),
-				nowDSRenderTarget->GetStencilClearValue(),
-				0, nullptr
-			);
-
-			// Draw Render Items
-			DrawRenderItems(mOpaqueRenderItemQueue, signPI);
-		}
-
-		// Copy ZBuffer for reference
-		CopyResource(mCommandList,
-			mZBufferResource.Get(),
-			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-			mRenderTargets["opaque"]->GetDepthStencilResource(),
-			D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_DEPTH_WRITE
-		);
-
-		// Transparent
-		nowColorRenderTarget = mRenderTargets["trans"].get();
-		{
-			// Trans Previous RenderTarget to Shader Resource
-			TransResourceState(
-				mCommandList,
-				{ mRenderTargets["opaque"]->GetColorResource() },
-				{ D3D12_RESOURCE_STATE_RENDER_TARGET },
-				{ D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE }
-			);
-
-			// Specify the buffers we are going to render to.
-			mCommandList->OMSetRenderTargets(
-				1, &nowColorRenderTarget->GetRTVCPUHandle(),
-				true, &nowDSRenderTarget->GetDSVCPUHandle()
-			);
-
-			// Clear Render Target
-			mCommandList->ClearRenderTargetView(
-				nowColorRenderTarget->GetRTVCPUHandle(),
-				nowColorRenderTarget->GetColorClearValue(),
-				0, nullptr
-			);
-
-			// Draw Render Items
-			DrawRenderItems(mTransRenderItemQueue, signPI);
-
-			// Trans back to Render Target
-			TransResourceState(
-				mCommandList,
-				{ mRenderTargets["opaque"]->GetColorResource() },
-				{ D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE },
-				{ D3D12_RESOURCE_STATE_RENDER_TARGET }
-			);
-		}
-	}
-
-	// Switch shadow resources' states back to render targets
-	{
-		TransResourceState(
-			mCommandList,
-			shadowResources,
-			shadowPixelResourceStates,
-			shadowRenderTargetStates
-		);
-	}
-
-	// HBAO
-	bool hasHBAO = false; // DEBUG
-	nowColorRenderTarget = mRenderTargets["hbao"].get();
-	if(hasHBAO)
-	{
-		auto& signPI = mRootSignParamIndices["hbao"]; // root sign param indices
-
-		// Trans Previous RenderTarget to Shader Resource
-		TransResourceState(
-			mCommandList,
-			{ mRenderTargets["opaque"]->GetColorResource() },
-			{ D3D12_RESOURCE_STATE_RENDER_TARGET },	
-			{ D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE }
-		);
-
-		// Specify the buffers we are going to render to.
-		mCommandList->OMSetRenderTargets(
-			1, &nowColorRenderTarget->GetRTVCPUHandle(), 
-			true, &nowDSRenderTarget->GetDSVCPUHandle()
-		);
-
-		// Clear the back buffer and depth buffer.
-		mCommandList->ClearRenderTargetView(
-			nowColorRenderTarget->GetRTVCPUHandle(), 
-			nowColorRenderTarget->GetColorClearValue(), 
-			0, nullptr
-		);
-		mCommandList->ClearDepthStencilView(
-			nowDSRenderTarget->GetDSVCPUHandle(), 
-			D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 
-			nowDSRenderTarget->GetDepthClearValue(),  
-			nowDSRenderTarget->GetStencilClearValue(),
-			0, nullptr
-		);
-
-		// Set Root Signature
-		mCommandList->SetGraphicsRootSignature(mRootSigns["hbao"].Get());
-
-		// Assign CBV
-		auto hbaoCBGPUAddr = mHbaoConstantsBuffers->Resource()->GetGPUVirtualAddress();
-		UINT64 hbaoCBElementByteSize = mHbaoConstantsBuffers->getElementByteSize();
-		mCommandList->SetGraphicsRootConstantBufferView(
-			signPI["hbaoCB"], hbaoCBGPUAddr + mHbaoConstants->getID() * hbaoCBElementByteSize
-		);
-
-		// Assign SRV
-		mCommandList->SetGraphicsRootDescriptorTable(
-			signPI["depthSRV"], mZBufferSRVGPUHandle
-		);
-		mCommandList->SetGraphicsRootDescriptorTable(
-			signPI["colorSRV"], mRenderTargets["opaque"]->GetSRVGPUHandle()
-		);
-
-		// Draw Render Items
-		auto& renderItem = mBackgroundRenderItem;
-		mCommandList->SetPipelineState(mPSOs["hbao"].Get());
-
-		// Set IA
-		Mesh* mesh = Mesh::FindObjectByID(renderItem->MeshID);
-		SubMesh submesh = mesh->GetSubMesh(renderItem->SubMeshID);
-		D3D12_VERTEX_BUFFER_VIEW VBVs[1] = {
-			mesh->GetVertexBufferView()
-		};
-		mCommandList->IASetVertexBuffers(0, 1, VBVs);
-		mCommandList->IASetIndexBuffer(&mesh->GetIndexBufferView());
-		mCommandList->IASetPrimitiveTopology(submesh.primitiveTopology);
-
-		// Draw Call
-		mCommandList->DrawIndexedInstanced(
-			submesh.indexCount, 
-			1,
-			submesh.startIndexLoc,
-			submesh.baseVertexLoc,
-			0
-		);
-
-		// Turn Back
-		TransResourceState(
-			mCommandList,
-			{ mRenderTargets["opaque"]->GetColorResource() },
-			{ D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE },
-			{ D3D12_RESOURCE_STATE_RENDER_TARGET}
-		);
-	}
-
-	// Transparent Blend
-	nowColorRenderTarget = mRenderTargets["transBlend"].get();
-	{
-		// Trans Previous RenderTarget to Shader Resource
-		auto& prevRenderTarget = hasHBAO ? mRenderTargets["hbao"] : mRenderTargets["opaque"];
-		TransResourceState(
-			mCommandList,
-			{ prevRenderTarget->GetColorResource(), mRenderTargets["trans"]->GetColorResource() },
-			{ D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RENDER_TARGET },
-			{ D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE }
-		);
-
-		// Specify the buffers we are going to render to.
-		mCommandList->OMSetRenderTargets(
-			1, &nowColorRenderTarget->GetRTVCPUHandle(), 
-			true, &nowDSRenderTarget->GetDSVCPUHandle()
-		);
-
-		// Clear the back buffer and depth buffer.
-		mCommandList->ClearRenderTargetView(
-			nowColorRenderTarget->GetRTVCPUHandle(), 
-			nowColorRenderTarget->GetColorClearValue(), 
-			0, nullptr
-		);
-		mCommandList->ClearDepthStencilView(
-			nowDSRenderTarget->GetDSVCPUHandle(), 
-			D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 
-			nowDSRenderTarget->GetDepthClearValue(),  
-			nowDSRenderTarget->GetStencilClearValue(),
-			0, nullptr
-		);
-
-		// Set Root Signature
-		mCommandList->SetGraphicsRootSignature(mRootSigns["transBlend"].Get());
-
-		// Assign SRV
-		mCommandList->SetGraphicsRootDescriptorTable(
-			0, prevRenderTarget->GetSRVGPUHandle()
-		);
-		mCommandList->SetGraphicsRootDescriptorTable(
-			1, mRenderTargets["trans"]->GetSRVGPUHandle()
-		);
-
-		// Assign UAV
-		mCommandList->SetGraphicsRootDescriptorTable(
-			2, mUABs["nCount"]->GetGPUHandle()
-		);
-
-		// Draw Render Items
-		auto& renderItem = mBackgroundRenderItem;
-		mCommandList->SetPipelineState(mPSOs["transBlend"].Get());
-
-		// Set IA
-		Mesh* mesh = Mesh::FindObjectByID(renderItem->MeshID);
-		SubMesh submesh = mesh->GetSubMesh(renderItem->SubMeshID);
-		D3D12_VERTEX_BUFFER_VIEW VBVs[1] = {
-			mesh->GetVertexBufferView()
-		};
-		mCommandList->IASetVertexBuffers(0, 1, VBVs);
-		mCommandList->IASetIndexBuffer(&mesh->GetIndexBufferView());
-		mCommandList->IASetPrimitiveTopology(submesh.primitiveTopology);
-
-		// Draw Call
-		mCommandList->DrawIndexedInstanced(
-			submesh.indexCount, 
-			1,
-			submesh.startIndexLoc,
-			submesh.baseVertexLoc,
-			0
-		);
-
-		// Trans Back to Render Targets
-		TransResourceState(
-			mCommandList,
-			{ prevRenderTarget->GetColorResource(), mRenderTargets["trans"]->GetColorResource() },
-			{ D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE },
-			{ D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RENDER_TARGET }
-		);
-	}
-
-	// Resolve
-	if (m4xMsaaState) {
-		TransResourceState(
-			mCommandList,
-			{ mRenderTargets["transBlend"]->GetColorResource(), mRenderTargets["afterResolve"]->GetColorResource() },
-			{ D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RENDER_TARGET },
-			{ D3D12_RESOURCE_STATE_RESOLVE_SOURCE, D3D12_RESOURCE_STATE_RESOLVE_DEST }
-		);
-		mCommandList->ResolveSubresource(
-			mRenderTargets["afterResolve"]->GetColorResource(), 0, 
-			mRenderTargets["transBlend"]->GetColorResource(), 0, 
-			mRenderTargets["afterResolve"]->GetColorViewFormat()
-		);
-		TransResourceState(
-			mCommandList,
-			{ mRenderTargets["transBlend"]->GetColorResource(), mRenderTargets["afterResolve"]->GetColorResource() },
-			{ D3D12_RESOURCE_STATE_RESOLVE_SOURCE, D3D12_RESOURCE_STATE_RESOLVE_DEST },
-			{ D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RENDER_TARGET }
-		);
-
-		nowColorRenderTarget = mRenderTargets["afterResolve"].get();
-	}
-
-	// FXAA
-	if (mUseFXAA) {
-		auto prevColorRenderTarget = nowColorRenderTarget;
-		nowColorRenderTarget = mRenderTargets["fxaa"].get();
-		nowDSRenderTarget = mRenderTargets["fxaa"].get();
-		{
-			// Turn to Shader Resource
-			TransResourceState(
-				mCommandList,
-				{ prevColorRenderTarget->GetColorResource() },
-				{ D3D12_RESOURCE_STATE_RENDER_TARGET},
-				{ D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE }
-			);
-
-			// Specify the buffers we are going to render to.
-			mCommandList->OMSetRenderTargets(
-				1, &nowColorRenderTarget->GetRTVCPUHandle(), 
-				true, &nowDSRenderTarget->GetDSVCPUHandle()
-			);
-
-			// Clear the back buffer and depth buffer.
-			mCommandList->ClearRenderTargetView(
-				nowColorRenderTarget->GetRTVCPUHandle(), 
-				nowColorRenderTarget->GetColorClearValue(), 
-				0, nullptr
-			);
-			mCommandList->ClearDepthStencilView(
-				nowDSRenderTarget->GetDSVCPUHandle(), 
-				D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 
-				nowDSRenderTarget->GetDepthClearValue(),  
-				nowDSRenderTarget->GetStencilClearValue(),
-				0, nullptr
-			);
-
-			// Set Root Signature
-			mCommandList->SetGraphicsRootSignature(mRootSigns["fxaa"].Get());
-
-			// Assign CBV
-			auto fxaaCBGPUAddr = mFxaaConstantsBuffers->Resource()->GetGPUVirtualAddress();
-			UINT64 fxaaCBElementByteSize = mFxaaConstantsBuffers->getElementByteSize();
-			mCommandList->SetGraphicsRootConstantBufferView(
-				0, fxaaCBGPUAddr + mFxaaConstants->getID() * fxaaCBElementByteSize
-			);
-
-			// Assign SRV
-			mCommandList->SetGraphicsRootDescriptorTable(
-				1, prevColorRenderTarget->GetSRVGPUHandle()
-			);
-
-			// Draw Render Items
-			auto& renderItem = mBackgroundRenderItem;
-			mCommandList->SetPipelineState(mPSOs["fxaa"].Get());
-
-			// Set IA
-			Mesh* mesh = Mesh::FindObjectByID(renderItem->MeshID);
-			SubMesh submesh = mesh->GetSubMesh(renderItem->SubMeshID);
-			D3D12_VERTEX_BUFFER_VIEW VBVs[1] = {
-				mesh->GetVertexBufferView()
-			};
-			mCommandList->IASetVertexBuffers(0, 1, VBVs);
-			mCommandList->IASetIndexBuffer(&mesh->GetIndexBufferView());
-			mCommandList->IASetPrimitiveTopology(submesh.primitiveTopology);
-
-			// Draw Call
-			mCommandList->DrawIndexedInstanced(
-				submesh.indexCount, 
-				1,
-				submesh.startIndexLoc,
-				submesh.baseVertexLoc,
-				0
-			);
-
-			// Turn Back
-			TransResourceState(
-				mCommandList,
-				{ prevColorRenderTarget->GetColorResource() },
-				{ D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE },
-				{ D3D12_RESOURCE_STATE_RENDER_TARGET}
-			);
-		}
-	}
-
-	// Copy to BackBuffer
-	{
-		CopyResource(
-			mCommandList,
-			mSwapChain->GetColorResource(),
-			D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_PRESENT,
-			nowColorRenderTarget->GetColorResource(),
-			D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RENDER_TARGET
-		);
-	}
-
-	// CommandList End Recording
-	{
-		// Done recording commands.
-		ThrowIfFailed(mCommandList->Close());
-	}
-
-	// Execute CommandList
-	{
-		// Add the command list to the queue for execution.
-		ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
-		mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
-	}
-
-	// Swap Chain
-	{
-		// swap the back and front buffers
-		mSwapChain->Swap();
-	}
-
-	// Wait until frame commands are complete.  This waiting is inefficient and is
-	// done for simplicity.  Later we will show how to organize our rendering code
-	// so we do not have to wait per frame.
-	FlushCommandQueue();
 }
 
 std::vector<CD3DX12_STATIC_SAMPLER_DESC> SceneGraphApp::GetStaticSamplers()
