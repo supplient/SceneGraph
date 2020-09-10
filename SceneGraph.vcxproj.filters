@@ -46,6 +46,9 @@
     <Filter Include="Shaders\Headers\BRDF">
       <UniqueIdentifier>{42f820b0-4271-477b-b0ef-5320d67f98ea}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Shaders\Discarded">
+      <UniqueIdentifier>{6bafdf84-d982-4b32-864f-4d2bcf8d44e9}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="SceneGraphApp.cpp">
@@ -91,6 +94,9 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="Texture.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="SceneGraphApp_Draw.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
@@ -161,6 +167,9 @@
     <ClInclude Include="FbxLoader.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="PIXHelper.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="simpleVertex.hlsl">
@@ -173,12 +182,6 @@
       <Filter>Shaders\Pixel</Filter>
     </FxCompile>
     <FxCompile Include="PixelShader.hlsl">
-      <Filter>Shaders\Pixel</Filter>
-    </FxCompile>
-    <FxCompile Include="transBlendPixel.hlsl">
-      <Filter>Shaders\Pixel</Filter>
-    </FxCompile>
-    <FxCompile Include="transPixel.hlsl">
       <Filter>Shaders\Pixel</Filter>
     </FxCompile>
     <FxCompile Include="displacementDomain.hlsl">
@@ -199,8 +202,14 @@
     <FxCompile Include="pointShadowPixel.hlsl">
       <Filter>Shaders\Pixel</Filter>
     </FxCompile>
+    <FxCompile Include="transBlendPixel.hlsl">
+      <Filter>Shaders\Discarded</Filter>
+    </FxCompile>
+    <FxCompile Include="transPixel.hlsl">
+      <Filter>Shaders\Discarded</Filter>
+    </FxCompile>
     <FxCompile Include="hbaoPixel.hlsl">
-      <Filter>Shaders\Pixel</Filter>
+      <Filter>Shaders\Discarded</Filter>
     </FxCompile>
   </ItemGroup>
   <ItemGroup>
@@ -241,6 +250,7 @@
     <None Include="HelpFunctions.hlsli">
       <Filter>Shaders\Headers</Filter>
     </None>
+    <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="Resources\Textures\bricks.dds">
