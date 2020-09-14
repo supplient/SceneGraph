@@ -342,6 +342,8 @@ bool D3DApp::InitMainWindow()
 	return true;
 }
 
+
+
 bool D3DApp::InitDirect3D()
 {
 #if defined(DEBUG) || defined(_DEBUG) 
@@ -355,11 +357,38 @@ bool D3DApp::InitDirect3D()
 
 	ThrowIfFailed(CreateDXGIFactory1(IID_PPV_ARGS(&mdxgiFactory)));
 
+	// Search Good hardware
+	IDXGIAdapter* adapter = nullptr;
+	DXGI_ADAPTER_DESC adapterDesc;
+	for (UINT i = 0; ; i++) {
+		IDXGIAdapter* tmp;
+		if (mdxgiFactory->EnumAdapters(i, &tmp) == DXGI_ERROR_NOT_FOUND)
+			break;
+		adapter = tmp;
+
+		adapter->GetDesc(&adapterDesc);
+		std::wstring text = adapterDesc.Description;
+		if (text.find(L"GTX") != std::wstring::npos)
+			break;
+	}
+
+	// Log Adapter's information
+	if (adapter) {
+		std::wstring text = L"Adapter: ";
+		text += adapterDesc.Description;
+		text += L"\n";
+
+		OutputDebugString(text.c_str());
+	}
+
 	// Try to create hardware device.
 	HRESULT hardwareResult = D3D12CreateDevice(
-		nullptr,             // default adapter
+		adapter,             // default adapter
 		D3D_FEATURE_LEVEL_11_0,
 		IID_PPV_ARGS(&md3dDevice));
+
+	// Release Reference
+	ReleaseCom(adapter);
 
 	// Fallback to WARP device.
 	if(FAILED(hardwareResult))
