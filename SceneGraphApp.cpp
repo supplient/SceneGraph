@@ -58,7 +58,7 @@ bool SceneGraphApp::Initialize()
 	ThrowIfFailed(mDirectCmdListAlloc->Reset());
 	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
-	bool fromFile = true;
+	bool fromFile = false;
 
 	// Init Scene
 	BuildManualTextures();
@@ -131,8 +131,154 @@ void SceneGraphApp::BuildManualTextures()
 	mTextures.insert(mTextures.end(), texs.begin(), texs.end());
 }
 
+void SceneGraphApp::BuildManualMaterials()
+{
+	auto defaultMtl = std::make_shared<Material>("default");
+	defaultMtl->mBaseColor = { 0.972f, 0.960f, 0.915f, 1.0f }; // silver
+	defaultMtl->mMetalness = 1.0f;
+	defaultMtl->mRoughness = 0.5f;
+	defaultMtl->mLTCMatTexID = Texture::FindByName("ggx_ltc_mat")->GetID();
+	defaultMtl->mLTCAmpTexID = Texture::FindByName("ggx_ltc_amp")->GetID();
+	mMaterials.push_back(defaultMtl);
+	Material::SetDefaultMaterialID(defaultMtl->GetID());
+
+/*
+	auto whiteMtl = std::make_shared<MaterialConstants>();
+	// whiteMtl->content.Diffuse = { 0.9f, 0.8f, 0.9f, 1.0f };
+	// whiteMtl->content.Specular = { 0.04f, 0.04f, 0.04f, 0.04f }; // default dielectrics
+	whiteMtl->content.Diffuse = { 0.0f, 0.0f, 0.0f, 0.0f };
+	whiteMtl->content.Specular = { 0.972f, 0.960f, 0.915f, 1.0f }; // silver
+	whiteMtl->content.LTCMatTexID = mResourceTextures["ggx_ltc_mat"]->ID + 1;
+	whiteMtl->content.LTCAmpTexID = mResourceTextures["ggx_ltc_amp"]->ID + 1;
+	// whiteMtl->content.DiffuseTexID = mResourceTextures["color"]->ID + 1;
+	// whiteMtl->content.DispTexID = mResourceTextures["height"]->ID + 1;
+	// whiteMtl->content.DispHeightScale = 0.7f;
+	// whiteMtl->content.NormalTexID = mResourceTextures["normal"]->ID + 1;
+	mMtlConsts["white"] = whiteMtl;
+*/
+/*
+	auto blueMtl = std::make_shared<MaterialConstants>();
+	blueMtl->content.Diffuse = { 0.0f, 0.0f, 1.0f, 1.0f };
+	mMtlConsts["blue"] = blueMtl;
+
+	auto redMtl = std::make_shared<MaterialConstants>();
+	redMtl->content.Diffuse = { 1.0f, 0.0f, 0.0f, 1.0f };
+	mMtlConsts["red"] = redMtl;
+	
+	auto transBlueMtl = std::make_shared<MaterialConstants>();
+	transBlueMtl->content.Diffuse = { 0.0f, 0.0f, 0.8f, 0.7f };
+	mMtlConsts["transBlue"] = transBlueMtl;
+
+	auto transRedMtl = std::make_shared<MaterialConstants>();
+	transRedMtl->content.Diffuse = { 0.8f, 0.0f, 0.0f, 0.7f };
+	mMtlConsts["transRed"] = transRedMtl;
+
+	auto cutoutTreeMtl = std::make_shared<MaterialConstants>();
+	cutoutTreeMtl->content.DiffuseTexID = mResourceTextures["tree"]->ID + 1;
+	cutoutTreeMtl->content.AlphaTestTheta = 0.2f;
+	mMtlConsts["cutoutTree"] = cutoutTreeMtl;
+*/
+}
+
 void SceneGraphApp::BuildManualMeshs()
 {
+	// Cloth
+	{
+		// Create Mesh
+		auto mesh = std::make_shared<Mesh>("cloth");
+
+		// Save Mesh
+		mMeshs.push_back(mesh);
+
+		// Generate Vertex Data
+		constexpr UINT32 n = 16;
+		constexpr FLOAT  lConst = 2.0f / FLOAT(n);
+
+		std::vector<Vertex> verts(n * n * 2);
+			// n * n vertices, 2 faces
+		std::vector<UINT32> indices((n - 1) * (n - 1) * 2 * 2 * 3); 
+			// (n-1)*(n-1) quads, 2 faces, 2 triangles/quad, 3 vertices/triangle
+		{
+			auto CalVertID = [&n](UINT32 i, UINT32 j, bool isFront) {
+				if (isFront)
+					return i * n + j;
+				else
+					return i * n + j + n * n;
+			};
+
+			// Cal verts
+			for (UINT32 i = 0; i < n; i++)
+			for (UINT32 j = 0; j < n; j++) {
+				// For verts, we fill the array as 
+				// [front vertices, back vertices]
+				// , which like Struct Of Array.
+				FLOAT x = (i - (n - 1) / 2.0f) * lConst;
+				FLOAT y = (j - (n - 1) / 2.0f) * lConst;
+				FLOAT z = 0.0f;
+
+				Vertex v;
+				v.pos = { x, y, z };
+				v.normal = { 0.0f, 0.0f, -1.0f };
+				v.tangent = { 0.0f, -1.0f, 0.0f };
+				v.tex = { FLOAT(j) / n, FLOAT(i) / n };
+				verts[CalVertID(i, j, true)] = v;
+				v.normal = { 0.0f, 0.0f, 1.0f };
+				verts[CalVertID(i, j, false)] = v;
+			}
+
+			// Cal indices
+			for (UINT32 i = 0; i < n-1; i++)
+			for (UINT32 j = 0; j < n-1; j++) {
+				// For indices, we fill the array as 
+				// [front up tri, front down tri, back up tri, backdown tri, ...]
+				// , which like Array Of Struct.
+				constexpr UINT32 sizePerQuad = 2 * 2 * 3;
+				UINT32 id = i * sizePerQuad * (n-1) + sizePerQuad * j;
+
+				UINT32 frontLeftUp    = CalVertID(i  , j  , true);
+				UINT32 frontRightUp   = CalVertID(i  , j+1, true);
+				UINT32 frontLeftDown  = CalVertID(i+1, j  , true);
+				UINT32 frontRightDown = CalVertID(i+1, j+1, true);
+				UINT32 backLeftUp     = CalVertID(i  , j  , false);
+				UINT32 backRightUp    = CalVertID(i  , j+1, false);
+				UINT32 backLeftDown   = CalVertID(i+1, j  , false);
+				UINT32 backRightDown  = CalVertID(i+1, j+1, false);
+
+				// Front Triangles
+				//		up
+				indices[id++] = frontLeftUp;
+				indices[id++] = frontRightUp;
+				indices[id++] = frontLeftDown;
+				//		down
+				indices[id++] = frontRightUp;
+				indices[id++] = frontRightDown;
+				indices[id++] = frontLeftDown;
+				// Back Triangles
+				//		up
+				indices[id++] = backLeftUp;
+				indices[id++] = backLeftDown;
+				indices[id++] = backRightUp;
+				//		down
+				indices[id++] = backRightUp;
+				indices[id++] = backLeftDown;
+				indices[id++] = backRightDown;
+			}
+		}
+
+		// Create submesh
+		SubMesh submesh;
+		submesh.baseVertexLoc = 0;
+		submesh.startIndexLoc = 0;
+		submesh.indexCount = static_cast<UINT>(indices.size());
+		mesh->AddSubMesh(submesh);
+
+		// Pass Vertex Data into Mesh
+		mesh->SetBuffer(verts, indices, DXGI_FORMAT_R32_UINT);
+
+		// Upload mesh
+		mesh->UploadBuffer(md3dDevice, mCommandList);
+	}
+
 	// Background
 	{
 		struct Vertex_in {
@@ -294,6 +440,20 @@ void SceneGraphApp::BuildObjects()
 
 void SceneGraphApp::BuildManualObjects()
 {
+	// Cloth
+	{
+		auto obj = std::make_shared<Object>("cloth");
+		Object::Link(mRootObject, obj);
+
+		auto renderItem = std::make_shared<RenderItem>();
+		renderItem->MeshID = Mesh::FindMeshByName("cloth")->GetID();
+		renderItem->SubMeshID = 0;
+		renderItem->MaterialID = Material::GetDefaultMaterialID();
+		renderItem->ObjectID = obj->GetID();
+
+		Object::Link(obj, renderItem);
+	}
+
 	// Post
 	{
 		auto obj = std::make_shared<Object>("background");
@@ -1490,54 +1650,6 @@ void SceneGraphApp::BuildGeos()
 }
 */
 
-void SceneGraphApp::BuildManualMaterials()
-{
-	auto defaultMtl = std::make_shared<Material>("default");
-	defaultMtl->mBaseColor = { 0.972f, 0.960f, 0.915f, 1.0f }; // silver
-	defaultMtl->mMetalness = 1.0f;
-	defaultMtl->mRoughness = 0.5f;
-	defaultMtl->mLTCMatTexID = Texture::FindByName("ggx_ltc_mat")->GetID();
-	defaultMtl->mLTCAmpTexID = Texture::FindByName("ggx_ltc_amp")->GetID();
-	mMaterials.push_back(defaultMtl);
-	Material::SetDefaultMaterialID(defaultMtl->GetID());
-
-/*
-	auto whiteMtl = std::make_shared<MaterialConstants>();
-	// whiteMtl->content.Diffuse = { 0.9f, 0.8f, 0.9f, 1.0f };
-	// whiteMtl->content.Specular = { 0.04f, 0.04f, 0.04f, 0.04f }; // default dielectrics
-	whiteMtl->content.Diffuse = { 0.0f, 0.0f, 0.0f, 0.0f };
-	whiteMtl->content.Specular = { 0.972f, 0.960f, 0.915f, 1.0f }; // silver
-	whiteMtl->content.LTCMatTexID = mResourceTextures["ggx_ltc_mat"]->ID + 1;
-	whiteMtl->content.LTCAmpTexID = mResourceTextures["ggx_ltc_amp"]->ID + 1;
-	// whiteMtl->content.DiffuseTexID = mResourceTextures["color"]->ID + 1;
-	// whiteMtl->content.DispTexID = mResourceTextures["height"]->ID + 1;
-	// whiteMtl->content.DispHeightScale = 0.7f;
-	// whiteMtl->content.NormalTexID = mResourceTextures["normal"]->ID + 1;
-	mMtlConsts["white"] = whiteMtl;
-*/
-/*
-	auto blueMtl = std::make_shared<MaterialConstants>();
-	blueMtl->content.Diffuse = { 0.0f, 0.0f, 1.0f, 1.0f };
-	mMtlConsts["blue"] = blueMtl;
-
-	auto redMtl = std::make_shared<MaterialConstants>();
-	redMtl->content.Diffuse = { 1.0f, 0.0f, 0.0f, 1.0f };
-	mMtlConsts["red"] = redMtl;
-	
-	auto transBlueMtl = std::make_shared<MaterialConstants>();
-	transBlueMtl->content.Diffuse = { 0.0f, 0.0f, 0.8f, 0.7f };
-	mMtlConsts["transBlue"] = transBlueMtl;
-
-	auto transRedMtl = std::make_shared<MaterialConstants>();
-	transRedMtl->content.Diffuse = { 0.8f, 0.0f, 0.0f, 0.7f };
-	mMtlConsts["transRed"] = transRedMtl;
-
-	auto cutoutTreeMtl = std::make_shared<MaterialConstants>();
-	cutoutTreeMtl->content.DiffuseTexID = mResourceTextures["tree"]->ID + 1;
-	cutoutTreeMtl->content.AlphaTestTheta = 0.2f;
-	mMtlConsts["cutoutTree"] = cutoutTreeMtl;
-*/
-}
 
 void SceneGraphApp::BuildAndUpdateMaterialConstantBuffers()
 {
@@ -2049,6 +2161,8 @@ void SceneGraphApp::OnResize()
 
 void SceneGraphApp::Update(const GameTimer& gt)
 {
+	Simulation(gt);
+
 	// Notice: Be careful, matrix need transpose.
 
 	float screenWidthHeightAspect = static_cast<float>(mClientWidth) / static_cast<float>(mClientHeight);

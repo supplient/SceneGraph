@@ -368,6 +368,8 @@ bool D3DApp::InitDirect3D()
 
 		adapter->GetDesc(&adapterDesc);
 		std::wstring text = adapterDesc.Description;
+		if (text.find(L"RTX") != std::wstring::npos)
+			break;
 		if (text.find(L"GTX") != std::wstring::npos)
 			break;
 	}

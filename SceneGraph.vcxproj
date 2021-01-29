@@ -158,6 +158,7 @@
     <ClCompile Include="Object.cpp" />
     <ClCompile Include="SceneGraphApp_Draw.cpp" />
     <ClCompile Include="SceneGraphAPP_Input.cpp" />
+    <ClCompile Include="SceneGraphApp_Simulation.cpp" />
     <ClCompile Include="Texture.cpp" />
     <ClCompile Include="WinMain.cpp" />
     <ClCompile Include="SceneGraphApp.cpp" />
@@ -183,6 +184,7 @@
     <ClInclude Include="RenderItem.h" />
     <ClInclude Include="RenderTarget.h" />
     <ClInclude Include="SceneGraphApp.h" />
+    <ClInclude Include="ShaderStruct.h" />
     <ClInclude Include="StaticDescriptorHeap.h" />
     <ClInclude Include="Texture.h" />
     <ClInclude Include="UnorderedAccessBuffer.h" />

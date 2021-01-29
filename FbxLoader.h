@@ -8,14 +8,7 @@
 #include "RenderItem.h"	
 #include "Texture.h"
 
-// Type Define
-// TODO consider about where to put this struct.
-struct Vertex {
-	DirectX::XMFLOAT3 pos;
-	DirectX::XMFLOAT3 normal;
-	DirectX::XMFLOAT3 tangent;
-	DirectX::XMFLOAT2 tex;
-};
+#include "ShaderStruct.h"
 
 class FbxLoader
 {

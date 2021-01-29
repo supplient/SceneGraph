@@ -42,7 +42,7 @@ public:
 
 	// Init DirectX
 	void BuildUABs();
-	void BuildRenderTargets(); // 仅仅初始化RenderTarget，不建立资源，也不建立描述符
+	void BuildRenderTargets(); // 仅仅初始化RenderTarget，不建立资源，也不建立描述穪E
 	void BuildDescriptorHeaps();
 
 	// Init PSOs
@@ -89,6 +89,9 @@ private:
 
 	virtual void OnKeyUp(WPARAM vKey)override;
 	virtual void OnKeyDown(WPARAM vKey)override;
+
+	// Simulations
+	void Simulation(const GameTimer& gt);
 
 	// Settings
 	bool mUseFXAA = false;

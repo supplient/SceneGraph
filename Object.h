@@ -17,7 +17,7 @@ public:
 
 	static bool Link(std::shared_ptr<Object> obj, std::shared_ptr<RenderItem> item)
 	{
-		if (item->ObjectID != INVALID_OBJECT_ID)
+		if (item->ObjectID == INVALID_OBJECT_ID)
 			return false;
 		obj->mRenderItems.push_back(item);
 		item->ObjectID = obj->mID;

@@ -99,6 +99,9 @@
     <ClCompile Include="SceneGraphApp_Draw.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="SceneGraphApp_Simulation.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="SceneGraphApp.h">
@@ -168,6 +171,9 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="PIXHelper.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="ShaderStruct.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
