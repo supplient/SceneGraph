@@ -42,7 +42,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v141</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
@@ -54,6 +54,7 @@
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 11.1.props" />
   </ImportGroup>
   <ImportGroup Label="Shared">
   </ImportGroup>
@@ -120,13 +121,23 @@
       <PrecompiledHeader>
       </PrecompiledHeader>
       <AdditionalIncludeDirectories>D:\code_concerned\FBX_SDK\2020.1.1\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>D:\code_concerned\FBX_SDK\2020.1.1\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>D:\code_concerned\FBX_SDK\2020.1.1\lib\vs2017\x64\debug\libfbxsdk.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>D:\code_concerned\FBX_SDK\2020.1.1\lib\vs2017\x64\debug\libfbxsdk.lib;cudart_static.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <CudaCompile>
+      <TargetMachinePlatform>64</TargetMachinePlatform>
+      <CodeGeneration>%(CodeGeneration)</CodeGeneration>
+      <Defines>WIN32;%(Defines)</Defines>
+      <Runtime>MTd</Runtime>
+      <NvccCompilation>compile</NvccCompilation>
+      <AdditionalCompilerOptions>
+      </AdditionalCompilerOptions>
+    </CudaCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -155,11 +166,13 @@
     <ClCompile Include="FbxLoader.cpp" />
     <ClCompile Include="Material.cpp" />
     <ClCompile Include="Mesh.cpp" />
+    <ClCompile Include="Mesh_cuda_interop.cpp" />
     <ClCompile Include="Object.cpp" />
     <ClCompile Include="SceneGraphApp_Draw.cpp" />
     <ClCompile Include="SceneGraphAPP_Input.cpp" />
     <ClCompile Include="SceneGraphApp_Simulation.cpp" />
     <ClCompile Include="Texture.cpp" />
+    <ClCompile Include="WindowsSecurityAttributes.cpp" />
     <ClCompile Include="WinMain.cpp" />
     <ClCompile Include="SceneGraphApp.cpp" />
   </ItemGroup>
@@ -174,10 +187,14 @@
     <ClInclude Include="Common\MathHelper.h" />
     <ClInclude Include="Common\UploadBuffer.h" />
     <ClInclude Include="Constants.h" />
+    <ClInclude Include="CudaInterface.h" />
+    <ClInclude Include="helper_cuda.h" />
     <ClInclude Include="FbxLoader.h" />
+    <ClInclude Include="helper_string.h" />
     <ClInclude Include="Light.h" />
     <ClInclude Include="Material.h" />
     <ClInclude Include="Mesh.h" />
+    <ClInclude Include="Mesh_cuda_interop.h" />
     <ClInclude Include="Object.h" />
     <ClInclude Include="PIXHelper.h" />
     <ClInclude Include="Predefine.h" />
@@ -185,9 +202,11 @@
     <ClInclude Include="RenderTarget.h" />
     <ClInclude Include="SceneGraphApp.h" />
     <ClInclude Include="ShaderStruct.h" />
+    <ClInclude Include="SimulationConst.h" />
     <ClInclude Include="StaticDescriptorHeap.h" />
     <ClInclude Include="Texture.h" />
     <ClInclude Include="UnorderedAccessBuffer.h" />
+    <ClInclude Include="WindowsSecurityAttributes.h" />
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="displacementDomain.hlsl">
@@ -332,9 +351,13 @@
     <Image Include="Resources\Textures\ggx_ltc_amp.dds" />
     <Image Include="Resources\Textures\ggx_ltc_mat.dds" />
   </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="ClothSim.cu" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
     <Import Project="packages\WinPixEventRuntime.1.0.200127001\build\WinPixEventRuntime.targets" Condition="Exists('packages\WinPixEventRuntime.1.0.200127001\build\WinPixEventRuntime.targets')" />
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 11.1.targets" />
   </ImportGroup>
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
     <PropertyGroup>

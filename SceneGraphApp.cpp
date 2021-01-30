@@ -5,11 +5,18 @@
 // the screen, and displaying frame stats.
 //
 //***************************************************************************************
+#include <locale>
+#include <codecvt>
 
 #include "SceneGraphApp.h"
 #include "Common/GeometryGenerator.h"
 #include "Predefine.h"
+#include "SimulationConst.h"
+
+#include "helper_cuda.h"
+
 #include "PIXHelper.h"
+
 
 using namespace DirectX;
 using Microsoft::WRL::ComPtr;
@@ -72,6 +79,10 @@ bool SceneGraphApp::Initialize()
 	BuildRenderItemQueueRecursively(mRootObject);
 	BuildLights();
 	BuildLightShadowConstantBuffers();
+
+	// Init CUDA
+	SelectCudaDevice();
+	BuildCudaExtMem();
 
 	// Init DirectX
 	BuildUABs();
@@ -185,27 +196,26 @@ void SceneGraphApp::BuildManualMeshs()
 	// Cloth
 	{
 		// Create Mesh
-		auto mesh = std::make_shared<Mesh>("cloth");
+		auto mesh = std::make_shared<Mesh_cuda_interop>("cloth");
 
 		// Save Mesh
 		mMeshs.push_back(mesh);
 
 		// Generate Vertex Data
-		constexpr UINT32 n = 16;
-		constexpr FLOAT  lConst = 2.0f / FLOAT(n);
+		using sim::n;
+		using sim::lConst;
+		auto CalVertID = [](int i, int j, bool isFront) {
+			if (isFront)
+				return i * n + j;
+			else
+				return i * n + j + n * n;
+		};
 
 		std::vector<Vertex> verts(n * n * 2);
 			// n * n vertices, 2 faces
 		std::vector<UINT32> indices((n - 1) * (n - 1) * 2 * 2 * 3); 
 			// (n-1)*(n-1) quads, 2 faces, 2 triangles/quad, 3 vertices/triangle
 		{
-			auto CalVertID = [&n](UINT32 i, UINT32 j, bool isFront) {
-				if (isFront)
-					return i * n + j;
-				else
-					return i * n + j + n * n;
-			};
-
 			// Cal verts
 			for (UINT32 i = 0; i < n; i++)
 			for (UINT32 j = 0; j < n; j++) {
@@ -560,6 +570,58 @@ void SceneGraphApp::BuildLightShadowConstantBuffers()
 		max(ShadowPassConstants::getTotalNum(), 1), 
 		true
 	);
+}
+
+void SceneGraphApp::SelectCudaDevice() 
+{
+	int num_cuda_devices = 0;
+	checkCudaErrors(cudaGetDeviceCount(&num_cuda_devices));
+
+	if (!num_cuda_devices)
+		throw std::exception("No CUDA Devices found.");
+	
+	for (UINT devId = 0; devId < num_cuda_devices; devId++) {
+		cudaDeviceProp devProp;
+		checkCudaErrors(cudaGetDeviceProperties(&devProp, devId));
+		
+		if(
+			(memcmp(
+				&mDX12DeviceLUID.LowPart, 
+				devProp.luid, 
+				sizeof(mDX12DeviceLUID.LowPart)
+			) == 0) 
+			&& (memcmp(
+				&mDX12DeviceLUID.HighPart, 
+				devProp.luid + sizeof(mDX12DeviceLUID.LowPart), 
+				sizeof(mDX12DeviceLUID.HighPart)
+			) == 0)
+		)
+        {
+			checkCudaErrors(cudaSetDevice(devId));
+			mCudaDeviceID = devId;
+			mCudaNodeMask = devProp.luidDeviceNodeMask;
+			checkCudaErrors(cudaStreamCreate(&mCudaStreamToRun));
+
+			std::wstring_convert<std::codecvt_utf8<wchar_t>> conv;
+			std::wstring text =
+				L"CUDA Device Used [" + 
+				std::to_wstring(devId) + L"] " + 
+				conv.from_bytes(devProp.name) + L"\n";
+			::OutputDebugString(text.c_str());
+			break;
+		}
+
+	}
+}
+
+void SceneGraphApp::BuildCudaExtMem()
+{
+	for (auto generalMesh : mMeshs) {
+		Mesh_cuda_interop* mesh = dynamic_cast<Mesh_cuda_interop*>(generalMesh.get());
+		if (!mesh)
+			continue;
+		mesh->BuildCudaExtMem(md3dDevice, mCudaNodeMask);
+	}
 }
 
 void SceneGraphApp::BuildUABs() 

@@ -374,6 +374,12 @@ bool D3DApp::InitDirect3D()
 			break;
 	}
 
+	// Save Adapter's LUID
+	if (adapter) {
+		adapter->GetDesc(&adapterDesc);
+		mDX12DeviceLUID = adapterDesc.AdapterLuid;
+	}
+
 	// Log Adapter's information
 	if (adapter) {
 		std::wstring text = L"Adapter: ";

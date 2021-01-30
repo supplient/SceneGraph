@@ -14,7 +14,8 @@ void Mesh::UploadBuffer(ComPtr<ID3D12Device> device, ComPtr<ID3D12GraphicsComman
 		device.Get(), commandList.Get(),
 		mVertexBufferCPU->GetBufferPointer(),
 		mVertexBufferByteSize,
-		mVertexBufferUpload
+		mVertexBufferUpload,
+		GetVertexBufferHeapFlags()
 	);
 	mIndexBufferGPU = d3dUtil::CreateDefaultBuffer(
 		device.Get(), commandList.Get(),

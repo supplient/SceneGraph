@@ -107,6 +107,7 @@ protected:
     Microsoft::WRL::ComPtr<IDXGIFactory4> mdxgiFactory;
     Microsoft::WRL::ComPtr<IDXGISwapChain> mSwapChain;
     Microsoft::WRL::ComPtr<ID3D12Device> md3dDevice;
+	LUID mDX12DeviceLUID;
 
     Microsoft::WRL::ComPtr<ID3D12Fence> mFence;
     UINT64 mCurrentFence = 0;

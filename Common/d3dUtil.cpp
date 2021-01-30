@@ -40,14 +40,15 @@ Microsoft::WRL::ComPtr<ID3D12Resource> d3dUtil::CreateDefaultBuffer(
     ID3D12GraphicsCommandList* cmdList,
     const void* initData,
     UINT64 byteSize,
-    Microsoft::WRL::ComPtr<ID3D12Resource>& uploadBuffer)
+    Microsoft::WRL::ComPtr<ID3D12Resource>& uploadBuffer,
+    D3D12_HEAP_FLAGS flags)
 {
     ComPtr<ID3D12Resource> defaultBuffer;
 
     // Create the actual default buffer resource.
     ThrowIfFailed(device->CreateCommittedResource(
         &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-        D3D12_HEAP_FLAG_NONE,
+        flags,
         &CD3DX12_RESOURCE_DESC::Buffer(byteSize),
 		D3D12_RESOURCE_STATE_COMMON,
         nullptr,

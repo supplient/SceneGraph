@@ -119,7 +119,8 @@ public:
         ID3D12GraphicsCommandList* cmdList,
         const void* initData,
         UINT64 byteSize,
-        Microsoft::WRL::ComPtr<ID3D12Resource>& uploadBuffer);
+        Microsoft::WRL::ComPtr<ID3D12Resource>& uploadBuffer,
+        D3D12_HEAP_FLAGS flags = D3D12_HEAP_FLAG_NONE);
 
 	static Microsoft::WRL::ComPtr<ID3DBlob> CompileShader(
 		const std::wstring& filename,

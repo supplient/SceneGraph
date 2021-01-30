@@ -102,6 +102,12 @@
     <ClCompile Include="SceneGraphApp_Simulation.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="WindowsSecurityAttributes.cpp">
+      <Filter>Common\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Mesh_cuda_interop.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="SceneGraphApp.h">
@@ -174,6 +180,24 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="ShaderStruct.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="helper_cuda.h">
+      <Filter>Common\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="helper_string.h">
+      <Filter>Common\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="WindowsSecurityAttributes.h">
+      <Filter>Common\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="Mesh_cuda_interop.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="SimulationConst.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="CudaInterface.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
@@ -277,5 +301,10 @@
     <Image Include="Resources\Textures\ggx_ltc_mat.dds">
       <Filter>资源文件\Textures</Filter>
     </Image>
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="ClothSim.cu">
+      <Filter>源文件</Filter>
+    </CudaCompile>
   </ItemGroup>
 </Project>

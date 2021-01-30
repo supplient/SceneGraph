@@ -22,7 +22,7 @@ public:
 		sIDCount++;
 		sIDMap.push_back(this);
 	}
-	~Mesh() {
+	virtual ~Mesh() {
 		sIDMap[mID] = nullptr;
 	}
 
@@ -60,7 +60,9 @@ public:
 	}
 	UINT GetSubMeshNum() { return static_cast<UINT>(mSubMeshs.size()); }
 
-private:
+protected:
+	virtual D3D12_HEAP_FLAGS GetVertexBufferHeapFlags()const { return D3D12_HEAP_FLAG_NONE; }
+
 	// Note: We left UINT32_MAX as an invalid ID.
 	UINT mID;
 	static UINT sIDCount;

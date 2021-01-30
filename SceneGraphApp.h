@@ -1,7 +1,8 @@
-#pragma once
+ï»¿#pragma once
 #include <DirectXColors.h>
 #include <functional>
 #include <fbxsdk.h>
+#include <cuda_runtime.h>
 
 #include "Common/d3dApp.h"
 #include "Common/UploadBuffer.h"
@@ -15,6 +16,7 @@
 #include "Texture.h"
 #include "Material.h"
 #include "Mesh.h"
+#include "Mesh_cuda_interop.h"
 #include "FbxLoader.h"
 
 class SceneGraphApp : public D3DApp
@@ -40,9 +42,13 @@ public:
 	void BuildLights();
 	void BuildLightShadowConstantBuffers();
 
+	// Init CUDA
+	void SelectCudaDevice();
+	void BuildCudaExtMem();
+
 	// Init DirectX
 	void BuildUABs();
-	void BuildRenderTargets(); // ½ö½ö³õÊ¼»¯RenderTarget£¬²»½¨Á¢×ÊÔ´£¬Ò²²»½¨Á¢ÃèÊö·E
+	void BuildRenderTargets(); // ä»…ä»…åˆå§‹åŒ–RenderTargetï¼Œä¸å»ºç«‹èµ„æºï¼Œä¹Ÿä¸å»ºç«‹æè¿°ç¬¦
 	void BuildDescriptorHeaps();
 
 	// Init PSOs
@@ -58,7 +64,7 @@ public:
 	void UpdateLightsInPassConstantBuffers();
 	// void BuildGeos();
 	void BuildAndUpdateMaterialConstantBuffers();
-	
+
 	// Init Render Item Resources
 	void BuildObjectConstantBuffers();
 
@@ -101,9 +107,14 @@ private:
 	static const UINT SHADOW_MAPPING_WIDTH = 1024;
 	static const UINT SHADOW_MAPPING_HEIGHT = 1024;
 
+	// CUDA
+	UINT mCudaDeviceID;
+	UINT mCudaNodeMask;
+	cudaStream_t mCudaStreamToRun;
+
 	// Viewports & ScissorRects
 	D3D12_VIEWPORT mShadowScreenViewport;
-    D3D12_RECT mShadowScissorRect;
+	D3D12_RECT mShadowScissorRect;
 
 	// Camera
 	Camera mCamera;
