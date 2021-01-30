@@ -727,5 +727,5 @@ void SceneGraphApp::Draw(const GameTimer& gt)
 	// Wait until frame commands are complete.  This waiting is inefficient and is
 	// done for simplicity.  Later we will show how to organize our rendering code
 	// so we do not have to wait per frame.
-	FlushCommandQueue();
+	WaitForGPU();
 }

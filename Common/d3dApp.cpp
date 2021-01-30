@@ -35,7 +35,7 @@ D3DApp::D3DApp(HINSTANCE hInstance)
 D3DApp::~D3DApp()
 {
 	if(md3dDevice != nullptr)
-		FlushCommandQueue();
+		WaitForGPU();
 }
 
 HINSTANCE D3DApp::AppInst()const
@@ -126,7 +126,7 @@ void D3DApp::OnResize()
     assert(mDirectCmdListAlloc);
 
 	// Flush before changing any resources.
-	FlushCommandQueue();
+	WaitForGPU();
 
 	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
@@ -138,7 +138,7 @@ void D3DApp::OnResize()
 	mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
 
 	// Wait until resize is complete.
-	FlushCommandQueue();
+	WaitForGPU();
 
 	// Update the viewport transform to cover the client area.
 	mScreenViewport.TopLeftX = 0;
@@ -410,7 +410,7 @@ bool D3DApp::InitDirect3D()
 			IID_PPV_ARGS(&md3dDevice)));
 	}
 
-	ThrowIfFailed(md3dDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE,
+	ThrowIfFailed(md3dDevice->CreateFence(0, D3D12_FENCE_FLAG_SHARED,
 		IID_PPV_ARGS(&mFence)));
 
 	mRtvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
@@ -468,7 +468,7 @@ void D3DApp::CreateCommandObjects()
 }
 
 
-void D3DApp::FlushCommandQueue()
+void D3DApp::WaitForGPU()
 {
 	// Advance the fence value to mark commands up to this fence point.
     mCurrentFence++;

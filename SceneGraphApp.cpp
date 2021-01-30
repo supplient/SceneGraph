@@ -83,6 +83,7 @@ bool SceneGraphApp::Initialize()
 	// Init CUDA
 	SelectCudaDevice();
 	BuildCudaExtMem();
+	BuildCudaExtSem();
 
 	// Init DirectX
 	BuildUABs();
@@ -116,10 +117,13 @@ bool SceneGraphApp::Initialize()
 	mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
 
 	// Wait until initialization is complete.
-	FlushCommandQueue();
+	WaitForGPU();
 
     // Do the initial resize code.
     OnResize();
+
+	// Init Simulation
+	InitSimulation();
 
 	return true;
 }
@@ -622,6 +626,32 @@ void SceneGraphApp::BuildCudaExtMem()
 			continue;
 		mesh->BuildCudaExtMem(md3dDevice, mCudaNodeMask);
 	}
+}
+
+void SceneGraphApp::BuildCudaExtSem()
+{
+	// Get shared handle
+	HANDLE sharedHandle;
+	LPCWSTR name = NULL;
+	WindowsSecurityAttributes windowsSecurityAttributes;
+	md3dDevice->CreateSharedHandle(
+		mFence.Get(), 
+		&windowsSecurityAttributes, 
+		GENERIC_ALL, 
+		name, 
+		&sharedHandle
+	);
+
+	// Make Semaphore handle descriptor
+	cudaExternalSemaphoreHandleDesc extSemHandleDesc;
+	memset(&extSemHandleDesc, 0, sizeof(extSemHandleDesc));
+	extSemHandleDesc.type = cudaExternalSemaphoreHandleTypeD3D12Fence;
+	extSemHandleDesc.handle.win32.handle = (void *)sharedHandle;
+	extSemHandleDesc.flags = 0;
+
+	// Import the external semaphore
+	checkCudaErrors(cudaImportExternalSemaphore(&mCudaExtSem, &extSemHandleDesc));
+	// mCurrentFence++;
 }
 
 void SceneGraphApp::BuildUABs() 
@@ -2198,7 +2228,7 @@ void SceneGraphApp::OnResize()
 	D3DApp::OnResize();
 
 	// Flush before changing any resources.
-	FlushCommandQueue();
+	WaitForGPU();
 
 	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
@@ -2213,7 +2243,7 @@ void SceneGraphApp::OnResize()
 	mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
 
 	// Wait until resize is complete.
-	FlushCommandQueue();
+	WaitForGPU();
 
 	mShadowScreenViewport = mScreenViewport;
 	mShadowScreenViewport.Width = static_cast<float>(SHADOW_MAPPING_WIDTH);
@@ -2375,3 +2405,38 @@ void SceneGraphApp::UpdateFXAAState(bool newState) {
         mUseFXAA = newState;
     }
 }
+
+void SceneGraphApp::CudaWait()
+{
+	cudaExternalSemaphoreWaitParams externalSemaphoreWaitParams;
+	memset(&externalSemaphoreWaitParams, 0, sizeof(externalSemaphoreWaitParams));
+	externalSemaphoreWaitParams.params.fence.value = mCurrentFence;
+	externalSemaphoreWaitParams.flags = 0;
+
+	checkCudaErrors(cudaWaitExternalSemaphoresAsync(
+		&mCudaExtSem, 
+		&externalSemaphoreWaitParams, 
+		1, 
+		mCudaStreamToRun
+	));
+
+}
+
+void SceneGraphApp::CudaSignal()
+{
+	mCurrentFence++;
+
+	cudaExternalSemaphoreSignalParams externalSemaphoreSignalParams;
+	memset(&externalSemaphoreSignalParams, 0, sizeof(externalSemaphoreSignalParams));
+	externalSemaphoreSignalParams.params.fence.value = mCurrentFence;
+	externalSemaphoreSignalParams.flags = 0;
+
+	checkCudaErrors(cudaSignalExternalSemaphoresAsync(
+		&mCudaExtSem, 
+		&externalSemaphoreSignalParams, 
+		1, 
+		mCudaStreamToRun
+	));
+}
+
+

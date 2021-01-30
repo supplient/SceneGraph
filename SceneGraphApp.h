@@ -45,6 +45,7 @@ public:
 	// Init CUDA
 	void SelectCudaDevice();
 	void BuildCudaExtMem();
+	void BuildCudaExtSem();
 
 	// Init DirectX
 	void BuildUABs();
@@ -77,6 +78,9 @@ public:
 	void ResizeRenderTargets();
 	void ResizeShadowRenderTargets();
 	void ResizeFxaa();
+
+	// Init Simulation
+	void InitSimulation();
 
 private:
 
@@ -111,6 +115,9 @@ private:
 	UINT mCudaDeviceID;
 	UINT mCudaNodeMask;
 	cudaStream_t mCudaStreamToRun;
+	cudaExternalSemaphore_t mCudaExtSem;
+	void CudaWait();
+	void CudaSignal();
 
 	// Viewports & ScissorRects
 	D3D12_VIEWPORT mShadowScreenViewport;

@@ -64,7 +64,7 @@ protected:
 	bool InitDirect3D();
 	void CreateCommandObjects();
 
-	void FlushCommandQueue();
+	void WaitForGPU();
 
 	void CalculateFrameStats();
 

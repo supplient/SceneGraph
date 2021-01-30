@@ -9,7 +9,13 @@ using Microsoft::WRL::ComPtr;
 
 #include "CudaInterface.h"
 
+void SceneGraphApp::InitSimulation()
+{
+
+}
+
 void SceneGraphApp::Simulation(const GameTimer& gt) {
+	CudaWait();
 	// TODO Here just a test code
 	//		Final Simulation should be far more complex
 
@@ -19,12 +25,6 @@ void SceneGraphApp::Simulation(const GameTimer& gt) {
 
 	ClothSimulation(verts, mCudaStreamToRun, gt.TotalTime());
 
-	// Add Gravity
-	// static float v = 0.0f;
-	// static float x = 0.0f;
-	// static float g = 9.8f;
-	// float dt = gt.DeltaTime();
-	// v += g * dt;
-	// x += v * dt;
-	// mRootObject->SetTranslation(0, -x, 0);
+	CudaSignal();
+	WaitForGPU();
 }
