@@ -37,13 +37,16 @@
     #define RECT_LIGHT_ON 0
 #endif
 #ifndef SHADING_MODEL
-    #define SHADING_MODEL 1
+    #define SHADING_MODEL 0
 // 0: Simplest Diffuse
 // 1: Phong Model
 // 2: LTC
 #endif
 #ifndef HBAO_DEBUG
     #define HBAO_DEBUG 0
+#endif
+#ifndef HAS_SHADOW
+    #define HAS_SHADOW 0
 #endif
 // Swichs End
 

@@ -190,6 +190,7 @@
     <ClInclude Include="CudaInterface.h" />
     <ClInclude Include="helper_cuda.h" />
     <ClInclude Include="FbxLoader.h" />
+    <ClInclude Include="helper_math.h" />
     <ClInclude Include="helper_string.h" />
     <ClInclude Include="Light.h" />
     <ClInclude Include="Material.h" />

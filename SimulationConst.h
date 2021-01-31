@@ -6,11 +6,11 @@
 //	But actually I don't know why and what it is.
 
 namespace sim {
-	constexpr int	 n = 16;
-	constexpr float  lConst = 2.0f / float(n);
-
-	class Helper
-	{
-	public:
-	};
+	constexpr int	n = 64;
+	constexpr float lConst = 2.0f / float(n);
+	constexpr float lCutConst = lConst * 1.41421356f;
+	constexpr float lBendConst = lConst * 2;
+	constexpr float m = 0.008f; // kg
+	constexpr float gravityConstant = 9.8f;
+	constexpr float timestep = 0.001f;
 };

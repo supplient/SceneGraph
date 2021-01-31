@@ -11,7 +11,12 @@ using Microsoft::WRL::ComPtr;
 
 void SceneGraphApp::InitSimulation()
 {
+	CudaWait();
 
+	sim::InitClothSimulation(mCudaStreamToRun);
+
+	CudaSignal();
+	WaitForGPU();
 }
 
 void SceneGraphApp::Simulation(const GameTimer& gt) {
@@ -23,7 +28,18 @@ void SceneGraphApp::Simulation(const GameTimer& gt) {
 	auto mesh = dynamic_cast<Mesh_cuda_interop*>(generalMesh);
 	Vertex* verts = reinterpret_cast<Vertex*>(mesh->GetCudaDevicePtr());
 
-	ClothSimulation(verts, mCudaStreamToRun, gt.TotalTime());
+	float timeRatio = sim::timestep / 0.5f;
+	timeRatio = 1.2f; // set 2.0f means 2 faster
+
+	static float timeCache = 0.0f;
+	timeCache += gt.DeltaTime() * timeRatio;
+	while (timeCache > sim::timestep) {
+		sim::ClothSimulation(verts, mCudaStreamToRun, gt.TotalTime());
+
+		timeCache -= sim::timestep;
+	}
+	sim::UpdateNormal(verts, mCudaStreamToRun);
+
 
 	CudaSignal();
 	WaitForGPU();

@@ -79,6 +79,7 @@ float3 calLights(
         // Cal Light Color
         // Shadow Test
         float shadowFactor = 1.0f;
+#if HAS_SHADOW
 #if DIR_SHADOW_TEX_NUM > 0
         if (IsValidLightID(gDirLights[i].id))
         {
@@ -92,6 +93,7 @@ float3 calLights(
             if(receiverDepth > occluderDepth)
                 shadowFactor = 0.0f;
         }
+#endif
 #endif
         float3 lightColor = shadowFactor * gDirLights[i].color.xyz;
         
@@ -112,6 +114,7 @@ float3 calLights(
         // Cal Light Color
         // Shadow Test
         float shadowFactor = 1.0f;
+#if HAS_SHADOW
 #if POINT_SHADOW_TEX_NUM > 0
         if (IsValidLightID(gPointLights[i].id))
         {
@@ -121,6 +124,7 @@ float3 calLights(
             if(receiverDepth > occluderDepth)
                 shadowFactor = 0.0f;
         }
+#endif
 #endif
         // Light Attenuation
         float distAtte = calDistAttenuation(dist, gPointLights[i].r0, gPointLights[i].rmin);
@@ -143,6 +147,7 @@ float3 calLights(
         // Cal Light Color
         // Shadow Test
         float shadowFactor = 1.0f;
+#if HAS_SHADOW
 #if SPOT_SHADOW_TEX_NUM > 0
         if (IsValidLightID(gSpotLights[i].id))
         {
@@ -156,6 +161,7 @@ float3 calLights(
             if(receiverDepth > occluderDepth)
                 shadowFactor = 0.0f;
         }
+#endif
 #endif
         // Light Attenuation
         float distAtte = calDistAttenuation(dist, gSpotLights[i].r0, gSpotLights[i].rmin);

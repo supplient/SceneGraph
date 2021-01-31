@@ -505,13 +505,16 @@ void SceneGraphApp::BuildLights()
 		{0.0f, 0.0f, 1.0f}
 	});
 
+	/*
 	mPointLights.push_back({
 		// {4.0f, 0.4f, 0.2f},
 		{0.4f, 0.4f, 0.4f},
 		{0.0f, 2.0f, 0.0f},
 		0.01f, 10.0f
 	});
+	*/
 
+	/*
 	mSpotLights.push_back({
 		// {0.2f, 4.0f, 0.4f},
 		{0.4f, 0.4f, 0.4f},
@@ -520,6 +523,7 @@ void SceneGraphApp::BuildLights()
 		0.01f, 10.0f,
 		10.0f, 45.0f
 	});
+	*/
 
 	/*
 	mRectLights.push_back({

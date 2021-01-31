@@ -200,6 +200,9 @@
     <ClInclude Include="CudaInterface.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="helper_math.h">
+      <Filter>Common\Header</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="simpleVertex.hlsl">
