@@ -18,6 +18,8 @@ public:
 	void Stop();  // Call when paused.
 	void Tick();  // Call every frame.
 
+	double GetSecondsPerCount()const { return mSecondsPerCount; }
+
 private:
 	double mSecondsPerCount;
 	double mDeltaTime;
